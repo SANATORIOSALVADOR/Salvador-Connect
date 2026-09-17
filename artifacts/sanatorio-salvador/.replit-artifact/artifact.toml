@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Sanatorio Salvador - Sistema Interno"
+description = "A Spanish-language internal management system for Sanatorio del Salvador, starting with secure access, a role-aware hospital workspace, Dashboard, and administrative agenda with reminders."
+version = "1.0.0"
+id = "artifacts/sanatorio-salvador"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23841
+
+[services.development]
+run = "pnpm --filter @workspace/sanatorio-salvador run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sanatorio-salvador", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/sanatorio-salvador/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23841"
+BASE_PATH = "/"
