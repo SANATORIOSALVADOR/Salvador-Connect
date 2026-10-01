@@ -1,32 +1,13 @@
-# Dependencies
 node_modules/
-
-# Build
 dist/
-tmp/
-out-tsc/
-*.tsbuildinfo
-
-# Env (nunca commitear secretos)
+build/
 .env
-.env.local
-.env.*.local
-
-# Logs / coverage
-*.log
-npm-debug.log*
-yarn-error.log*
-coverage/
-
-# OS / IDE
+.env.*
+!.env.example
+.env.deploy
+docker-compose.override.yml
+*.tsbuildinfo
 .DS_Store
-Thumbs.db
-.idea/
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
-
-# Caches
-.cache/
-.local/
-.turbo/
+.pnpm-store/
+coverage/
+.tmp/
