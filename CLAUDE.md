@@ -1,86 +1,57 @@
-# CLAUDE.md — Contexto del proyecto para Claude Code
+# CLAUDE.md — Contexto para Claude Code
 
 ## Proyecto
 
 **Sanatorio del Salvador — Sistema Interno (Salvador-Connect)**
 
-Sistema interno modular de gestión administrativa para un sanatorio privado (on-premise).
+Monorepo pnpm limpio (sin dependencias de Replit Agent, sin Clerk, sin Supabase).
 
 ## Stack
 
-- Frontend: React 19 + TypeScript + Tailwind + shadcn/ui
-- Backend: Express 5 + TypeScript
-- DB: **PostgreSQL puro** + Drizzle ORM (sin Supabase)
+- Backend: Express 5 + TypeScript (`artifacts/api-server`)
+- DB: PostgreSQL + Drizzle (`lib/db`)
+- Validación: Zod (`lib/api-zod`) + OpenAPI (`lib/api-spec`)
 - Auth: sesiones propias (cookie httpOnly + scrypt)
-- Monorepo: pnpm workspaces
-- Infra objetivo: Linux sobre Proxmox
+- Frontend real: pendiente (no usar `mockup-sandbox`)
+- Infra: Linux / Proxmox
+
+## Leer también
+
+- `AGENTS.md` — reglas cortas para agentes
+- `docs/ALCANCE_MVP.md`
+- `docs/CLAUDE_CODE.md`
+- `docs/POSTGRES.md`
+- `docs/ESTADO_ACTUAL.md`
+- `docs/LIMPIEZA_REPLIT.md`
 
 ## Roles
 
-- `superadmin` → Administrador General (acceso total)
-- `responsable_sector` → solo gestiona sus sectores
-- `usuario` → consulta limitada a sus sectores
+- `superadmin` — Administrador General
+- `responsable_sector` — solo sus sectores
+- `usuario` — consulta limitada
 
-## Módulos MVP (orden de tramos)
+## Tramos MVP
 
-1. Fundación (Login + Layout + Roles + Sectores + Dashboard)
-2. Administración (Agenda + Recordatorios + Calendario + campanita)
-3. Guardias (carga, calendario por sector, alerta cobertura, modalidad Presencial/Retención)
-4. Inventario (activos fijos, asignación a sector, historial de movimientos)
-5. Instructivos (PDF formales por sector)
-6. Configuración (ABM usuarios, sectores, catálogos)
-7. Liquidación → solo placeholder
-
-## Decisiones ya tomadas
-
-- PostgreSQL puro (NO Supabase).
-- Inventario = activos fijos (no consumibles en MVP).
-- Cambio de sector de un activo = registro en `inventory_movements`.
-- Recordatorios de Agenda: solo dentro del sistema (campanita) en MVP.
-- Instructivos: PDFs formales (no wiki).
-- Referencias UX: Snipe-IT, BookStack, Vikunja, BetterShift/Grafana OnCall.
-
-## Estructura
-
-```
-artifacts/api-server/     → Backend Express
-lib/db/                   → Schema Drizzle + pool PG
-lib/api-spec/             → OpenAPI
-lib/api-zod/              → Validación
-lib/api-client-react/     → Cliente tipado
-docs/                     → Alcance, arquitectura, Postgres, Claude Code
-scripts/src/              → Seeds y utilidades
-```
+1. Fundación → 2. Administración → 3. Guardias → 4. Inventario (activos fijos) → 5. Instructivos → 6. Configuración → 7. Liquidación (placeholder)
 
 ## Comandos
 
 ```bash
-export DATABASE_URL="postgresql://..."
-pnpm --filter @workspace/db run push          # schema → DB
-pnpm --filter @workspace/api-server run dev   # API
+pnpm install
+export DATABASE_URL="postgresql://user:pass@localhost:5432/sanatorio_db"
+pnpm run db:push
+pnpm run db:seed-sectors
+pnpm run dev:api
 pnpm run typecheck
-pnpm exec tsx scripts/src/seed-sectors.ts     # sectores de ejemplo
 ```
-
-Ver también: `docs/POSTGRES.md`, `docs/CLAUDE_CODE.md`.
-
-## Reglas de negocio
-
-- Filtro automático por sector en Guardias e Inventario (excepto superadmin).
-- Bootstrap de superadmin en el primer arranque (`artifacts/api-server/src/lib/auth.ts`).
-- Credenciales de bootstrap: solo equipo; **no** publicar en README.
 
 ## Qué NO hacer
 
-- No reintroducir Supabase.
-- No modelar Inventario como stock de consumibles en el MVP.
-- No Email/WhatsApp de recordatorios en el MVP.
-- No implementar Liquidación (solo placeholder).
-- No documentar contraseñas en el repositorio.
+- No reinstalar paquetes `@replit/*` ni Clerk ni Supabase
+- No tratar Inventario como stock de consumibles en el MVP
+- No publicar contraseñas en el repo
+- No basar el frontend en `artifacts/mockup-sandbox` (residual Replit; se puede borrar al crear `apps/web`)
 
-## Cómo trabajar con Claude Code
+## Bootstrap
 
-1. Leer este archivo + `docs/ALCANCE_MVP.md` + `docs/CLAUDE_CODE.md`.
-2. Un tramo a la vez: schema → API → UI → probar.
-3. Tipado estricto y Zod en endpoints.
-4. Tras cambiar schema: `pnpm --filter @workspace/db run push` y actualizar docs de estado si hace falta.
+Usuario superadmin se crea al primer arranque de la API si no existe (`artifacts/api-server/src/lib/auth.ts`). Credenciales solo del equipo.
