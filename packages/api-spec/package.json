@@ -1,8 +1,5 @@
 {
   "name": "@salvador/api-spec",
   "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "codegen": "orval --config ./orval.config.ts"
-  }
+  "private": true
 }

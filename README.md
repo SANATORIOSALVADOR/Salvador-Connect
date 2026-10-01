@@ -1,37 +1,38 @@
 # Salvador-Connect
 
-Sistema interno modular del **Sanatorio del Salvador**.
+Sistema interno del **Sanatorio del Salvador**.
 
-## Estructura (final)
+## Estructura
 
 ```text
-salvador-connect/
-├── apps/
-│   ├── api/                 # Backend Express (@salvador/api)
-│   └── web/                 # Frontend React + Vite (@salvador/web)
-├── packages/
-│   ├── db/                  # PostgreSQL + Drizzle
-│   ├── api-spec/
-│   ├── api-zod/
-│   └── api-client-react/
-├── scripts/
-├── docs/
-├── CLAUDE.md
-└── AGENTS.md
+apps/api          Backend Express (@salvador/api)
+apps/web          Frontend React + Vite (@salvador/web)
+packages/db       PostgreSQL + Drizzle
+packages/api-zod  Validación Zod
+packages/api-spec OpenAPI (placeholder / Orval)
+packages/api-client-react
+scripts/
+docs/
 ```
 
-## Desarrollo
+## Arranque local
 
 ```bash
 pnpm install
 cp .env.example .env
-# DATABASE_URL=postgresql://...
+# DATABASE_URL=postgresql://user:pass@localhost:5432/sanatorio_db
 
 pnpm run db:push
-pnpm run dev:api
+PORT=5000 pnpm run dev:api
 pnpm run dev:web
 ```
 
-Si aún existen carpetas `artifacts/` o `lib/`, son legadas: `git rm -rf artifacts lib && git commit && git push`.
+Si todavía existen carpetas `artifacts/` o `lib/`:
 
-Uso interno — Sanatorio del Salvador.
+```bash
+chmod +x scripts/finalize-repo.sh
+./scripts/finalize-repo.sh
+git push
+```
+
+Ver también: `docs/CI.md`, `docs/OPERATIVO.md`.
