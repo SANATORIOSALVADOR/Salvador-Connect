@@ -1,57 +1,34 @@
-# CLAUDE.md — Contexto para Claude Code
+# CLAUDE.md
 
 ## Proyecto
 
-**Sanatorio del Salvador — Sistema Interno (Salvador-Connect)**
+Sanatorio del Salvador — Sistema Interno.
 
-Monorepo pnpm limpio (sin dependencias de Replit Agent, sin Clerk, sin Supabase).
+## Estructura
 
-## Stack
-
-- Backend: Express 5 + TypeScript (`artifacts/api-server`)
-- DB: PostgreSQL + Drizzle (`lib/db`)
-- Validación: Zod (`lib/api-zod`) + OpenAPI (`lib/api-spec`)
-- Auth: sesiones propias (cookie httpOnly + scrypt)
-- Frontend real: pendiente (no usar `mockup-sandbox`)
-- Infra: Linux / Proxmox
-
-## Leer también
-
-- `AGENTS.md` — reglas cortas para agentes
-- `docs/ALCANCE_MVP.md`
-- `docs/CLAUDE_CODE.md`
-- `docs/POSTGRES.md`
-- `docs/ESTADO_ACTUAL.md`
-- `docs/LIMPIEZA_REPLIT.md`
-
-## Roles
-
-- `superadmin` — Administrador General
-- `responsable_sector` — solo sus sectores
-- `usuario` — consulta limitada
-
-## Tramos MVP
-
-1. Fundación → 2. Administración → 3. Guardias → 4. Inventario (activos fijos) → 5. Instructivos → 6. Configuración → 7. Liquidación (placeholder)
+```text
+apps/api       @salvador/api      Backend Express
+apps/web       @salvador/web      Frontend React/Vite
+packages/db    @salvador/db       Drizzle + PostgreSQL
+packages/api-*                    OpenAPI, Zod, cliente
+scripts                           Seeds
+docs                              Especificación
+```
 
 ## Comandos
 
 ```bash
 pnpm install
-export DATABASE_URL="postgresql://user:pass@localhost:5432/sanatorio_db"
+export DATABASE_URL=postgresql://...
 pnpm run db:push
-pnpm run db:seed-sectors
 pnpm run dev:api
-pnpm run typecheck
+pnpm run dev:web
 ```
 
-## Qué NO hacer
+## Tramos MVP
 
-- No reinstalar paquetes `@replit/*` ni Clerk ni Supabase
-- No tratar Inventario como stock de consumibles en el MVP
-- No publicar contraseñas en el repo
-- No basar el frontend en `artifacts/mockup-sandbox` (residual Replit; se puede borrar al crear `apps/web`)
+Fundación → Administración → Guardias → Inventario → Instructivos → Configuración
 
-## Bootstrap
+## Prohibido
 
-Usuario superadmin se crea al primer arranque de la API si no existe (`artifacts/api-server/src/lib/auth.ts`). Credenciales solo del equipo.
+Replit packages, Clerk, Supabase, inventario como stock, contraseñas en el repo.

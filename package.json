@@ -6,16 +6,18 @@
   "description": "Sistema interno del Sanatorio del Salvador",
   "scripts": {
     "preinstall": "node -e \"const ua=process.env.npm_config_user_agent||''; if(!ua.includes('pnpm')){console.error('Usá pnpm'); process.exit(1)}\"",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "typecheck": "pnpm -r --filter \"./artifacts/api-server\" --filter \"./lib/**\" --filter \"./scripts\" --if-present run typecheck",
-    "db:push": "pnpm --filter @workspace/db run push",
-    "db:seed-sectors": "pnpm --filter @workspace/scripts run seed-sectors",
-    "dev:api": "pnpm --filter @workspace/api-server run dev"
+    "dev": "pnpm run dev:api",
+    "dev:api": "pnpm --filter @salvador/api run dev",
+    "dev:web": "pnpm --filter @salvador/web run dev",
+    "build": "pnpm -r --filter @salvador/api --filter @salvador/web --if-present run build",
+    "typecheck": "pnpm -r --filter './apps/*' --filter './packages/*' --filter './scripts' --if-present run typecheck",
+    "db:push": "pnpm --filter @salvador/db run push",
+    "db:seed-sectors": "pnpm --filter @salvador/scripts run seed-sectors"
   },
   "devDependencies": {
-    "prettier": "^3.9.6",
-    "tsx": "^4.21.0",
-    "typescript": "~5.9.3"
+    "prettier": "^3.5.3",
+    "tsx": "catalog:",
+    "typescript": "~5.8.2"
   },
   "engines": {
     "node": ">=20",
