@@ -54,7 +54,7 @@ lib/api-client-react/     → Cliente tipado
 
 - Filtrado automático por sector en Guardias e Inventario.
 - Solo Responsable de Sector o Admin puede editar guardias/inventario de su sector.
-- Bootstrap de usuario `saceliz` (superadmin) en el primer arranque.
+- Bootstrap de un usuario superadmin en el primer arranque (credenciales solo en código interno / equipo).
 - Trazabilidad en movimientos de activos y creación de guardias.
 
 ## Qué NO hacer
@@ -63,6 +63,7 @@ lib/api-client-react/     → Cliente tipado
 - No convertir Inventario en stock de consumibles en el MVP.
 - No implementar notificaciones por Email/WhatsApp en el MVP.
 - No implementar módulo de Liquidación (solo placeholder).
+- No documentar contraseñas ni credenciales en README u otros archivos públicos.
 
 ## Cómo trabajar
 
@@ -73,6 +74,5 @@ lib/api-client-react/     → Cliente tipado
 
 ## Usuario bootstrap
 
-- Username: `saceliz`
-- Role: `superadmin`
-- Se crea automáticamente si no existe (ver `artifacts/api-server/src/lib/auth.ts`).
+- Se crea automáticamente en el primer arranque si no existe (ver `artifacts/api-server/src/lib/auth.ts`).
+- Credenciales: solo conocidas por el equipo de sistemas; no se publican en el repositorio.
