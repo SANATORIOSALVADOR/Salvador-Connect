@@ -107,19 +107,7 @@ pnpm --filter @workspace/db run push
 pnpm --filter @workspace/api-server run dev
 ```
 
-El usuario **saceliz** (superadmin) se crea automáticamente en el primer arranque si no existe.
-
----
-
-## Usuario bootstrap
-
-| Campo | Valor |
-|-------|-------|
-| Usuario | `saceliz` |
-| Rol | `superadmin` |
-| Contraseña | Definida en el hash de bootstrap (ver `artifacts/api-server/src/lib/auth.ts`) |
-
-> En el primer login se recomienda forzar cambio de contraseña (`mustChangePassword`).
+En el primer arranque se crea automáticamente un usuario administrador de bootstrap (credenciales internas del equipo; no se documentan en el repositorio). Se recomienda cambiar la contraseña en el primer acceso.
 
 ---
 
