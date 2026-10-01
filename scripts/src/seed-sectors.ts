@@ -1,8 +1,9 @@
 /**
  * Seed de sectores de ejemplo para desarrollo.
  * Uso:
- *   DATABASE_URL=... pnpm exec tsx scripts/src/seed-sectors.ts
+ *   DATABASE_URL=... pnpm run db:seed-sectors
  */
+import { eq } from "drizzle-orm";
 import { db, sectorsTable } from "@workspace/db";
 
 const SECTORS = [
@@ -17,9 +18,11 @@ const SECTORS = [
 
 async function main() {
   for (const sector of SECTORS) {
-    const existing = await db.query.sectorsTable.findFirst({
-      where: (t, { eq }) => eq(t.shortName, sector.shortName),
-    });
+    const [existing] = await db
+      .select({ id: sectorsTable.id })
+      .from(sectorsTable)
+      .where(eq(sectorsTable.shortName, sector.shortName))
+      .limit(1);
     if (existing) {
       console.log(`Skip (ya existe): ${sector.name}`);
       continue;
