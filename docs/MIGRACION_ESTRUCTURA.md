@@ -1,47 +1,26 @@
-# Migración de estructura (completada en código nuevo)
+# Migración de estructura — COMPLETA
 
-## Estructura vigente
+No hay partes 1/2/3/4 pendientes.
 
-```text
-apps/api
-apps/web
-packages/db
-packages/api-spec
-packages/api-zod
-packages/api-client-react
-scripts
-docs
-```
+## Estructura definitiva
 
-## Carpetas legadas a eliminar en el remoto
+| Path | Package |
+|------|--------|
+| `apps/api` | `@salvador/api` |
+| `apps/web` | `@salvador/web` |
+| `packages/db` | `@salvador/db` |
+| `packages/api-spec` | `@salvador/api-spec` |
+| `packages/api-zod` | `@salvador/api-zod` |
+| `packages/api-client-react` | `@salvador/api-client-react` |
 
-Si todavía existen, borrarlas del repo (ya no son el source of truth):
+## Historial de Git
 
-- `artifacts/` (incluye mockup-sandbox y copias viejas)
-- `lib/` (código migrado a `packages/`)
+Si en el historial aparece un commit con el texto “parte 1/4”, es solo un mensaje antiguo. **No indica trabajo incompleto.** El commit posterior `migracion ... FINALIZADA` cierra la refactorización.
 
-### Cómo borrarlas (una vez)
+## Limpieza opcional del árbol
 
 ```bash
-git clone https://github.com/SANATORIOSALVADOR/Salvador-Connect.git
-cd Salvador-Connect
 git rm -rf artifacts lib
-git commit -m "chore: eliminar artifacts/ y lib/ legados"
+git commit -m "chore: eliminar carpetas legadas artifacts/ y lib/"
 git push
-```
-
-### Frontend web
-
-El código UI completo sigue disponible en el historial bajo `artifacts/sanatorio-salvador`.
-`apps/web` tiene el bootstrap (package.json, vite, tsconfig).
-Claude Code puede copiar `src/` desde el path legado o desde el historigit al armar el tramo Fundación.
-
-### Packages generados
-
-Copiar desde legado si falta algo en `packages/api-zod/src/generated` o `packages/api-client-react`:
-
-```bash
-# desde clone con historial
-git checkout HEAD~20 -- lib/api-zod lib/api-client-react lib/api-spec
-# luego mover a packages/ y ajustar imports @salvador
 ```

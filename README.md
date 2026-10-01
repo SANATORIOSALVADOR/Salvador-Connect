@@ -2,7 +2,7 @@
 
 Sistema interno modular del **Sanatorio del Salvador**.
 
-## Estructura
+## Estructura (final)
 
 ```text
 salvador-connect/
@@ -10,11 +10,11 @@ salvador-connect/
 │   ├── api/                 # Backend Express (@salvador/api)
 │   └── web/                 # Frontend React + Vite (@salvador/web)
 ├── packages/
-│   ├── db/                  # PostgreSQL + Drizzle (@salvador/db)
-│   ├── api-spec/            # OpenAPI
-│   ├── api-zod/             # Validación Zod
-│   └── api-client-react/    # Cliente React tipado
-├── scripts/                 # Seeds
+│   ├── db/                  # PostgreSQL + Drizzle
+│   ├── api-spec/
+│   ├── api-zod/
+│   └── api-client-react/
+├── scripts/
 ├── docs/
 ├── CLAUDE.md
 └── AGENTS.md
@@ -32,6 +32,6 @@ pnpm run dev:api
 pnpm run dev:web
 ```
 
-Ver `docs/POSTGRES.md` y `CLAUDE.md`.
+Si aún existen carpetas `artifacts/` o `lib/`, son legadas: `git rm -rf artifacts lib && git commit && git push`.
 
 Uso interno — Sanatorio del Salvador.

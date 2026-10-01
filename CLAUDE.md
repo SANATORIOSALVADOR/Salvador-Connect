@@ -2,26 +2,20 @@
 
 ## Proyecto
 
-Sanatorio del Salvador — Sistema Interno (`salvador-connect`).
+Sanatorio del Salvador — Sistema Interno.
 
-## Estructura (definitiva)
+## Estructura FINAL (sin partes pendientes)
 
 ```text
-apps/api                 @salvador/api
-apps/web                 @salvador/web
-packages/db              @salvador/db
-packages/api-spec        @salvador/api-spec
-packages/api-zod         @salvador/api-zod
-packages/api-client-react
+apps/api       @salvador/api
+apps/web       @salvador/web
+packages/db    @salvador/db
+packages/api-*
 scripts/
 docs/
 ```
 
-**No usar** carpetas legadas `artifacts/` ni `lib/` si aún aparecen (basura de migración Replit).
-
-## Stack
-
-Express 5 + React 19 + Vite + PostgreSQL + Drizzle. Auth por sesión (scrypt). Sin Replit, Clerk ni Supabase.
+Ignorar y eliminar si aparecen: `artifacts/`, `lib/` (legado Replit).
 
 ## Comandos
 
@@ -35,10 +29,8 @@ pnpm run dev:web
 
 ## Tramos MVP
 
-Fundación → Administración → Guardias → Inventario (activos fijos) → Instructivos → Configuración
+Fundación → Administración → Guardias → Inventario → Instructivos → Configuración
 
 ## Prohibido
 
-- Paquetes `@replit/*`, Clerk, Supabase
-- Inventario como stock de consumibles en el MVP
-- Credenciales en el repositorio
+Replit packages, Clerk, Supabase, inventario como stock, contraseñas en el repo.

@@ -1,29 +1,17 @@
 # AGENTS.md
 
-## Layout
+Estructura **final** del monorepo. No hay “parte 1/4” pendiente.
 
 | Path | Package |
 |------|--------|
 | `apps/api` | `@salvador/api` |
 | `apps/web` | `@salvador/web` |
 | `packages/db` | `@salvador/db` |
-| `packages/api-spec` | `@salvador/api-spec` |
-| `packages/api-zod` | `@salvador/api-zod` |
-| `packages/api-client-react` | `@salvador/api-client-react` |
-
-## Comandos
+| `packages/api-*` | contratos |
 
 ```bash
-pnpm install
-pnpm run db:push
-pnpm run dev:api
-pnpm run dev:web
-pnpm run typecheck
+pnpm install && pnpm run db:push
+pnpm run dev:api && pnpm run dev:web
 ```
 
-## Reglas
-
-- Sin Replit, Clerk ni Supabase
-- Inventario = activos fijos
-- Sin credenciales en el repo
-- Leer `CLAUDE.md` + `docs/ALCANCE_MVP.md` antes de cambiar código
+Sin Replit / Clerk / Supabase. Inventario = activos fijos.
