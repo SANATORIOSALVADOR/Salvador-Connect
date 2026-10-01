@@ -12,21 +12,32 @@ const scrypt = (password: string, salt: string, keyLength: number, options: { co
   });
 export const SESSION_COOKIE = "sanatorio_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-export const BOOTSTRAP_PASSWORD_HASH = "scrypt$16384$8$1$sanatorio-salvador-bootstrap$f0b9bfa2287bf795564dc836aaf500c407235facdc282ccbc3a57c4eafeb87026ffc75a7bcb66908f27fd2a251448ebdc31eb5117b86e46380c8debb1a4226f6";
+// Hash scrypt del usuario bootstrap inicial (cambiar en producción tras el primer login)
+export const BOOTSTRAP_PASSWORD_HASH =
+  "scrypt$16384$8$1$39f918f971d33869fab676ec50e46810$0c732afc551e60a40781324982847b0a21dacec8d47fc5c5fb2559cd007cb3830525a6a81ab48113d733eea5cf61521c2dfe30d4bceb1726d80d1cb231783e30";
 export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "inventario", "instructivos", "configuracion", "usuarios"] as const;
 
+const BOOTSTRAP_USERNAME = "sistemas";
+
 export async function ensureBootstrapSuperadmin(): Promise<void> {
-  const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, "saceliz")).limit(1);
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.username, BOOTSTRAP_USERNAME))
+    .limit(1);
   if (existing) return;
-  const [user] = await db.insert(usersTable).values({
-    username: "saceliz",
-    name: "Superadmin",
-    email: null,
-    passwordHash: BOOTSTRAP_PASSWORD_HASH,
-    role: "superadmin",
-    active: true,
-    mustChangePassword: true,
-  }).returning({ id: usersTable.id });
+  const [user] = await db
+    .insert(usersTable)
+    .values({
+      username: BOOTSTRAP_USERNAME,
+      name: "Sistemas",
+      email: null,
+      passwordHash: BOOTSTRAP_PASSWORD_HASH,
+      role: "superadmin",
+      active: true,
+      mustChangePassword: true,
+    })
+    .returning({ id: usersTable.id });
   await db.insert(userModulesTable).values(ALL_MODULES.map((moduleKey) => ({ userId: user.id, moduleKey })));
 }
 
