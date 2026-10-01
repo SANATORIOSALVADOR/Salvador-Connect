@@ -4,13 +4,13 @@
 
 **Sanatorio del Salvador — Sistema Interno (Salvador-Connect)**
 
-Sistema interno modular de gestión administrativa para un sanatorio privado.
+Sistema interno modular de gestión administrativa para un sanatorio privado (on-premise).
 
 ## Stack
 
 - Frontend: React 19 + TypeScript + Tailwind + shadcn/ui
 - Backend: Express 5 + TypeScript
-- DB: PostgreSQL + Drizzle ORM (puro, sin Supabase)
+- DB: **PostgreSQL puro** + Drizzle ORM (sin Supabase)
 - Auth: sesiones propias (cookie httpOnly + scrypt)
 - Monorepo: pnpm workspaces
 - Infra objetivo: Linux sobre Proxmox
@@ -21,58 +21,66 @@ Sistema interno modular de gestión administrativa para un sanatorio privado.
 - `responsable_sector` → solo gestiona sus sectores
 - `usuario` → consulta limitada a sus sectores
 
-## Módulos MVP (orden de construcción)
+## Módulos MVP (orden de tramos)
 
 1. Fundación (Login + Layout + Roles + Sectores + Dashboard)
 2. Administración (Agenda + Recordatorios + Calendario + campanita)
 3. Guardias (carga, calendario por sector, alerta cobertura, modalidad Presencial/Retención)
-4. Inventario (activos fijos, asignación permanente a sector, historial de movimientos)
+4. Inventario (activos fijos, asignación a sector, historial de movimientos)
 5. Instructivos (PDF formales por sector)
 6. Configuración (ABM usuarios, sectores, catálogos)
 7. Liquidación → solo placeholder
 
-## Decisiones de diseño ya tomadas
+## Decisiones ya tomadas
 
-- Base de datos: PostgreSQL puro (NO Supabase)
-- Inventario: activos fijos (equipos médicos, informáticos, mobiliario). NO consumibles en el MVP.
-- Cambio de sector de un activo = registro en historial de movimientos.
-- Recordatorios de Agenda: solo dentro del sistema (campanita) en el MVP.
-- Instructivos: repositorio de PDFs formales (no wiki colaborativa).
-- Referencias de diseño: Snipe-IT (Inventario), BookStack (Instructivos), Vikunja (Agenda), BetterShift/Grafana OnCall (Guardias).
+- PostgreSQL puro (NO Supabase).
+- Inventario = activos fijos (no consumibles en MVP).
+- Cambio de sector de un activo = registro en `inventory_movements`.
+- Recordatorios de Agenda: solo dentro del sistema (campanita) en MVP.
+- Instructivos: PDFs formales (no wiki).
+- Referencias UX: Snipe-IT, BookStack, Vikunja, BetterShift/Grafana OnCall.
 
-## Estructura de carpetas relevante
+## Estructura
 
 ```
 artifacts/api-server/     → Backend Express
-lib/db/                   → Schema Drizzle + conexión
+lib/db/                   → Schema Drizzle + pool PG
 lib/api-spec/             → OpenAPI
 lib/api-zod/              → Validación
 lib/api-client-react/     → Cliente tipado
+docs/                     → Alcance, arquitectura, Postgres, Claude Code
+scripts/src/              → Seeds y utilidades
 ```
 
-## Reglas de negocio importantes
+## Comandos
 
-- Filtrado automático por sector en Guardias e Inventario.
-- Solo Responsable de Sector o Admin puede editar guardias/inventario de su sector.
-- Bootstrap de un usuario superadmin en el primer arranque (credenciales solo en código interno / equipo).
-- Trazabilidad en movimientos de activos y creación de guardias.
+```bash
+export DATABASE_URL="postgresql://..."
+pnpm --filter @workspace/db run push          # schema → DB
+pnpm --filter @workspace/api-server run dev   # API
+pnpm run typecheck
+pnpm exec tsx scripts/src/seed-sectors.ts     # sectores de ejemplo
+```
+
+Ver también: `docs/POSTGRES.md`, `docs/CLAUDE_CODE.md`.
+
+## Reglas de negocio
+
+- Filtro automático por sector en Guardias e Inventario (excepto superadmin).
+- Bootstrap de superadmin en el primer arranque (`artifacts/api-server/src/lib/auth.ts`).
+- Credenciales de bootstrap: solo equipo; **no** publicar en README.
 
 ## Qué NO hacer
 
 - No reintroducir Supabase.
-- No convertir Inventario en stock de consumibles en el MVP.
-- No implementar notificaciones por Email/WhatsApp en el MVP.
-- No implementar módulo de Liquidación (solo placeholder).
-- No documentar contraseñas ni credenciales en README u otros archivos públicos.
+- No modelar Inventario como stock de consumibles en el MVP.
+- No Email/WhatsApp de recordatorios en el MVP.
+- No implementar Liquidación (solo placeholder).
+- No documentar contraseñas en el repositorio.
 
-## Cómo trabajar
+## Cómo trabajar con Claude Code
 
-1. Leer este archivo y `docs/ALCANCE_MVP.md`.
-2. Trabajar por tramos (módulo completo → probar → pulir → siguiente).
-3. Mantener tipado estricto y validación Zod en los endpoints.
-4. Cualquier cambio de schema → actualizar `lib/db/src/schema` y documentar.
-
-## Usuario bootstrap
-
-- Se crea automáticamente en el primer arranque si no existe (ver `artifacts/api-server/src/lib/auth.ts`).
-- Credenciales: solo conocidas por el equipo de sistemas; no se publican en el repositorio.
+1. Leer este archivo + `docs/ALCANCE_MVP.md` + `docs/CLAUDE_CODE.md`.
+2. Un tramo a la vez: schema → API → UI → probar.
+3. Tipado estricto y Zod en endpoints.
+4. Tras cambiar schema: `pnpm --filter @workspace/db run push` y actualizar docs de estado si hace falta.

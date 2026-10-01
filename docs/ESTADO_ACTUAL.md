@@ -3,24 +3,31 @@
 ## Qué ya está
 
 - Monorepo pnpm profesional
-- Backend Express con rutas de auth, users, management, health
-- Auth por sesión + scrypt + bootstrap de `saceliz`
-- Schema Drizzle con: users, sectors, user_sectors, user_modules, sessions, agenda_items, reminders, guardias, inventory_items, inventory_movements, instructivos
+- Backend Express con auth por sesión + scrypt + bootstrap superadmin
+- Schema Drizzle alineado al MVP:
+  - Core: users, sectors, user_sectors, user_modules, sessions
+  - Agenda + reminders
+  - Guardias con `shift` + `modality` (presencial/retencion)
+  - Inventario como **activos fijos** + `inventory_movements` (entre sectores)
+  - Instructivos (metadatos + path de PDF)
 - OpenAPI + Orval + api-zod + api-client-react
 - UI kit shadcn en mockup-sandbox
-- CI con GitHub Actions (typecheck + build)
+- CI GitHub Actions (typecheck + build)
+- Docs: alcance, arquitectura, Postgres, Claude Code
+- Script seed de sectores (`scripts/src/seed-sectors.ts`)
 
-## Gaps respecto al Documento de Alcance MVP
+## Gaps pendientes
 
-1. **Inventario** todavía modelado como stock (`current_stock`, `minimum_stock`). Debe migrar a activos fijos (marca, modelo, n° serie, estado operativo/en reparación/fuera de servicio, historial de movimientos entre sectores).
-2. **Guardias** sin campo `modalidad` (Presencial/Retención) ni tipo de turno “Pasiva”.
-3. **Frontend de aplicación** incompleto: el mockup-sandbox es un previewer de componentes, no la app completa con Login + Layout + módulos.
-4. Roles en código usan `superadmin`; alinear naming con “Administrador General / Responsable de Sector / Usuario” en UI y documentación.
-5. Falta seed de sectores de ejemplo y catálogos (tipos de evento, tipos de turno).
+1. **Frontend de aplicación** incompleto: consolidar Login + Layout + Dashboard reales (el mockup-sandbox es previewer).
+2. Rutas API de módulos (agenda, guardias, inventario, instructivos) parciales o a completar según OpenAPI.
+3. Regenerar OpenAPI / api-zod / cliente tras cambios de schema de inventario y guardias.
+4. Seed de catálogos (tipos de evento, tipos de turno) si se modelan en tablas.
+5. Subida real de PDFs (storage en disco del servidor).
 
 ## Orden de trabajo recomendado
 
-1. Asegurar que `pnpm --filter @workspace/db run push` + arranque de API crean el superadmin y permiten login.
-2. Consolidar frontend de aplicación (Login + Layout sidebar + Dashboard).
-3. Ajustar schema de Inventario y Guardias al MVP.
-4. Completar módulos en orden: Administración → Guardias → Inventario → Instructivos → Configuración.
+1. `DATABASE_URL` + `pnpm --filter @workspace/db run push` + arrancar API y validar login bootstrap.
+2. Seed de sectores.
+3. Consolidar frontend Fundación (Login + Layout + Dashboard).
+4. Completar API + UI por tramo: Administración → Guardias → Inventario → Instructivos → Configuración.
+5. Actualizar OpenAPI y clientes generados cuando los contratos se estabilicen.
