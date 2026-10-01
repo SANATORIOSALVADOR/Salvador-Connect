@@ -38,18 +38,17 @@ Digitalizar y centralizar procesos administrativos que hoy se gestionan en papel
 Salvador-Connect/
 ├── artifacts/
 │   ├── api-server/          # Backend Express (API REST)
-│   └── mockup-sandbox/      # Preview de componentes UI (Replit)
+│   └── mockup-sandbox/      # Preview de componentes UI
 ├── lib/
 │   ├── db/                  # Schema Drizzle + conexión PostgreSQL
 │   ├── api-spec/            # OpenAPI + Orval codegen
 │   ├── api-zod/             # Schemas Zod generados
 │   └── api-client-react/    # Cliente React tipado
-├── scripts/                 # Utilidades de build / seed
-├── docs/                    # Documentación de arquitectura y alcance
-├── .github/workflows/       # CI (typecheck + build)
-├── package.json
-├── pnpm-workspace.yaml
-└── CLAUDE.md                # Contexto para Claude Code
+├── scripts/                 # Seeds y utilidades
+├── docs/                    # Alcance, arquitectura, Postgres, Claude Code
+├── .github/workflows/       # CI
+├── CLAUDE.md
+└── package.json
 ```
 
 ---
@@ -58,23 +57,9 @@ Salvador-Connect/
 
 | Rol | Permisos |
 |-----|----------|
-| **Administrador General** (`superadmin`) | Acceso total a todos los módulos y sectores |
-| **Responsable de Sector** | Gestiona Guardias e Inventario de su(s) sector(es); sube Instructivos |
+| **Administrador General** (`superadmin`) | Acceso total |
+| **Responsable de Sector** | Gestiona Guardias e Inventario de sus sectores |
 | **Usuario** | Consulta limitada a sus sectores |
-
-Regla general: en Guardias e Inventario el sistema filtra automáticamente por los sectores asignados al usuario.
-
----
-
-## Módulos MVP
-
-1. **Fundación** — Login, layout, roles, sectores, dashboard  
-2. **Administración** — Agenda + Recordatorios + Calendario  
-3. **Guardias** — Carga por sector, calendario, alerta de cobertura  
-4. **Inventario** — Activos fijos + historial de movimientos entre sectores  
-5. **Instructivos** — Repositorio de PDFs por sector  
-6. **Configuración** — ABM usuarios, sectores, catálogos  
-7. **Liquidación** — Placeholder (fuera del MVP)
 
 ---
 
@@ -89,60 +74,53 @@ Regla general: en Guardias e Inventario el sistema filtra automáticamente por l
 ### Pasos
 
 ```bash
-# 1. Clonar
 git clone https://github.com/SANATORIOSALVADOR/Salvador-Connect.git
 cd Salvador-Connect
-
-# 2. Instalar dependencias
 pnpm install
 
-# 3. Configurar variables de entorno
 cp .env.example .env
-# Editar DATABASE_URL=postgresql://user:pass@host:5432/sanatorio_db
+# Completar DATABASE_URL en .env
 
-# 4. Aplicar schema a la base de datos
-pnpm --filter @workspace/db run push
+pnpm run db:push          # aplica schema a PostgreSQL
+pnpm run dev:api          # levanta la API
 
-# 5. Levantar API
-pnpm --filter @workspace/api-server run dev
+# Opcional (sectores de ejemplo)
+pnpm run db:seed-sectors
 ```
 
-En el primer arranque se crea automáticamente un usuario administrador de bootstrap (credenciales internas del equipo; no se documentan en el repositorio). Se recomienda cambiar la contraseña en el primer acceso.
+Detalle de base de datos: [docs/POSTGRES.md](docs/POSTGRES.md).
+
+En el primer arranque se crea un usuario administrador bootstrap (credenciales solo del equipo; no se publican en el repositorio).
 
 ---
 
-## Documentación adicional
+## Documentación
 
-- [Documento de Alcance MVP](docs/ALCANCE_MVP.md)
-- [Arquitectura](docs/ARQUITECTURA.md)
-- [Estado actual](docs/ESTADO_ACTUAL.md)
-- [CLAUDE.md](CLAUDE.md) — instrucciones para Claude Code
+| Documento | Contenido |
+|-----------|-----------|
+| [docs/ALCANCE_MVP.md](docs/ALCANCE_MVP.md) | Alcance funcional MVP |
+| [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Arquitectura |
+| [docs/POSTGRES.md](docs/POSTGRES.md) | Setup PostgreSQL + Drizzle |
+| [docs/CLAUDE_CODE.md](docs/CLAUDE_CODE.md) | Guía operativa para Claude Code |
+| [docs/ESTADO_ACTUAL.md](docs/ESTADO_ACTUAL.md) | Gaps y orden de trabajo |
+| [CLAUDE.md](CLAUDE.md) | Contexto raíz para agentes |
 
 ---
 
 ## CI
 
-En cada push/PR a `main` se ejecuta:
-
-- `pnpm install`
-- `pnpm run typecheck`
-- `pnpm run build`
-
-Ver: `.github/workflows/ci.yml`
+Push/PR a `main` → typecheck + build (`.github/workflows/ci.yml`).
 
 ---
 
-## Estado actual (octubre 2026)
+## Estado actual
 
 - ✅ Backend API + auth por sesión
-- ✅ Schema Drizzle (core + módulos)
-- ✅ Bootstrap superadmin
-- ✅ CI con GitHub Actions
-- ⚠️ Inventario aún modelado como stock (debe migrar a activos fijos)
+- ✅ Schema Drizzle alineado al MVP (activos fijos, guardias con modalidad)
+- ✅ Bootstrap superadmin + CI + docs para Claude Code
 - ⚠️ Frontend de aplicación completa pendiente de consolidar
-- ⚠️ Guardias: falta modalidad Presencial/Retención y tipo Pasiva
+- ⚠️ Rutas API de módulos a completar / alinear con OpenAPI
 
 ---
 
-**Equipo de desarrollo — Sanatorio del Salvador**  
-Uso interno exclusivo.
+**Equipo de desarrollo — Sanatorio del Salvador** · Uso interno exclusivo.
