@@ -10,8 +10,13 @@ import type { Sector } from './sector';
 
 export interface CurrentUser {
   id: number;
+  username: string;
   name: string;
-  email: string;
+  /** @nullable */
+  email: string | null;
   role: CurrentUserRole;
+  active: boolean;
+  mustChangePassword: boolean;
+  modules: string[];
   sectors: Sector[];
 }

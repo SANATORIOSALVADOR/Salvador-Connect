@@ -1,10 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
-import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from '@clerk/react';
-import { publishableKeyFromHost } from '@clerk/react/internal';
-import { shadcn } from '@clerk/themes';
-import { esUY } from '@clerk/localizations';
 import {
   Activity as ActivityIcon,
   Archive,
@@ -34,16 +30,28 @@ import {
   getGetRecentActivityQueryKey,
   getListAgendaItemsQueryKey,
   getListSectorsQueryKey,
+  getListUsersQueryKey,
+  useChangePassword,
+  useContinuePassword,
   useCreateAgendaItem,
+  useCreateUser,
   useDeleteAgendaItem,
+  useDeleteUser,
+  useLogin,
+  useLogout,
   useGetCurrentUser,
   useGetDashboardSummary,
   useGetRecentActivity,
   useListAgendaItems,
   useListSectors,
+  useListUsers,
+  useResetUserPassword,
   useUpdateAgendaItem,
+  useUpdateUser,
   type AgendaItem,
   type AgendaItemInput,
+  type CreateUserBody,
+  type UserAdmin,
 } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -54,11 +62,6 @@ const agendaTypes = ['cheque', 'vencimiento', 'tarea', 'pago', 'otro'] as const;
 type AgendaType = typeof agendaTypes[number];
 type ModalMode = { open: boolean; item?: AgendaItem };
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const navItems = [
   { href: '/dashboard', label: 'Resumen', icon: LayoutDashboard },
   { href: '/administracion', label: 'Administración', icon: ClipboardList },
@@ -66,6 +69,7 @@ const navItems = [
   { href: '/guardias', label: 'Guardias', icon: CalendarDays },
   { href: '/inventario', label: 'Inventario', icon: PackageOpen },
   { href: '/instructivos', label: 'Instructivos', icon: Archive },
+  { href: '/usuarios', label: 'Usuarios', icon: Users },
 ];
 
 function initials(name?: string) {
@@ -101,12 +105,15 @@ function Brand({ compact = false }: { compact?: boolean }) {
   </Link>;
 }
 
-function Shell({ children, user }: { children: ReactNode; user?: { name?: string; email?: string; role?: string } }) {
+function Shell({ children, user }: { children: ReactNode; user?: { name?: string; username?: string; email?: string | null; role?: string; modules?: string[] } }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [, setLocation] = useLocation();
+  const logout = useLogout();
+  const visibleNavItems = navItems.filter((item) => user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1)));
   const nav = <nav style={{ display: 'grid', gap: 3 }}>
     <div className="nav-label">Operación</div>
-    {navItems.map(({ href, label, icon: Icon }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} data-testid={`link-nav-${label.toLowerCase()}`}><Icon className="nav-icon" /><span>{label}</span></Link>)}
+    {visibleNavItems.map(({ href, label, icon: Icon }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} data-testid={`link-nav-${label.toLowerCase()}`}><Icon className="nav-icon" /><span>{label}</span></Link>)}
     <div className="nav-label" style={{ marginTop: 22 }}>Espacio</div>
     <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={`nav-item ${location === '/configuracion' ? 'active' : ''}`} data-testid="link-nav-configuracion"><Settings2 className="nav-icon" /><span>Configuración</span></Link>
   </nav>;
@@ -119,6 +126,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
           <div className="avatar" style={{ width: 31, height: 31, background: 'hsl(var(--sidebar-primary) / .18)', color: 'hsl(var(--sidebar-primary))', border: 'none' }}>{initials(user?.name)}</div>
           <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Usuario interno'}</div><div style={{ fontSize: 10, opacity: .5, marginTop: 2 }}>{user?.role || 'Acceso operativo'}</div></div>
         </div>
+        <button className="btn btn-quiet" style={{ width: '100%', marginTop: 11, color: 'hsl(var(--sidebar-foreground) / .78)', background: 'transparent', borderColor: 'hsl(var(--sidebar-border))' }} onClick={() => logout.mutate(undefined, { onSuccess: () => { queryClient.clear(); setLocation('/'); } })} data-testid="button-logout">Cerrar sesión</button>
       </div>
     </aside>
     {mobileOpen && <div className="modal-backdrop" style={{ display: 'block', padding: 0 }} onClick={() => setMobileOpen(false)}><aside className="sidebar" style={{ display: 'flex', minHeight: '100dvh', width: 248 }} onClick={(event) => event.stopPropagation()}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><Brand /><button className="btn btn-icon btn-quiet" onClick={() => setMobileOpen(false)} data-testid="button-close-menu"><X size={16} /></button></div>{nav}</aside></div>}
@@ -126,18 +134,18 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
       <header className="topbar">
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={18} /></button>
         <div className="topbar-meta"><span className="font-mono">SANATORIO SALVADOR</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ textAlign: 'right' }}><div style={{ fontSize: 12, fontWeight: 700 }}>{user?.name || 'Sesión interna'}</div><div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>{user?.email || 'Panel operativo'}</div></div><div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div></div>
+         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ textAlign: 'right' }}><div style={{ fontSize: 12, fontWeight: 700 }}>{user?.name || 'Sesión interna'}</div><div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>@{user?.username || 'usuario'}</div></div><div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div></div>
       </header>
       {children}
     </div>
   </div>;
 }
 
-function useCurrentUserSafe() {
-  return useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey(), retry: false } });
+function useCurrentUserSafe(enabled = true) {
+  return useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey(), enabled, retry: false } });
 }
 
-function Dashboard({ user }: { user?: { name?: string; email?: string; role?: string } }) {
+function Dashboard({ user }: { user?: { name?: string; email?: string | null; role?: string } }) {
   const summary = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey(), retry: false } });
   const activity = useGetRecentActivity({ limit: 5 }, { query: { queryKey: getGetRecentActivityQueryKey({ limit: 5 }), retry: false } });
   const sectors = useListSectors({ query: { queryKey: getListSectorsQueryKey(), retry: false } });
@@ -234,107 +242,110 @@ function ConfigPage() {
 
 function Welcome() {
   const [location, setLocation] = useLocation();
-  const { isLoaded, isSignedIn } = useAuth();
-  useEffect(() => { if (isLoaded && isSignedIn) setLocation('/dashboard'); }, [isLoaded, isSignedIn, setLocation]);
   return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Mesa operativa · Acceso interno</div><h1>El día claro.<br /><span style={{ color: 'hsl(var(--sidebar-primary))' }}>La operación</span> en orden.</h1><p>Un espacio de trabajo preciso para quienes sostienen el Sanatorio Salvador todos los días.</p></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Sistema interno</div><h2>Bienvenido al equipo.</h2><p>Ingresá para revisar la agenda, los sectores y las prioridades de hoy.</p><div style={{ display: 'grid', gap: 10, marginTop: 28 }}><button className="btn btn-primary" onClick={() => setLocation('/sign-in')} data-testid="button-welcome-sign-in">Ingresar al sistema <ArrowUpRight size={15} /></button><button className="btn btn-quiet" onClick={() => setLocation('/sign-up')} data-testid="button-welcome-sign-up">Solicitar acceso</button></div><div className="auth-foot">Acceso reservado para personal autorizado</div></div></section></div>;
+  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Mesa operativa · Acceso interno</div><h1>El día claro.<br /><span style={{ color: 'hsl(var(--sidebar-primary))' }}>La operación</span> en orden.</h1><p>Un espacio de trabajo preciso para quienes sostienen el Sanatorio Salvador todos los días.</p></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Sistema interno</div><h2>Bienvenido al equipo.</h2><p>Ingresá con el usuario y la contraseña asignados por el superadmin.</p><div style={{ display: 'grid', gap: 10, marginTop: 28 }}><button className="btn btn-primary" onClick={() => setLocation('/sign-in')} data-testid="button-welcome-sign-in">Ingresar al sistema <ArrowUpRight size={15} /></button></div><div className="auth-foot">Acceso reservado para personal autorizado</div></div></section></div>;
 }
 
-const clerkAppearance = {
-  theme: shadcn,
-  cssLayerName: 'clerk',
-  options: {
-    logoPlacement: 'inside' as const,
-    logoLinkUrl: import.meta.env.BASE_URL,
-    logoImageUrl: `${window.location.origin}${import.meta.env.BASE_URL}logo.svg`,
-  },
-  variables: {
-    colorPrimary: '#16817a',
-    colorForeground: '#27434a',
-    colorMutedForeground: '#6b7f82',
-    colorDanger: '#bf4f4f',
-    colorBackground: '#fffdf9',
-    colorInput: '#fffdf9',
-    colorInputForeground: '#27434a',
-    colorNeutral: '#dfd9ce',
-    fontFamily: 'DM Sans, sans-serif',
-    borderRadius: '0.75rem',
-  },
-  elements: {
-    rootBox: 'w-full flex justify-center',
-    cardBox: 'bg-[#fffdf9] rounded-2xl w-[440px] max-w-full overflow-hidden',
-    card: '!shadow-none !border-0 !bg-transparent !rounded-none',
-    footer: '!shadow-none !border-0 !bg-transparent !rounded-none',
-    headerTitle: 'text-[#27434a] font-bold',
-    headerSubtitle: 'text-[#6b7f82]',
-    socialButtonsBlockButtonText: 'text-[#27434a]',
-    formFieldLabel: 'text-[#27434a]',
-    footerActionLink: 'text-[#16817a] font-bold',
-    footerActionText: 'text-[#6b7f82]',
-    dividerText: 'text-[#6b7f82]',
-    identityPreviewEditButton: 'text-[#16817a]',
-    formFieldSuccessText: 'text-[#16817a]',
-    alertText: 'text-[#bf4f4f]',
-    logoBox: 'mb-4',
-    logoImage: 'max-h-10',
-    socialButtonsBlockButton: 'border-[#dfd9ce] bg-[#fffdf9]',
-    formButtonPrimary: 'bg-[#16817a] hover:bg-[#126d67] text-white',
-    formFieldInput: 'border-[#dfd9ce] bg-[#fffdf9] text-[#27434a]',
-    footerAction: 'bg-transparent',
-    dividerLine: 'bg-[#dfd9ce]',
-    alert: 'bg-[#fff2f0] border-[#efc6c0]',
-    otpCodeFieldInput: 'border-[#dfd9ce] bg-[#fffdf9] text-[#27434a]',
-    formFieldRow: 'mb-4',
-    main: 'bg-transparent',
-  },
-};
-
-function ClerkCacheInvalidator() {
-  const { addListener } = useClerk();
-  const cache = useQueryClient();
-  const previousUser = useRef<string | null | undefined>(undefined);
-  useEffect(() => addListener(({ user }) => {
-    const userId = user?.id ?? null;
-    if (previousUser.current !== undefined && previousUser.current !== userId) cache.clear();
-    previousUser.current = userId;
-  }), [addListener, cache]);
-  return null;
-}
-
-function AuthPage({ mode }: { mode: 'sign-in' | 'sign-up' }) {
-  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Sanatorio Salvador · Área protegida</div><h1>Una forma más <span style={{ color: 'hsl(var(--sidebar-primary))' }}>serena</span> de trabajar.</h1><p>La información que sostiene cada guardia, cada pago y cada sector, en el momento justo.</p></section><section className="auth-panel"><div className="auth-box clerk-card-wrap">{mode === 'sign-in' ? <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /> : <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />}</div></section></div>;
-}
-
-function Protected({ children }: { children: ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+function LoginPage() {
   const [, setLocation] = useLocation();
-  useEffect(() => { if (isLoaded && !isSignedIn) setLocation('/'); }, [isLoaded, isSignedIn, setLocation]);
-  if (!isLoaded || !isSignedIn) return <div className="auth-layout"><div className="skeleton" style={{ width: 260, height: 18, margin: 'auto' }} /></div>;
+  const login = useLogin();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    login.mutate({ data: { username, password } }, {
+      onSuccess: (result) => {
+        queryClient.setQueryData(getGetCurrentUserQueryKey(), result.user);
+        setLocation(result.user.mustChangePassword ? '/primer-acceso' : '/dashboard');
+      },
+    });
+  };
+  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Sanatorio Salvador · Área protegida</div><h1>Una forma más <span style={{ color: 'hsl(var(--sidebar-primary))' }}>serena</span> de trabajar.</h1><p>Ingresá con las credenciales internas asignadas por el superadmin.</p></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Acceso interno</div><h2>Iniciar sesión.</h2><p>Usá tu usuario y contraseña para entrar al sistema.</p><form onSubmit={submit} className="auth-form"><label className="field"><span className="field-label">Usuario</span><input className="input" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoFocus required data-testid="input-login-username" /></label><label className="field"><span className="field-label">Contraseña</span><input className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required data-testid="input-login-password" /></label>{login.isError && <div className="form-error">Usuario o contraseña incorrectos.</div>}<button className="btn btn-primary" type="submit" disabled={login.isPending} data-testid="button-login-submit">{login.isPending ? 'Ingresando…' : 'Ingresar'} <ArrowUpRight size={15} /></button></form><div className="auth-foot">Los usuarios son creados y administrados por el superadmin.</div></div></section></div>;
+}
+
+function FirstAccessPage({ user }: { user: { name?: string; mustChangePassword?: boolean } }) {
+  const [, setLocation] = useLocation();
+  const keep = useContinuePassword();
+  const change = useChangePassword();
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [notice, setNotice] = useState('');
+  const finish = () => {
+    queryClient.setQueryData(getGetCurrentUserQueryKey(), (current: any) => current ? { ...current, mustChangePassword: false } : current);
+    setLocation('/dashboard');
+  };
+  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Primer acceso · Cuenta interna</div><h1>Elegí cómo <span style={{ color: 'hsl(var(--sidebar-primary))' }}>continuar.</span></h1><p>Tu usuario fue creado por el superadmin. Podés mantener la clave inicial o definir una nueva ahora.</p></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Hola, {user.name?.split(' ')[0] || 'equipo'}</div><h2>Confirmá tu contraseña.</h2><p>Por seguridad, esta decisión se registra al completar el primer acceso.</p><div style={{ display: 'grid', gap: 10, marginTop: 27 }}><button className="btn btn-primary" onClick={() => keep.mutate(undefined, { onSuccess: finish })} disabled={keep.isPending} data-testid="button-keep-password">Continuar con la misma clave</button><div className="card" style={{ padding: 17, marginTop: 5 }}><div className="section-title" style={{ fontSize: 14 }}>Modificar contraseña</div><div className="form-grid" style={{ marginTop: 14 }}><label className="field full"><span className="field-label">Nueva contraseña</span><input className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" minLength={6} data-testid="input-first-password" /></label><label className="field full"><span className="field-label">Repetir contraseña</span><input className="input" type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" minLength={6} data-testid="input-first-password-confirm" /></label></div><button className="btn btn-quiet" style={{ width: '100%', marginTop: 13 }} disabled={change.isPending || password.length < 6 || password !== confirm} onClick={() => change.mutate({ data: { newPassword: password } }, { onSuccess: finish, onError: () => setNotice('No se pudo actualizar la contraseña.') })} data-testid="button-change-first-password">{change.isPending ? 'Guardando…' : 'Guardar nueva contraseña'}</button></div>{notice && <div className="form-error">{notice}</div>}</div></div></section></div>;
+}
+
+function Protected({ children, user, allowFirstAccess = false }: { children: ReactNode; user?: { mustChangePassword?: boolean }; allowFirstAccess?: boolean }) {
+  const [, setLocation] = useLocation();
+  const currentUser = useCurrentUserSafe();
+  useEffect(() => { if (currentUser.isError) setLocation('/'); }, [currentUser.isError, setLocation]);
+  useEffect(() => { if (currentUser.data?.mustChangePassword && !allowFirstAccess) setLocation('/primer-acceso'); }, [allowFirstAccess, currentUser.data?.mustChangePassword, setLocation]);
+  if (currentUser.isLoading) return <div className="auth-layout"><div className="skeleton" style={{ width: 260, height: 18, margin: 'auto' }} /></div>;
+  if (currentUser.isError || !currentUser.data) return null;
   return <>{children}</>;
 }
 
+function UsersPage() {
+  const users = useListUsers({ query: { queryKey: getListUsersQueryKey(), retry: false } });
+  const sectors = useListSectors({ query: { queryKey: getListSectorsQueryKey(), retry: false } });
+  const create = useCreateUser();
+  const update = useUpdateUser();
+  const remove = useDeleteUser();
+  const reset = useResetUserPassword();
+  const [search, setSearch] = useState('');
+  const [modal, setModal] = useState<{ open: boolean; mode: 'create' | 'edit' | 'reset'; user?: UserAdmin }>({ open: false, mode: 'create' });
+  const [form, setForm] = useState({ name: '', username: '', password: '', role: 'usuario' as 'usuario' | 'responsable', active: true, modules: ['dashboard'], sectorIds: [] as number[] });
+  const [notice, setNotice] = useState('');
+  const open = (mode: 'create' | 'edit' | 'reset', user?: UserAdmin) => {
+    setModal({ open: true, mode, user });
+    setForm({ name: user?.name || '', username: user?.username || '', password: '', role: (user?.role === 'responsable' ? 'responsable' : 'usuario'), active: user?.active ?? true, modules: user?.modules || ['dashboard'], sectorIds: user?.sectorIds || [] });
+  };
+  const close = () => setModal({ open: false, mode: 'create' });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    if (modal.mode === 'reset' && modal.user) {
+      reset.mutate({ id: modal.user.id, data: { password: form.password } }, { onSuccess: () => { close(); setNotice('Contraseña restablecida. El usuario deberá confirmarla al ingresar.'); refresh(); } });
+      return;
+    }
+    const data: CreateUserBody = { name: form.name, username: form.username, password: form.password, role: form.role, active: form.active, modules: form.modules, sectorIds: form.sectorIds };
+    if (modal.mode === 'edit' && modal.user) {
+      update.mutate({ id: modal.user.id, data: { name: form.name, username: form.username, role: form.role, active: form.active, modules: form.modules, sectorIds: form.sectorIds } }, { onSuccess: () => { close(); setNotice('Usuario actualizado.'); refresh(); } });
+    } else create.mutate({ data }, { onSuccess: () => { close(); setNotice('Usuario creado. Deberá confirmar la clave en su primer acceso.'); refresh(); } });
+    setTimeout(() => setNotice(''), 2800);
+  };
+  const filtered = (users.data || []).filter((user) => `${user.name} ${user.username}`.toLowerCase().includes(search.toLowerCase()));
+  const toggleModule = (module: string) => setForm((current) => ({ ...current, modules: current.modules.includes(module) ? current.modules.filter((item) => item !== module) : [...current.modules, module] }));
+  const toggleSector = (id: number) => setForm((current) => ({ ...current, sectorIds: current.sectorIds.includes(id) ? current.sectorIds.filter((item) => item !== id) : [...current.sectorIds, id] }));
+  const busy = create.isPending || update.isPending || reset.isPending;
+  return <main className="content-wrap"><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap' }}><div><div className="eyebrow">Espacio / Usuarios</div><h1 className="page-title">Usuarios y permisos</h1><p className="page-subtitle">Creá accesos internos y definí exactamente qué puede ver cada persona.</p></div><button className="btn btn-primary" onClick={() => open('create')} data-testid="button-create-user"><Plus size={16} />Nuevo usuario</button></div><div className="user-summary-grid"><Metric label="Usuarios activos" value={(users.data || []).filter((user) => user.active).length} note="Con acceso habilitado" icon={<Users size={16} />} /><Metric label="Pendientes de confirmar" value={(users.data || []).filter((user) => user.mustChangePassword).length} note="Primer ingreso" icon={<ShieldCheck size={16} />} /><Metric label="Responsables" value={(users.data || []).filter((user) => user.role === 'responsable').length} note="Con permisos ampliados" icon={<Settings2 size={16} />} /></div><div className="agenda-toolbar"><div className="search-control"><Search size={15} /><input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nombre o usuario" data-testid="input-search-users" /></div><div style={{ marginLeft: 'auto', color: 'hsl(var(--muted-foreground))', fontSize: 11 }}><span className="font-mono">{filtered.length.toString().padStart(2, '0')}</span> usuarios</div></div>{users.isLoading ? <div className="card" style={{ padding: 20, display: 'grid', gap: 12 }}>{[1,2,3].map((item) => <div className="skeleton" style={{ height: 52 }} key={item} />)}</div> : users.isError ? <StatusMessage title="No se pudieron cargar los usuarios" detail="Revisá tu sesión de superadmin e intentá nuevamente." action={() => users.refetch()} /> : <div className="card agenda-table-wrap"><table className="agenda-table users-table"><thead><tr><th>Persona</th><th>Usuario</th><th>Rol</th><th>Módulos</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead><tbody>{filtered.length ? filtered.map((user) => <tr key={user.id}><td><div className="agenda-title">{user.name}</div><div className="agenda-description">{user.lastLoginAt ? `Último acceso: ${formatDate(user.lastLoginAt)}` : 'Sin accesos registrados'}</div></td><td><span className="font-mono">@{user.username}</span></td><td><span className={`badge ${user.role === 'responsable' ? 'badge-type' : 'badge-done'}`}>{user.role === 'responsable' ? 'Responsable' : 'Usuario'}</span></td><td><div className="module-pills">{user.modules.slice(0, 3).map((module) => <span className="badge badge-type" key={module}>{module}</span>)}{user.modules.length > 3 && <span className="badge badge-type">+{user.modules.length - 3}</span>}</div></td><td><span className={`badge ${user.active ? 'badge-done' : 'badge-pending'}`}>{user.active ? (user.mustChangePassword ? 'Primer acceso' : 'Activo') : 'Inactivo'}</span></td><td><div style={{ display: 'flex', justifyContent: 'flex-end', gap: 5 }}><button className="btn btn-quiet btn-icon" title="Editar permisos" onClick={() => open('edit', user)}><Pencil size={14} /></button><button className="btn btn-quiet btn-icon" title="Restablecer contraseña" onClick={() => open('reset', user)}><ShieldCheck size={14} /></button><button className="btn btn-danger btn-icon" title="Eliminar usuario" onClick={() => { if (window.confirm(`¿Eliminar a ${user.name}?`)) remove.mutate({ id: user.id }, { onSuccess: () => { refresh(); setNotice('Usuario eliminado.'); } }); }}><Trash2 size={14} /></button></div></td></tr>) : <tr><td colSpan={6}><div className="empty-state"><div className="empty-icon"><Users size={20} /></div><strong>No hay usuarios para mostrar</strong><p className="section-kicker">Creá el primer acceso interno desde este módulo.</p></div></td></tr>}</tbody></table></div>}{notice && <div className="toast-note">{notice}</div>}{modal.open ? <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}><div className="modal" role="dialog" aria-modal="true"><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}><div><div className="eyebrow">{modal.mode === 'create' ? 'Nuevo acceso' : modal.mode === 'reset' ? 'Seguridad' : 'Administración'}</div><h2 className="page-title" style={{ fontSize: 25, marginTop: 5 }}>{modal.mode === 'create' ? 'Crear usuario' : modal.mode === 'reset' ? `Restablecer clave · @${modal.user?.username}` : 'Editar usuario y permisos'}</h2></div><button className="btn btn-quiet btn-icon" onClick={close}><X size={16} /></button></div><form onSubmit={save}>{modal.mode === 'reset' ? <label className="field"><span className="field-label">Nueva contraseña</span><input className="input" type="password" minLength={6} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete="new-password" required data-testid="input-reset-password" /></label> : <><div className="form-grid"><label className="field full"><span className="field-label">Nombres y apellido</span><input className="input" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required data-testid="input-user-name" /></label><label className="field"><span className="field-label">Usuario</span><input className="input" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} required data-testid="input-user-username" /></label><label className="field"><span className="field-label">{modal.mode === 'create' ? 'Contraseña inicial' : 'Contraseña'}</span><input className="input" type="password" minLength={6} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} autoComplete="new-password" required={modal.mode === 'create'} data-testid="input-user-password" /></label><label className="field"><span className="field-label">Perfil</span><select className="select" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as 'usuario' | 'responsable' })}><option value="usuario">Usuario</option><option value="responsable">Responsable de sector</option></select></label><label className="field"><span className="field-label">Estado</span><select className="select" value={form.active ? 'activo' : 'inactivo'} onChange={(event) => setForm({ ...form, active: event.target.value === 'activo' })}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label></div><div className="permission-section"><div className="field-label">Módulos habilitados</div><div className="permission-grid">{navItems.filter((item) => item.href !== '/usuarios').map((item) => <label className="permission-option" key={item.href}><input type="checkbox" checked={form.modules.includes(item.href.slice(1))} onChange={() => toggleModule(item.href.slice(1))} /><span>{item.label}</span></label>)}</div></div><div className="permission-section"><div className="field-label">Sectores asignados</div><div className="permission-grid">{(sectors.data || []).map((sector) => <label className="permission-option" key={sector.id}><input type="checkbox" checked={form.sectorIds.includes(sector.id)} onChange={() => toggleSector(sector.id)} /><span>{sector.name}</span></label>)}</div></div></>}</form><div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginTop: 23 }}><button type="button" className="btn btn-quiet" onClick={close}>Cancelar</button><button type="button" className="btn btn-primary" disabled={busy} onClick={() => save({ preventDefault: () => {} } as FormEvent)}>{busy ? 'Guardando…' : modal.mode === 'reset' ? 'Restablecer contraseña' : modal.mode === 'create' ? 'Crear usuario' : 'Guardar cambios'}</button></div></div></div> : null}</main>;
+}
+
 function Router() {
-  const currentUser = useCurrentUserSafe();
+  const [location] = useLocation();
+  const currentUser = useCurrentUserSafe(location !== '/' && location !== '/sign-in');
   const shellUser = currentUser.data;
   return <Switch>
-    <Route path="/sign-in/*?"><AuthPage mode="sign-in" /></Route>
-    <Route path="/sign-up/*?"><AuthPage mode="sign-up" /></Route>
+    <Route path="/sign-in"><LoginPage /></Route>
     <Route path="/"><Welcome /></Route>
-    <Route path="/dashboard"><Protected><Shell user={shellUser}><Dashboard user={shellUser} /></Shell></Protected></Route>
-    <Route path="/administracion"><Protected><Shell user={shellUser}><AgendaPage /></Shell></Protected></Route>
-    <Route path="/liquidacion"><Protected><Shell user={shellUser}><PlaceholderPage kind="Liquidación" title="Liquidación" description="Un espacio para centralizar el seguimiento de liquidaciones." icon={FileText} /></Shell></Protected></Route>
-    <Route path="/guardias"><Protected><Shell user={shellUser}><PlaceholderPage kind="Guardias" title="Guardias" description="Planificación y seguimiento de guardias del sanatorio." icon={CalendarDays} /></Shell></Protected></Route>
-    <Route path="/inventario"><Protected><Shell user={shellUser}><PlaceholderPage kind="Inventario" title="Inventario" description="Control de insumos, stock crítico y movimientos." icon={PackageOpen} /></Shell></Protected></Route>
-    <Route path="/instructivos"><Protected><Shell user={shellUser}><PlaceholderPage kind="Instructivos" title="Instructivos" description="Guías internas para resolver cada proceso con claridad." icon={FileText} /></Shell></Protected></Route>
-    <Route path="/configuracion"><Protected><Shell user={shellUser}><ConfigPage /></Shell></Protected></Route>
-    <Route><Protected><Shell user={shellUser}><StatusMessage title="Página no encontrada" detail="El enlace que buscás no existe dentro del sistema." action={() => window.history.back()} /></Shell></Protected></Route>
+    <Route path="/primer-acceso"><Protected user={shellUser} allowFirstAccess><FirstAccessPage user={shellUser || {}} /></Protected></Route>
+    <Route path="/dashboard"><Protected user={shellUser}><Shell user={shellUser}><Dashboard user={shellUser} /></Shell></Protected></Route>
+    <Route path="/administracion"><Protected user={shellUser}><Shell user={shellUser}><AgendaPage /></Shell></Protected></Route>
+    <Route path="/liquidacion"><Protected user={shellUser}><Shell user={shellUser}><PlaceholderPage kind="Liquidación" title="Liquidación" description="Un espacio para centralizar el seguimiento de liquidaciones." icon={FileText} /></Shell></Protected></Route>
+    <Route path="/guardias"><Protected user={shellUser}><Shell user={shellUser}><PlaceholderPage kind="Guardias" title="Guardias" description="Planificación y seguimiento de guardias del sanatorio." icon={CalendarDays} /></Shell></Protected></Route>
+    <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><PlaceholderPage kind="Inventario" title="Inventario" description="Control de insumos, stock crítico y movimientos." icon={PackageOpen} /></Shell></Protected></Route>
+    <Route path="/instructivos"><Protected user={shellUser}><Shell user={shellUser}><PlaceholderPage kind="Instructivos" title="Instructivos" description="Guías internas para resolver cada proceso con claridad." icon={FileText} /></Shell></Protected></Route>
+    <Route path="/configuracion"><Protected user={shellUser}><Shell user={shellUser}><ConfigPage /></Shell></Protected></Route>
+    <Route path="/usuarios"><Protected user={shellUser}><Shell user={shellUser}><UsersPage /></Shell></Protected></Route>
+    <Route><Protected user={shellUser}><Shell user={shellUser}><StatusMessage title="Página no encontrada" detail="El enlace que buscás no existe dentro del sistema." action={() => window.history.back()} /></Shell></Protected></Route>
   </Switch>;
 }
 
 function App() {
-  if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-  return <WouterRouter base={basePath}><ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={clerkAppearance} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} localization={esUY}><QueryClientProvider client={queryClient}><ClerkCacheInvalidator /><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /></TooltipProvider></QueryClientProvider></ClerkProvider></WouterRouter>;
+  return <WouterRouter base={basePath}><QueryClientProvider client={queryClient}><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /></TooltipProvider></QueryClientProvider></WouterRouter>;
 }
 
 export default App;

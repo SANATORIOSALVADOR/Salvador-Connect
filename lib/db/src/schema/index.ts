@@ -1,5 +1,6 @@
 import { createInsertSchema } from "drizzle-zod";
 import {
+  boolean,
   date,
   integer,
   pgTable,
@@ -18,10 +19,33 @@ export const sectorsTable = pgTable("sectors", {
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
-  clerkId: text("clerk_id").unique(),
+  username: text("username").notNull().unique(),
   name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  role: text("role").notNull().default("Usuario"),
+  email: text("email").unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("usuario"),
+  active: boolean("active").notNull().default(true),
+  mustChangePassword: boolean("must_change_password").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const userModulesTable = pgTable("user_modules", {
+  userId: integer("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  moduleKey: text("module_key").notNull(),
+});
+
+export const sessionsTable = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -117,5 +141,6 @@ export const insertAgendaItemSchema = createInsertSchema(agendaItemsTable).omit(
 );
 
 export type Sector = typeof sectorsTable.$inferSelect;
+export type User = typeof usersTable.$inferSelect;
 export type AgendaItem = typeof agendaItemsTable.$inferSelect;
 export type InsertAgendaItem = z.infer<typeof insertAgendaItemSchema>;

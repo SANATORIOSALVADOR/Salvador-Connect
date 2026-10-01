@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './actionResult';
 export * from './activity';
 export * from './activityKind';
 export * from './agendaItem';
@@ -13,10 +14,20 @@ export * from './agendaItemInput';
 export * from './agendaItemUpdate';
 export * from './agendaStatus';
 export * from './agendaType';
+export * from './authUser';
+export * from './createUserBody';
+export * from './createUserBodyRole';
 export * from './currentUser';
 export * from './currentUserRole';
 export * from './dashboardSummary';
 export * from './getRecentActivityParams';
 export * from './healthStatus';
 export * from './listAgendaItemsParams';
+export * from './loginBody';
+export * from './loginResponse';
+export * from './resetUserPasswordBody';
 export * from './sector';
+export * from './updatePasswordBody';
+export * from './updateUserBody';
+export * from './updateUserBodyRole';
+export * from './userAdmin';

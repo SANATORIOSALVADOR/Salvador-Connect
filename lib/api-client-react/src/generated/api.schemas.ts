@@ -79,17 +79,101 @@ export type CurrentUserRole = typeof CurrentUserRole[keyof typeof CurrentUserRol
 
 
 export const CurrentUserRole = {
-  Administrador_General: 'Administrador General',
-  Responsable_de_Sector: 'Responsable de Sector',
-  Usuario: 'Usuario',
+  superadmin: 'superadmin',
+  responsable: 'responsable',
+  usuario: 'usuario',
 } as const;
 
 export interface CurrentUser {
   id: number;
+  username: string;
   name: string;
-  email: string;
+  /** @nullable */
+  email: string | null;
   role: CurrentUserRole;
+  active: boolean;
+  mustChangePassword: boolean;
+  modules: string[];
   sectors: Sector[];
+}
+
+export type AuthUser = CurrentUser & {
+  sectorIds: number[];
+};
+
+export interface LoginBody {
+  /** @minLength 1 */
+  username: string;
+  /** @minLength 1 */
+  password: string;
+}
+
+export interface LoginResponse {
+  user: AuthUser;
+}
+
+export interface UpdatePasswordBody {
+  /** @minLength 6 */
+  newPassword: string;
+}
+
+export interface ActionResult {
+  ok: boolean;
+}
+
+export type UserAdmin = AuthUser & ({
+  createdAt: string;
+  /** @nullable */
+  lastLoginAt: string | null;
+});
+
+export type CreateUserBodyRole = typeof CreateUserBodyRole[keyof typeof CreateUserBodyRole];
+
+
+export const CreateUserBodyRole = {
+  responsable: 'responsable',
+  usuario: 'usuario',
+} as const;
+
+export interface CreateUserBody {
+  /** @minLength 1 */
+  username: string;
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  email?: string | null;
+  /** @minLength 6 */
+  password: string;
+  role: CreateUserBodyRole;
+  active?: boolean;
+  modules?: string[];
+  sectorIds?: number[];
+}
+
+export type UpdateUserBodyRole = typeof UpdateUserBodyRole[keyof typeof UpdateUserBodyRole];
+
+
+export const UpdateUserBodyRole = {
+  responsable: 'responsable',
+  usuario: 'usuario',
+} as const;
+
+export interface UpdateUserBody {
+  /** @minLength 1 */
+  username?: string;
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  email?: string | null;
+  role?: UpdateUserBodyRole;
+  active?: boolean;
+  modules?: string[];
+  sectorIds?: number[];
+}
+
+export interface ResetUserPasswordBody {
+  /** @minLength 6 */
+  password: string;
 }
 
 export interface DashboardSummary {

@@ -16,8 +16,10 @@ import {
   UpdateAgendaItemParams,
   UpdateAgendaItemResponse,
 } from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
 function calendarDate(value: Date | string): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;
@@ -89,14 +91,19 @@ router.get("/sectors", async (_req, res): Promise<void> => {
 });
 
 router.get("/me", async (_req, res): Promise<void> => {
+  const currentUser = _req.authUser!;
   const sectors = await db.select().from(sectorsTable).orderBy(asc(sectorsTable.name));
   res.json(
     GetCurrentUserResponse.parse({
-      id: 1,
-      name: "María González",
-      email: "maria.gonzalez@sanatoriosalvador.com.ar",
-      role: "Administrador General",
-      sectors,
+      id: currentUser.id,
+      username: currentUser.username,
+      name: currentUser.name,
+      email: currentUser.email,
+      role: currentUser.role,
+      active: currentUser.active,
+      mustChangePassword: currentUser.mustChangePassword,
+      modules: currentUser.modules,
+      sectors: sectors.filter((sector) => currentUser.role === "superadmin" || currentUser.sectorIds.includes(sector.id)),
     }),
   );
 });

@@ -16,6 +16,8 @@ tags:
     description: Administrative agenda and reminders
   - name: directory
     description: Users and sectors
+  - name: auth
+    description: Internal user sessions
 paths:
   /healthz:
     get:
@@ -91,6 +93,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CurrentUser"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Start an internal user session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: End the current session
+      responses:
+        "204":
+          description: Session ended
+  /auth/me:
+    get:
+      operationId: getAuthMe
+      tags: [auth]
+      summary: Get the signed-in internal user
+      responses:
+        "200":
+          description: Signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+  /auth/continue-password:
+    post:
+      operationId: continuePassword
+      tags: [auth]
+      summary: Keep the temporary password and complete first access
+      responses:
+        "200":
+          description: First access completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change the current user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePasswordBody"
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
   /agenda:
     get:
       operationId: listAgendaItems
@@ -186,6 +258,98 @@ paths:
           description: Deleted
         "404":
           description: Agenda item not found
+  /users:
+    get:
+      operationId: listUsers
+      tags: [directory]
+      summary: List internal users for the superadmin
+      responses:
+        "200":
+          description: Internal users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserAdmin"
+    post:
+      operationId: createUser
+      tags: [directory]
+      summary: Create an internal user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdmin"
+  /users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [directory]
+      summary: Update an internal user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAdmin"
+    delete:
+      operationId: deleteUser
+      tags: [directory]
+      summary: Delete an internal user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: User deleted
+  /users/{id}/reset-password:
+    post:
+      operationId: resetUserPassword
+      tags: [directory]
+      summary: Reset an internal user's password
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetUserPasswordBody"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
 components:
   schemas:
     HealthStatus:
@@ -283,22 +447,141 @@ components:
           type: integer
     CurrentUser:
       type: object
-      required: [id, name, email, role, sectors]
+      required: [id, username, name, email, role, active, mustChangePassword, modules, sectors]
       properties:
         id:
           type: integer
+        username:
+          type: string
         name:
           type: string
         email:
-          type: string
-          format: email
+          type: ["string", "null"]
         role:
           type: string
-          enum: [Administrador General, Responsable de Sector, Usuario]
+          enum: [superadmin, responsable, usuario]
+        active:
+          type: boolean
+        mustChangePassword:
+          type: boolean
+        modules:
+          type: array
+          items:
+            type: string
         sectors:
           type: array
           items:
             $ref: "#/components/schemas/Sector"
+    AuthUser:
+      allOf:
+        - $ref: "#/components/schemas/CurrentUser"
+        - type: object
+          required: [sectorIds]
+          properties:
+            sectorIds:
+              type: array
+              items:
+                type: integer
+    LoginBody:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+    LoginResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+    UpdatePasswordBody:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+          minLength: 6
+    ActionResult:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    UserAdmin:
+      allOf:
+        - $ref: "#/components/schemas/AuthUser"
+        - type: object
+          required: [createdAt, lastLoginAt]
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            lastLoginAt:
+              type: ["string", "null"]
+              format: date-time
+    CreateUserBody:
+      type: object
+      required: [username, name, password, role]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: ["string", "null"]
+        password:
+          type: string
+          minLength: 6
+        role:
+          type: string
+          enum: [responsable, usuario]
+        active:
+          type: boolean
+        modules:
+          type: array
+          items:
+            type: string
+        sectorIds:
+          type: array
+          items:
+            type: integer
+    UpdateUserBody:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [responsable, usuario]
+        active:
+          type: boolean
+        modules:
+          type: array
+          items:
+            type: string
+        sectorIds:
+          type: array
+          items:
+            type: integer
+    ResetUserPasswordBody:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 6
     DashboardSummary:
       type: object
       required: [upcomingReminders, pendingGuardias, lowStockItems, recentActivityCount]

@@ -70,15 +70,106 @@ export const ListSectorsResponse = zod.array(ListSectorsResponseItem)
  */
 export const GetCurrentUserResponse = zod.object({
   "id": zod.number().int(),
+  "username": zod.string(),
   "name": zod.string(),
-  "email": zod.string().email(),
-  "role": zod.enum(['Administrador General', 'Responsable de Sector', 'Usuario']),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['superadmin', 'responsable', 'usuario']),
+  "active": zod.boolean(),
+  "mustChangePassword": zod.boolean(),
+  "modules": zod.array(zod.string()),
   "sectors": zod.array(zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "shortName": zod.string(),
   "members": zod.number().int().optional()
 }))
+})
+
+
+/**
+ * @summary Start an internal user session
+ */
+
+
+
+
+export const LoginBody = zod.object({
+  "username": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const LoginResponse = zod.object({
+  "user": zod.object({
+  "id": zod.number().int(),
+  "username": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['superadmin', 'responsable', 'usuario']),
+  "active": zod.boolean(),
+  "mustChangePassword": zod.boolean(),
+  "modules": zod.array(zod.string()),
+  "sectors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "shortName": zod.string(),
+  "members": zod.number().int().optional()
+}))
+}).and(zod.object({
+  "sectorIds": zod.array(zod.number().int())
+}))
+})
+
+
+/**
+ * @summary End the current session
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Get the signed-in internal user
+ */
+export const GetAuthMeResponse = zod.object({
+  "id": zod.number().int(),
+  "username": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['superadmin', 'responsable', 'usuario']),
+  "active": zod.boolean(),
+  "mustChangePassword": zod.boolean(),
+  "modules": zod.array(zod.string()),
+  "sectors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "shortName": zod.string(),
+  "members": zod.number().int().optional()
+}))
+}).and(zod.object({
+  "sectorIds": zod.array(zod.number().int())
+}))
+
+
+/**
+ * @summary Keep the temporary password and complete first access
+ */
+export const ContinuePasswordResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Change the current user's password
+ */
+export const changePasswordBodyNewPasswordMin = 6;
+
+
+
+export const ChangePasswordBody = zod.object({
+  "newPassword": zod.string().min(changePasswordBodyNewPasswordMin)
+})
+
+export const ChangePasswordResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 
@@ -181,5 +272,149 @@ export const DeleteAgendaItemParams = zod.object({
 })
 
 export const DeleteAgendaItemResponse = zod.void()
+
+
+/**
+ * @summary List internal users for the superadmin
+ */
+export const ListUsersResponseItem = zod.object({
+  "id": zod.number().int(),
+  "username": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['superadmin', 'responsable', 'usuario']),
+  "active": zod.boolean(),
+  "mustChangePassword": zod.boolean(),
+  "modules": zod.array(zod.string()),
+  "sectors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "shortName": zod.string(),
+  "members": zod.number().int().optional()
+}))
+}).and(zod.object({
+  "sectorIds": zod.array(zod.number().int())
+})).and(zod.object({
+  "createdAt": zod.coerce.date(),
+  "lastLoginAt": zod.coerce.date().nullable()
+}))
+export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+/**
+ * @summary Create an internal user
+ */
+
+
+export const createUserBodyPasswordMin = 6;
+
+
+
+export const CreateUserBody = zod.object({
+  "username": zod.string().min(1),
+  "name": zod.string().min(1),
+  "email": zod.string().nullish(),
+  "password": zod.string().min(createUserBodyPasswordMin),
+  "role": zod.enum(['responsable', 'usuario']),
+  "active": zod.boolean().optional(),
+  "modules": zod.array(zod.string()).optional(),
+  "sectorIds": zod.array(zod.number().int()).optional()
+})
+
+export const CreateUserResponse = zod.object({
+  "id": zod.number().int(),
+  "username": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['superadmin', 'responsable', 'usuario']),
+  "active": zod.boolean(),
+  "mustChangePassword": zod.boolean(),
+  "modules": zod.array(zod.string()),
+  "sectors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "shortName": zod.string(),
+  "members": zod.number().int().optional()
+}))
+}).and(zod.object({
+  "sectorIds": zod.array(zod.number().int())
+})).and(zod.object({
+  "createdAt": zod.coerce.date(),
+  "lastLoginAt": zod.coerce.date().nullable()
+}))
+
+
+/**
+ * @summary Update an internal user
+ */
+export const UpdateUserParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+
+export const UpdateUserBody = zod.object({
+  "username": zod.string().min(1).optional(),
+  "name": zod.string().min(1).optional(),
+  "email": zod.string().nullish(),
+  "role": zod.enum(['responsable', 'usuario']).optional(),
+  "active": zod.boolean().optional(),
+  "modules": zod.array(zod.string()).optional(),
+  "sectorIds": zod.array(zod.number().int()).optional()
+})
+
+export const UpdateUserResponse = zod.object({
+  "id": zod.number().int(),
+  "username": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "role": zod.enum(['superadmin', 'responsable', 'usuario']),
+  "active": zod.boolean(),
+  "mustChangePassword": zod.boolean(),
+  "modules": zod.array(zod.string()),
+  "sectors": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "shortName": zod.string(),
+  "members": zod.number().int().optional()
+}))
+}).and(zod.object({
+  "sectorIds": zod.array(zod.number().int())
+})).and(zod.object({
+  "createdAt": zod.coerce.date(),
+  "lastLoginAt": zod.coerce.date().nullable()
+}))
+
+
+/**
+ * @summary Delete an internal user
+ */
+export const DeleteUserParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteUserResponse = zod.void()
+
+
+/**
+ * @summary Reset an internal user's password
+ */
+export const ResetUserPasswordParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const resetUserPasswordBodyPasswordMin = 6;
+
+
+
+export const ResetUserPasswordBody = zod.object({
+  "password": zod.string().min(resetUserPasswordBodyPasswordMin)
+})
+
+export const ResetUserPasswordResponse = zod.object({
+  "ok": zod.boolean()
+})
 
 
