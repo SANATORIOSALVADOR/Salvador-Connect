@@ -21,15 +21,13 @@ COPY . .
 RUN pnpm --filter @salvador/api run build
 RUN pnpm --filter @salvador/web run build
 
-# ---- api runtime ----
+# ---- api runtime (copia el monorepo para resolver workspace + node_modules) ----
 FROM node:20-bookworm-slim AS api
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/package.json ./
-# drizzle needs schema at runtime for push; for serve only dist is enough
+COPY --from=build /app /app
+WORKDIR /app/apps/api
 EXPOSE 5000
 CMD ["node", "--enable-source-maps", "dist/index.mjs"]
 
