@@ -2,7 +2,7 @@
 
 Sistema interno modular del **Sanatorio del Salvador**.
 
-## Estructura profesional
+## Estructura
 
 ```text
 salvador-connect/
@@ -15,19 +15,10 @@ salvador-connect/
 │   ├── api-zod/             # Validación Zod
 │   └── api-client-react/    # Cliente React tipado
 ├── scripts/                 # Seeds
-├── docs/                    # Alcance, arquitectura, Postgres
+├── docs/
 ├── CLAUDE.md
 └── AGENTS.md
 ```
-
-## Stack
-
-| Capa | Tecnología |
-|------|------------|
-| Frontend | React 19 + Vite + Tailwind |
-| Backend | Express 5 + TypeScript |
-| Base de datos | PostgreSQL + Drizzle |
-| Monorepo | pnpm workspaces |
 
 ## Desarrollo
 
@@ -37,8 +28,8 @@ cp .env.example .env
 # DATABASE_URL=postgresql://...
 
 pnpm run db:push
-pnpm run dev:api    # http://localhost:5000
-pnpm run dev:web    # Vite (proxy /api → API)
+pnpm run dev:api
+pnpm run dev:web
 ```
 
 Ver `docs/POSTGRES.md` y `CLAUDE.md`.

@@ -6,7 +6,6 @@
   "description": "Sistema interno del Sanatorio del Salvador",
   "scripts": {
     "preinstall": "node -e \"const ua=process.env.npm_config_user_agent||''; if(!ua.includes('pnpm')){console.error('Usá pnpm'); process.exit(1)}\"",
-    "dev": "pnpm run dev:api",
     "dev:api": "pnpm --filter @salvador/api run dev",
     "dev:web": "pnpm --filter @salvador/web run dev",
     "build": "pnpm -r --filter @salvador/api --filter @salvador/web --if-present run build",
