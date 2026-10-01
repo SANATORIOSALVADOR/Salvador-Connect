@@ -1,18 +1,25 @@
-# Estructura del monorepo
+# Estructura del monorepo (completa)
 
 ```text
 apps/
-  api/     Backend (@salvador/api)
-  web/     Frontend (@salvador/web)
+  api/       @salvador/api       Backend Express
+  web/       @salvador/web       Frontend React + Vite
 packages/
-  db/
-  api-spec/
-  api-zod/
+  db/        @salvador/db        PostgreSQL + Drizzle
+  api-spec/  @salvador/api-spec  OpenAPI + Orval
+  api-zod/   @salvador/api-zod   Schemas Zod
   api-client-react/
 scripts/
 docs/
 ```
 
-Los paths antiguos `artifacts/` y `lib/` están deprecados. Si todavía aparecen en el árbol remoto, eliminarlos tras migrar (Claude Code / limpieza manual).
+**Deprecado (eliminar si aún aparece):** `artifacts/`, `lib/`, `mockup-sandbox`.
 
-Prefijo de packages: `@salvador/*`.
+## Comandos
+
+```bash
+pnpm install
+pnpm run db:push
+pnpm run dev:api
+pnm run dev:web
+```
