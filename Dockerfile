@@ -18,7 +18,10 @@ RUN pnpm install --no-frozen-lockfile
 
 FROM deps AS build
 COPY . .
-RUN if [ -d artifacts/sanatorio-salvador/src ] && [ ! -f apps/web/src/components/ui/button.tsx ]; then \
+# Si hay UI propia con Guardias Médicas, no pisar con artifacts
+RUN if [ -f apps/web/src/pages/GuardiasMedicas.tsx ]; then \
+      echo "Usando apps/web (Guardias Médicas)"; \
+    elif [ -d artifacts/sanatorio-salvador/src ]; then \
       rm -rf apps/web && cp -a artifacts/sanatorio-salvador apps/web && rm -rf apps/web/.replit-artifact && \
       find apps/web -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.json' \) -print0 | xargs -0 sed -i 's/@workspace\//@salvador\//g' || true; \
     fi
@@ -28,7 +31,6 @@ RUN if [ -f apps/web/src/index.css ]; then \
 RUN pnpm --filter @salvador/api run build
 RUN pnpm --filter @salvador/web run build
 
-# API: solo el bundle (ya incluye @salvador/db y deps)
 FROM node:20-bookworm-slim AS api
 WORKDIR /app
 ENV NODE_ENV=production
