@@ -61,12 +61,11 @@ export const agendaItemsTable = pgTable("agenda_items", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
-  dueDate: date("due_date", { mode: "string" }).notNull(),
-  type: text("type").notNull().default("otro"),
+  dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
+  type: text("type").notNull().default("tarea"),
   status: text("status").notNull().default("pendiente"),
-  responsibleName: text("responsible_name").notNull().default(""),
-  sectorId: integer("sector_id").references(() => sectorsTable.id),
-  reminderDate: date("reminder_date", { mode: "string" }),
+  responsibleName: text("responsible_name").notNull(),
+  sectorName: text("sector_name"),
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -84,6 +83,7 @@ export const remindersTable = pgTable("reminders", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
 });
 
+/** Guardias Médicas */
 export const guardiasTable = pgTable("guardias", {
   id: serial("id").primaryKey(),
   sectorId: integer("sector_id")
@@ -92,6 +92,7 @@ export const guardiasTable = pgTable("guardias", {
   date: date("date", { mode: "string" }).notNull(),
   shift: text("shift").notNull(),
   modality: text("modality").notNull().default("presencial"),
+  type: text("type").notNull().default("fija"),
   professionalName: text("professional_name").notNull(),
   observations: text("observations").notNull().default(""),
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
