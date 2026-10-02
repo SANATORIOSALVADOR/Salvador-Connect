@@ -9,17 +9,19 @@ async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
-  // packages: "external" evita empaquetar pino/thread-stream/pg y el error de Docker
+  // Empaquetar workspace (@salvador/db, api-zod) en el bundle.
+  // No usar packages:"external": Node no puede ejecutar .ts de packages/* en runtime.
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     platform: "node",
     bundle: true,
-    packages: "external",
     format: "esm",
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
     sourcemap: "linked",
+    // Solo nativos / opcionales; el resto (express, drizzle, pg, zod) va en el bundle
+    external: ["pg-native", "*.node"],
     banner: {
       js: `import { createRequire as __bannerCrReq } from 'node:module';
 import __bannerPath from 'node:path';

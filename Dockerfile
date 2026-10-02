@@ -18,25 +18,26 @@ RUN pnpm install --no-frozen-lockfile
 
 FROM deps AS build
 COPY . .
-# Restaurar frontend Replit si apps/web está mínimo y existe artifacts
 RUN if [ -d artifacts/sanatorio-salvador/src ] && [ ! -f apps/web/src/components/ui/button.tsx ]; then \
       rm -rf apps/web && cp -a artifacts/sanatorio-salvador apps/web && rm -rf apps/web/.replit-artifact && \
       find apps/web -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.json' \) -print0 | xargs -0 sed -i 's/@workspace\//@salvador\//g' || true; \
     fi
-# Quitar restos de Clerk / Replit del CSS antes del build web
 RUN if [ -f apps/web/src/index.css ]; then \
       sed -i "/clerk/Id; /@clerk/d; /tw-animate-css/d; s/, clerk,/,/g; s/clerk, //g" apps/web/src/index.css || true; \
     fi
 RUN pnpm --filter @salvador/api run build
 RUN pnpm --filter @salvador/web run build
 
+# API: solo el bundle (ya incluye @salvador/db y deps)
 FROM node:20-bookworm-slim AS api
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
-COPY --from=build /app /app
-WORKDIR /app/apps/api
+COPY --from=build /app/apps/api/dist ./dist
+COPY --from=build /app/apps/api/package.json ./package.json
 EXPOSE 5000
+HEALTHCHECK --interval=15s --timeout=5s --start-period=25s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||5000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "--enable-source-maps", "dist/index.mjs"]
 
 FROM nginx:1.27-alpine AS web
