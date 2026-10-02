@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Aplica schema Drizzle (db:push) contra el Postgres del compose.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -25,11 +24,15 @@ done
 NETWORK="$(docker compose ps -q db | xargs -r docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -1)"
 NETWORK="${NETWORK:-salvador-connect_salvador}"
 
-echo "Aplicando schema (db:push) en red $NETWORK..."
+echo "Aplicando schema (drizzle-kit push --force) en red $NETWORK..."
 docker run --rm --network "$NETWORK" \
   -e DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}" \
   -v "$PWD":/app -w /app \
   node:20-bookworm-slim \
-  bash -c 'corepack enable && corepack prepare pnpm@9.15.0 --activate && pnpm install --no-frozen-lockfile && pnpm run db:push'
+  bash -c 'corepack enable && corepack prepare pnpm@9.15.0 --activate && pnpm install --no-frozen-lockfile && pnpm --filter @salvador/db exec drizzle-kit push --force --config ./drizzle.config.ts'
 
-echo "Schema OK."
+echo "Schema OK. Reiniciando API..."
+docker compose restart api
+sleep 3
+curl -s http://127.0.0.1:5000/api/health || true
+echo ""
