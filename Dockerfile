@@ -23,6 +23,10 @@ RUN if [ -d artifacts/sanatorio-salvador/src ] && [ ! -f apps/web/src/components
       rm -rf apps/web && cp -a artifacts/sanatorio-salvador apps/web && rm -rf apps/web/.replit-artifact && \
       find apps/web -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.json' \) -print0 | xargs -0 sed -i 's/@workspace\//@salvador\//g' || true; \
     fi
+# Quitar restos de Clerk / Replit del CSS antes del build web
+RUN if [ -f apps/web/src/index.css ]; then \
+      sed -i "/clerk/Id; /@clerk/d; /tw-animate-css/d; s/, clerk,/,/g; s/clerk, //g" apps/web/src/index.css || true; \
+    fi
 RUN pnpm --filter @salvador/api run build
 RUN pnpm --filter @salvador/web run build
 
