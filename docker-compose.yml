@@ -1,44 +1,71 @@
+# Salvador-Connect — stack producción (Linux + Docker)
+# Uso: copiar .env.example → .env, completar secrets, luego:
+#   docker compose up -d --build
+#   bash scripts/db-migrate.sh
+
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: sanatorio
-      POSTGRES_PASSWORD: sanatorio
-      POSTGRES_DB: sanatorio_db
+      POSTGRES_USER: ${POSTGRES_USER:-sanatorio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-sanatorio_db}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Solo localhost por defecto (seguro). Override en compose override si hace falta.
     ports:
-      - "5432:5432"
+      - "${POSTGRES_BIND:-127.0.0.1:5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sanatorio -d sanatorio_db"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
+    networks:
+      - salvador
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
       target: api
+    restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: "5000"
-      DATABASE_URL: postgresql://sanatorio:sanatorio@db:5432/sanatorio_db
-    ports:
-      - "5000:5000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sanatorio}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sanatorio_db}
     depends_on:
       db:
         condition: service_healthy
+    # API interna; el acceso externo va por nginx (web). Opcional exponer en LAN:
+    ports:
+      - "${API_BIND:-127.0.0.1:5000}:5000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - salvador
 
   web:
     build:
       context: .
       dockerfile: Dockerfile
       target: web
+    restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${WEB_BIND:-0.0.0.0:8080}:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    networks:
+      - salvador
 
 volumes:
   pgdata:
+
+networks:
+  salvador:
+    driver: bridge
