@@ -12,11 +12,19 @@ const scrypt = (password: string, salt: string, keyLength: number, options: { co
   });
 export const SESSION_COOKIE = "sanatorio_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+// Password: salvador2026 (solo bootstrap / staging)
 export const BOOTSTRAP_PASSWORD_HASH =
-  "scrypt$16384$8$1$39f918f971d33869fab676ec50e46810$0c732afc551e60a40781324982847b0a21dacec8d47fc5c5fb2559cd007cb3830525a6a81ab48113d733eea5cf61521c2dfe30d4bceb1726d80d1cb231783e30";
+  "scrypt$16384$8$1$1db4f90a649ef92fa47361a1faceed29$613b3dc5db7d9f16c43e88ab446a62850d860e4d7979a3840ea914f6207a2975437f260562c123b18c744b14e35921cba6629cd014e7d7436371fe82cafd4de6";
 export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "inventario", "instructivos", "configuracion", "usuarios"] as const;
 
 const BOOTSTRAP_USERNAME = "sistemas";
+
+// En HTTP (LAN / staging) las cookies Secure no se guardan. Activar solo con HTTPS:
+// COOKIE_SECURE=true
+function cookieSecure(): boolean {
+  return process.env.COOKIE_SECURE === "true";
+}
 
 export async function ensureBootstrapSuperadmin(): Promise<void> {
   const [existing] = await db
@@ -24,7 +32,31 @@ export async function ensureBootstrapSuperadmin(): Promise<void> {
     .from(usersTable)
     .where(eq(usersTable.username, BOOTSTRAP_USERNAME))
     .limit(1);
-  if (existing) return;
+
+  if (existing) {
+    // Asegura hash y permisos del bootstrap en staging
+    await db
+      .update(usersTable)
+      .set({
+        passwordHash: BOOTSTRAP_PASSWORD_HASH,
+        role: "superadmin",
+        active: true,
+        mustChangePassword: false,
+        name: "Sistemas",
+      })
+      .where(eq(usersTable.id, existing.id));
+    const mods = await db
+      .select({ moduleKey: userModulesTable.moduleKey })
+      .from(userModulesTable)
+      .where(eq(userModulesTable.userId, existing.id));
+    const have = new Set(mods.map((m) => m.moduleKey));
+    const missing = ALL_MODULES.filter((m) => !have.has(m));
+    if (missing.length) {
+      await db.insert(userModulesTable).values(missing.map((moduleKey) => ({ userId: existing.id, moduleKey })));
+    }
+    return;
+  }
+
   const [user] = await db
     .insert(usersTable)
     .values({
@@ -34,7 +66,7 @@ export async function ensureBootstrapSuperadmin(): Promise<void> {
       passwordHash: BOOTSTRAP_PASSWORD_HASH,
       role: "superadmin",
       active: true,
-      mustChangePassword: true,
+      mustChangePassword: false,
     })
     .returning({ id: usersTable.id });
   await db.insert(userModulesTable).values(ALL_MODULES.map((moduleKey) => ({ userId: user.id, moduleKey })));
@@ -106,7 +138,7 @@ export async function createSession(userId: number, response: Response): Promise
   response.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecure(),
     expires: expiresAt,
     path: "/",
   });
@@ -115,7 +147,12 @@ export async function createSession(userId: number, response: Response): Promise
 export async function clearSession(request: Request, response: Response): Promise<void> {
   const token = request.cookies?.[SESSION_COOKIE] as string | undefined;
   if (token) await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, digestToken(token)));
-  response.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
+  response.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: cookieSecure(),
+    path: "/",
+  });
 }
 
 export async function getAuthenticatedUser(request: Request): Promise<AuthUser | null> {
