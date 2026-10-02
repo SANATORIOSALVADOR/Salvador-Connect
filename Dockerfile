@@ -1,6 +1,4 @@
-# Salvador-Connect — multi-stage production build
-# targets: api | web
-
+# Salvador-Connect — multi-stage (diseño Replit + Guardias Médicas)
 FROM node:20-bookworm-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
@@ -18,16 +16,52 @@ RUN pnpm install --no-frozen-lockfile
 
 FROM deps AS build
 COPY . .
-# Si hay UI propia con Guardias Médicas, no pisar con artifacts
-RUN if [ -f apps/web/src/pages/GuardiasMedicas.tsx ]; then \
-      echo "Usando apps/web (Guardias Médicas)"; \
-    elif [ -d artifacts/sanatorio-salvador/src ]; then \
+
+# Cliente API completo (Replit lo necesita)
+RUN if [ -d lib/api-client-react/src ]; then \
+      rm -rf packages/api-client-react && cp -a lib/api-client-react packages/api-client-react && \
+      find packages/api-client-react -type f \( -name '*.ts' -o -name '*.json' \) -print0 | xargs -0 sed -i 's/@workspace\//@salvador\//g' || true; \
+    fi
+
+# Guardar Guardias Médicas antes de restaurar UI
+RUN mkdir -p /tmp/overlay && \
+    if [ -f apps/web/src/pages/GuardiasMedicas.tsx ]; then cp apps/web/src/pages/GuardiasMedicas.tsx /tmp/overlay/; fi && \
+    if [ -f artifacts/sanatorio-salvador/src/pages/GuardiasMedicas.tsx ]; then cp artifacts/sanatorio-salvador/src/pages/GuardiasMedicas.tsx /tmp/overlay/; fi
+
+# Restaurar diseño original Replit
+RUN if [ -d artifacts/sanatorio-salvador/src ]; then \
       rm -rf apps/web && cp -a artifacts/sanatorio-salvador apps/web && rm -rf apps/web/.replit-artifact && \
       find apps/web -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.json' \) -print0 | xargs -0 sed -i 's/@workspace\//@salvador\//g' || true; \
     fi
-RUN if [ -f apps/web/src/index.css ]; then \
-      sed -i "/clerk/Id; /@clerk/d; /tw-animate-css/d; s/, clerk,/,/g; s/clerk, //g" apps/web/src/index.css || true; \
+
+# Inyectar Guardias Médicas + renombrar menú + ruta
+RUN mkdir -p apps/web/src/pages && \
+    if [ -f /tmp/overlay/GuardiasMedicas.tsx ]; then cp /tmp/overlay/GuardiasMedicas.tsx apps/web/src/pages/GuardiasMedicas.tsx; fi && \
+    if [ -f apps/web/src/App.tsx ]; then \
+      sed -i "s/label: 'Guardias'/label: 'Guardias Médicas'/g" apps/web/src/App.tsx && \
+      grep -q "GuardiasMedicasPage" apps/web/src/App.tsx || sed -i "s|import { ErrorBoundary } from '@/components/error-boundary';|import { ErrorBoundary } from '@/components/error-boundary';\nimport GuardiasMedicasPage from '@/pages/GuardiasMedicas';|" apps/web/src/App.tsx && \
+      sed -i 's|<PlaceholderPage kind="Guardias" title="Guardias" description="Planificación y seguimiento de guardias del sanatorio." icon={CalendarDays} />|<GuardiasMedicasPage />|g' apps/web/src/App.tsx; \
     fi
+
+# Vite producción
+RUN printf '%s\n' \
+  'import path from "node:path";' \
+  'import react from "@vitejs/plugin-react";' \
+  'import tailwindcss from "@tailwindcss/vite";' \
+  'import { defineConfig } from "vite";' \
+  'export default defineConfig({' \
+  '  base: "/",' \
+  '  plugins: [react(), tailwindcss()],' \
+  '  resolve: { alias: { "@": path.resolve(__dirname, "./src") }, dedupe: ["react", "react-dom"] },' \
+  '  build: { outDir: path.resolve(__dirname, "dist"), emptyOutDir: true },' \
+  '});' \
+  > apps/web/vite.config.ts
+
+RUN node -e "const fs=require('fs');const p='apps/web/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.name='@salvador/web';d.scripts={dev:'vite --config vite.config.ts --host',build:'vite build --config vite.config.ts',preview:'vite preview --config vite.config.ts --host',typecheck:'tsc -p tsconfig.json --noEmit'};const strip=(o)=>{if(!o)return;for(const k of Object.keys(o)){if(k.includes('clerk')||k.includes('replit'))delete o[k];if(k.startsWith('@workspace/')){o[k.replace('@workspace/','@salvador/')]=o[k];delete o[k];}}};strip(d.dependencies);strip(d.devDependencies);d.dependencies=d.dependencies||{};d.dependencies['@salvador/api-client-react']='workspace:*';fs.writeFileSync(p,JSON.stringify(d,null,2));"
+
+RUN if [ -f apps/web/src/index.css ]; then sed -i "/clerk/Id; /@clerk/d; /tw-animate-css/d" apps/web/src/index.css || true; fi
+
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm --filter @salvador/api run build
 RUN pnpm --filter @salvador/web run build
 
