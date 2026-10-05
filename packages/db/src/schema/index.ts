@@ -32,6 +32,7 @@ export const usersTable = pgTable("users", {
 });
 
 export const userModulesTable = pgTable("user_modules", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
@@ -40,15 +41,16 @@ export const userModulesTable = pgTable("user_modules", {
 
 export const sessionsTable = pgTable("sessions", {
   id: serial("id").primaryKey(),
-  tokenHash: text("token_hash").notNull().unique(),
   userId: integer("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const userSectorsTable = pgTable("user_sectors", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
@@ -61,38 +63,35 @@ export const agendaItemsTable = pgTable("agenda_items", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
-  dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
   type: text("type").notNull().default("tarea"),
   status: text("status").notNull().default("pendiente"),
-  responsibleName: text("responsible_name").notNull(),
-  sectorName: text("sector_name"),
+  dueDate: date("due_date", { mode: "string" }).notNull(),
+  responsibleName: text("responsible_name").notNull().default(""),
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const remindersTable = pgTable("reminders", {
   id: serial("id").primaryKey(),
-  agendaItemId: integer("agenda_item_id")
-    .notNull()
-    .references(() => agendaItemsTable.id, { onDelete: "cascade" }),
-  remindAt: timestamp("remind_at", { withTimezone: true }).notNull(),
-  sentAt: timestamp("sent_at", { withTimezone: true }),
+  agendaItemId: integer("agenda_item_id").references(() => agendaItemsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  done: boolean("done").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Guardias Médicas */
 export const guardiasTable = pgTable("guardias", {
   id: serial("id").primaryKey(),
   sectorId: integer("sector_id")
     .notNull()
     .references(() => sectorsTable.id),
   date: date("date", { mode: "string" }).notNull(),
-  shift: text("shift").notNull(),
-  modality: text("modality").notNull().default("presencial"),
-  type: text("type").notNull().default("fija"),
+  shift: text("shift").notNull().default(""),
+  startTime: text("start_time").notNull().default("08:00"),
+  endTime: text("end_time").notNull().default("16:00"),
+  modality: text("modality").notNull().default("activa"),
+  type: text("type").notNull().default(""),
   professionalName: text("professional_name").notNull(),
   observations: text("observations").notNull().default(""),
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
@@ -103,21 +102,13 @@ export const inventoryItemsTable = pgTable("inventory_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   category: text("category").notNull().default("general"),
-  brand: text("brand"),
-  model: text("model"),
   serialNumber: text("serial_number"),
-  purchaseDate: date("purchase_date", { mode: "string" }),
-  status: text("status").notNull().default("operativo"),
+  status: text("status").notNull().default("activo"),
   sectorId: integer("sector_id").references(() => sectorsTable.id),
-  warrantyUntil: date("warranty_until", { mode: "string" }),
-  nextMaintenanceDate: date("next_maintenance_date", { mode: "string" }),
-  notes: text("notes").notNull().default(""),
-  active: boolean("active").notNull().default(true),
+  locationNote: text("location_note").notNull().default(""),
+  acquiredAt: date("acquired_at", { mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const inventoryMovementsTable = pgTable("inventory_movements", {
@@ -127,31 +118,26 @@ export const inventoryMovementsTable = pgTable("inventory_movements", {
     .references(() => inventoryItemsTable.id, { onDelete: "cascade" }),
   fromSectorId: integer("from_sector_id").references(() => sectorsTable.id),
   toSectorId: integer("to_sector_id").references(() => sectorsTable.id),
-  reason: text("reason").notNull().default(""),
+  note: text("note").notNull().default(""),
+  movedAt: timestamp("moved_at", { withTimezone: true }).notNull().defaultNow(),
   movedByUserId: integer("moved_by_user_id").references(() => usersTable.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const instructivosTable = pgTable("instructivos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
-  description: text("description").notNull().default(""),
   sectorId: integer("sector_id").references(() => sectorsTable.id),
+  filePath: text("file_path").notNull(),
   version: text("version").notNull().default("1.0"),
-  attachmentPath: text("attachment_path"),
-  uploadedByUserId: integer("uploaded_by_user_id").references(() => usersTable.id),
-  active: boolean("active").notNull().default(true),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
 });
 
 export const insertSectorSchema = createInsertSchema(sectorsTable).omit({
   id: true,
   createdAt: true,
 });
+
 export const insertAgendaItemSchema = createInsertSchema(agendaItemsTable).omit({
   id: true,
   createdAt: true,
@@ -162,7 +148,3 @@ export type Sector = typeof sectorsTable.$inferSelect;
 export type User = typeof usersTable.$inferSelect;
 export type AgendaItem = typeof agendaItemsTable.$inferSelect;
 export type Guardia = typeof guardiasTable.$inferSelect;
-export type InventoryItem = typeof inventoryItemsTable.$inferSelect;
-export type InventoryMovement = typeof inventoryMovementsTable.$inferSelect;
-export type Instructivo = typeof instructivosTable.$inferSelect;
-export type InsertAgendaItem = z.infer<typeof insertAgendaItemSchema>;

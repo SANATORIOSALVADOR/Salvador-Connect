@@ -1,19 +1,16 @@
-/**
- * Seed de sectores de ejemplo para desarrollo.
- * Uso:
- *   DATABASE_URL=... pnpm run db:seed-sectors
- */
 import { eq } from "drizzle-orm";
-import { db, sectorsTable } from "@workspace/db";
+import { db, sectorsTable } from "@salvador/db";
 
 const SECTORS = [
+  { name: "Guardia Central", shortName: "GCE" },
+  { name: "UTI Neo", shortName: "UNE" },
+  { name: "UTI UCO", shortName: "UCO" },
+  { name: "Piso Gineco", shortName: "GIN" },
+  { name: "Piso Clínica Médica", shortName: "PCM" },
+  { name: "Residentes", shortName: "RES" },
   { name: "Sistemas", shortName: "SIS" },
   { name: "Enfermería", shortName: "ENF" },
-  { name: "Médicos", shortName: "MED" },
   { name: "Administración", shortName: "ADM" },
-  { name: "Mantenimiento", shortName: "MAN" },
-  { name: "Diagnóstico por Imágenes", shortName: "IMG" },
-  { name: "Laboratorio", shortName: "LAB" },
 ] as const;
 
 async function main() {
