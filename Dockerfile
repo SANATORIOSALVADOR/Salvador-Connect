@@ -49,7 +49,6 @@ RUN if [ -d lib/api-client-react ]; then \
 RUN mkdir -p /tmp/overlay && \
     if [ -f apps/web/src/pages/GuardiasMedicas.tsx ]; then cp apps/web/src/pages/GuardiasMedicas.tsx /tmp/overlay/; fi
 
-# UI Replit original
 RUN echo "=== UI Replit ===" && \
     test -f artifacts/sanatorio-salvador/src/components/ui/button.tsx && \
     rm -rf apps/web && \
@@ -105,17 +104,34 @@ RUN printf '%s\n' \
   '  "include": ["src"]' \
   '}' > apps/web/tsconfig.json
 
-# CSS: quitar @layer suelto al inicio (rompe Tailwind v4) y basura clerk
 RUN sed -i '/^@layer theme/d' apps/web/src/index.css && \
     sed -i '/clerk/Id; /@clerk/d; /tw-animate-css/d' apps/web/src/index.css || true
 
-RUN node -e "const fs=require('fs');const p='apps/web/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.name='@salvador/web';d.scripts={build:'vite build --config vite.config.ts'};const strip=o=>{if(!o)return;for(const k of Object.keys(o)){if(String(k).includes('clerk')||String(k).includes('replit'))delete o[k];if(String(k).startsWith('@workspace/')){o[k.replace('@workspace/','@salvador/')]=o[k];delete o[k];}}};strip(d.dependencies);strip(d.devDependencies);d.dependencies=d.dependencies||{};d.dependencies['@salvador/api-client-react']='workspace:*';['react','react-dom','wouter','@tanstack/react-query','lucide-react'].forEach(k=>{if(d.devDependencies&&d.devDependencies[k])d.dependencies[k]=d.devDependencies[k];});fs.writeFileSync(p,JSON.stringify(d,null,2));"
+# package.json: nombre + vite y plugins en dependencies (no solo dev)
+RUN node -e "
+const fs=require('fs');
+const p='apps/web/package.json';
+const d=JSON.parse(fs.readFileSync(p,'utf8'));
+d.name='@salvador/web';
+d.scripts={build:'vite build --config vite.config.ts'};
+const strip=o=>{if(!o)return;for(const k of Object.keys(o)){if(String(k).includes('clerk')||String(k).includes('replit'))delete o[k];if(String(k).startsWith('@workspace/')){o[k.replace('@workspace/','@salvador/')]=o[k];delete o[k];}}};
+strip(d.dependencies);strip(d.devDependencies);
+d.dependencies=d.dependencies||{};
+d.devDependencies=d.devDependencies||{};
+const need=['react','react-dom','wouter','@tanstack/react-query','lucide-react','vite','@vitejs/plugin-react','@tailwindcss/vite','tailwindcss','clsx','tailwind-merge','class-variance-authority','zod','date-fns','framer-motion'];
+for (const k of need) {
+  const v=(d.devDependencies[k]||d.dependencies[k]||'catalog:');
+  d.dependencies[k]=v;
+}
+d.dependencies['@salvador/api-client-react']='workspace:*';
+fs.writeFileSync(p,JSON.stringify(d,null,2));
+"
 
+WORKDIR /app
 RUN pnpm install --no-frozen-lockfile
-
-WORKDIR /app/apps/web
-RUN pnpm exec vite build --config vite.config.ts 2>&1 || (echo '==== VITE ERROR ARRIBA ===='; exit 1)
-RUN ls -la dist | head
+# Build con filter (cwd correcto + binarios del workspace)
+RUN pnpm --filter @salvador/web run build 2>&1 || (echo '==== VITE ERROR ARRIBA ===='; ls apps/web/node_modules/.bin 2>/dev/null | head; ls node_modules/.bin 2>/dev/null | head; exit 1)
+RUN ls -la apps/web/dist | head
 
 FROM nginx:1.27-alpine AS web
 COPY --from=build-web /app/apps/web/dist /usr/share/nginx/html
