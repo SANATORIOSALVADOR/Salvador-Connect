@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import managementRouter from "./management";
 import usersRouter from "./users";
 import guardiasRouter from "./guardias";
+import liquidacionRouter from "./liquidacion";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(authRouter);
 router.use(managementRouter);
 router.use(usersRouter);
 router.use(guardiasRouter);
+router.use(liquidacionRouter);
 
 export default router;
