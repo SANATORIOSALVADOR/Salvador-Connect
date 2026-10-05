@@ -7,60 +7,53 @@ type Guardia = {
   sectorName?: string | null;
   sectorShortName?: string | null;
   date: string;
-  shift: string;
+  startTime: string;
+  endTime: string;
   modality: string;
-  type: string;
   professionalName: string;
   observations: string;
 };
 
 const API = "/api";
-const SHIFTS = [
-  { value: "mañana", label: "Mañana" },
-  { value: "tarde", label: "Tarde" },
-  { value: "noche", label: "Noche" },
-  { value: "24h", label: "24 h" },
-];
 const MODALITIES = [
-  { value: "presencial", label: "Presencial" },
-  { value: "retencion", label: "Retención" },
-];
-const TYPES = [
-  { value: "fija", label: "Fija" },
-  { value: "rotativa", label: "Rotativa" },
+  { value: "activa", label: "Activa" },
   { value: "pasiva", label: "Pasiva" },
 ];
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const GUARDIA_SECTOR_NAMES = [
+  "Guardia Central",
+  "UTI Neo",
+  "UTI UCO",
+  "Piso Gineco",
+  "Piso Clínica Médica",
+  "Residentes",
+];
 
 function monthRange(d: Date) {
   const y = d.getFullYear();
   const m = d.getMonth();
-  const from = new Date(y, m, 1);
-  const to = new Date(y, m + 1, 0);
-  const iso = (x: Date) => {
-    const yy = x.getFullYear();
-    const mm = String(x.getMonth() + 1).padStart(2, "0");
-    const dd = String(x.getDate()).padStart(2, "0");
-    return `${yy}-${mm}-${dd}`;
+  const iso = (x: Date) =>
+    `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  return {
+    from: iso(new Date(y, m, 1)),
+    to: iso(new Date(y, m + 1, 0)),
+    year: y,
+    month: m,
   };
-  return { from: iso(from), to: iso(to), year: y, month: m };
 }
 
-function labelShift(v: string) {
-  return SHIFTS.find((s) => s.value === v)?.label ?? v;
+function formatDateAR(iso: string) {
+  if (!iso || iso.length < 10) return iso;
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
 }
+
 function labelMod(v: string) {
   return MODALITIES.find((s) => s.value === v)?.label ?? v;
 }
-function labelType(v: string) {
-  return TYPES.find((s) => s.value === v)?.label ?? v;
-}
 
-function shiftClass(shift: string) {
-  if (shift === "mañana") return "gm-chip gm-chip-manana";
-  if (shift === "tarde") return "gm-chip gm-chip-tarde";
-  if (shift === "noche") return "gm-chip gm-chip-noche";
-  return "gm-chip gm-chip-24h";
+function modalityClass(m: string) {
+  return m === "pasiva" ? "gm-chip gm-chip-pasiva" : "gm-chip gm-chip-activa";
 }
 
 export default function GuardiasMedicas() {
@@ -74,17 +67,34 @@ export default function GuardiasMedicas() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const todayIso = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  })();
+
   const [form, setForm] = useState({
     sectorId: "",
-    date: new Date().toISOString().slice(0, 10),
-    shift: "mañana",
-    modality: "presencial",
-    type: "fija",
+    date: todayIso,
+    startTime: "08:00",
+    endTime: "16:00",
+    modality: "activa",
     professionalName: "",
     observations: "",
   });
 
   const range = useMemo(() => monthRange(cursor), [cursor]);
+
+  const guardiaSectors = useMemo(() => {
+    const filtered = sectors.filter((s) =>
+      GUARDIA_SECTOR_NAMES.some(
+        (n) =>
+          s.name.toLowerCase() === n.toLowerCase() ||
+          s.name.toLowerCase().includes(n.toLowerCase()) ||
+          n.toLowerCase().includes(s.name.toLowerCase()),
+      ),
+    );
+    return filtered.length ? filtered : sectors;
+  }, [sectors]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,10 +154,6 @@ export default function GuardiasMedicas() {
   }, [range]);
 
   const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-  const todayIso = (() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
-  })();
   const dayDetail = selectedDay ? byDate.get(selectedDay) || [] : [];
 
   async function onSubmit(e: FormEvent) {
@@ -162,9 +168,9 @@ export default function GuardiasMedicas() {
         body: JSON.stringify({
           sectorId: Number(form.sectorId),
           date: form.date,
-          shift: form.shift,
+          startTime: form.startTime,
+          endTime: form.endTime,
           modality: form.modality,
-          type: form.type,
           professionalName: form.professionalName.trim(),
           observations: form.observations.trim(),
         }),
@@ -201,17 +207,11 @@ export default function GuardiasMedicas() {
         <div>
           <div className="eyebrow">Operación / Cobertura</div>
           <h1 className="page-title">Guardias Médicas</h1>
-          <p className="page-subtitle">
-            Calendario de quién está de guardia y registro de cargas por sector, turno y modalidad.
-          </p>
+          <p className="page-subtitle">Quién está de guardia por sector, con horario de inicio y fin (activa o pasiva).</p>
         </div>
         <div className="gm-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={tab === "calendario"} className={`gm-tab${tab === "calendario" ? " is-active" : ""}`} onClick={() => setTab("calendario")}>
-            Calendario
-          </button>
-          <button type="button" role="tab" aria-selected={tab === "carga"} className={`gm-tab${tab === "carga" ? " is-active" : ""}`} onClick={() => setTab("carga")}>
-            Carga y registro
-          </button>
+          <button type="button" role="tab" aria-selected={tab === "calendario"} className={`gm-tab${tab === "calendario" ? " is-active" : ""}`} onClick={() => setTab("calendario")}>Calendario</button>
+          <button type="button" role="tab" aria-selected={tab === "carga"} className={`gm-tab${tab === "carga" ? " is-active" : ""}`} onClick={() => setTab("carga")}>Carga y registro</button>
         </div>
       </div>
 
@@ -222,52 +222,36 @@ export default function GuardiasMedicas() {
           <div className="card gm-calendar-panel">
             <div className="gm-cal-toolbar">
               <div className="gm-cal-nav">
-                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>
-                  ← Mes anterior
-                </button>
+                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>← Mes anterior</button>
                 <span className="gm-cal-month">{monthLabel}</span>
-                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>
-                  Mes siguiente →
-                </button>
+                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>Mes siguiente →</button>
               </div>
               <label className="gm-filter">
                 <span>Sector</span>
                 <select className="select" value={filterSector} onChange={(e) => setFilterSector(e.target.value)}>
                   <option value="">Todos</option>
-                  {sectors.map((s) => (
+                  {guardiaSectors.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </label>
             </div>
-
             {loading ? (
               <div className="skeleton" style={{ height: 320 }} />
             ) : (
               <>
-                <div className="gm-weekdays">
-                  {WEEKDAYS.map((d) => (
-                    <div key={d} className="gm-weekday">{d}</div>
-                  ))}
-                </div>
+                <div className="gm-weekdays">{WEEKDAYS.map((d) => <div key={d} className="gm-weekday">{d}</div>)}</div>
                 <div className="gm-grid">
                   {calendarCells.map((cell, i) => {
                     if (!cell.day || !cell.iso) return <div key={`e-${i}`} className="gm-cell is-empty" />;
                     const dayItems = byDate.get(cell.iso) || [];
-                    const isToday = cell.iso === todayIso;
-                    const isSelected = cell.iso === selectedDay;
                     return (
-                      <button
-                        type="button"
-                        key={cell.iso}
-                        className={`gm-cell${isToday ? " is-today" : ""}${isSelected ? " is-selected" : ""}${dayItems.length ? " has-items" : ""}`}
-                        onClick={() => setSelectedDay(cell.iso)}
-                      >
+                      <button type="button" key={cell.iso} className={`gm-cell${cell.iso === todayIso ? " is-today" : ""}${cell.iso === selectedDay ? " is-selected" : ""}${dayItems.length ? " has-items" : ""}`} onClick={() => setSelectedDay(cell.iso)}>
                         <span className="gm-day-num">{cell.day}</span>
                         <div className="gm-day-chips">
                           {dayItems.slice(0, 3).map((g) => (
-                            <span key={g.id} className={shiftClass(g.shift)} title={`${g.professionalName} · ${labelShift(g.shift)}`}>
-                              {g.professionalName.split(" ").slice(-1)[0]}
+                            <span key={g.id} className={modalityClass(g.modality)} title={`${g.professionalName} ${g.startTime}-${g.endTime}`}>
+                              {g.startTime} {g.professionalName.split(" ").slice(-1)[0]}
                             </span>
                           ))}
                           {dayItems.length > 3 && <span className="gm-chip gm-chip-more">+{dayItems.length - 3}</span>}
@@ -277,47 +261,34 @@ export default function GuardiasMedicas() {
                   })}
                 </div>
                 <div className="gm-legend">
-                  <span><i className="gm-dot gm-chip-manana" /> Mañana</span>
-                  <span><i className="gm-dot gm-chip-tarde" /> Tarde</span>
-                  <span><i className="gm-dot gm-chip-noche" /> Noche</span>
-                  <span><i className="gm-dot gm-chip-24h" /> 24 h</span>
+                  <span><i className="gm-dot gm-chip-activa" /> Activa</span>
+                  <span><i className="gm-dot gm-chip-pasiva" /> Pasiva</span>
                 </div>
               </>
             )}
           </div>
-
           <aside className="card gm-day-panel">
             <div className="section-kicker">Detalle del día</div>
             <h2 className="section-title" style={{ marginTop: 6 }}>
-              {selectedDay
-                ? new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })
-                : "Seleccioná un día"}
+              {selectedDay ? new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Seleccioná un día"}
             </h2>
-            {!selectedDay && (
-              <p className="page-subtitle" style={{ marginTop: 12 }}>
-                Tocá un día del calendario para ver quién está de guardia.
-              </p>
-            )}
+            {!selectedDay && <p className="page-subtitle" style={{ marginTop: 12 }}>Tocá un día del calendario para ver quién está de guardia.</p>}
             {selectedDay && dayDetail.length === 0 && (
               <div className="empty-state" style={{ padding: "24px 8px" }}>
                 <p>Sin cobertura cargada para este día.</p>
-                <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => { setForm((f) => ({ ...f, date: selectedDay })); setTab("carga"); }}>
-                  Cargar guardia
-                </button>
+                <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => { setForm((f) => ({ ...f, date: selectedDay })); setTab("carga"); }}>Cargar guardia</button>
               </div>
             )}
             {dayDetail.map((g) => (
               <div key={g.id} className="gm-detail-card">
                 <div className="gm-detail-top">
-                  <span className={shiftClass(g.shift)}>{labelShift(g.shift)}</span>
-                  <span className="badge badge-type">{labelType(g.type)}</span>
+                  <span className={modalityClass(g.modality)}>{labelMod(g.modality)}</span>
+                  <span className="badge">{g.startTime} – {g.endTime}</span>
                 </div>
                 <div className="gm-detail-name">{g.professionalName}</div>
-                <div className="gm-detail-meta">{g.sectorName || "Sector"} · {labelMod(g.modality)}</div>
+                <div className="gm-detail-meta">{g.sectorName || "Sector"} · {formatDateAR(g.date)}</div>
                 {g.observations && <div className="gm-detail-obs">{g.observations}</div>}
-                <button type="button" className="btn btn-quiet" style={{ marginTop: 8, fontSize: 12 }} onClick={() => void onDelete(g.id)}>
-                  Eliminar
-                </button>
+                <button type="button" className="btn btn-quiet" style={{ marginTop: 8, fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>
               </div>
             ))}
           </aside>
@@ -333,35 +304,33 @@ export default function GuardiasMedicas() {
               <span className="field-label">Sector</span>
               <select className="select" required value={form.sectorId} onChange={(e) => setForm({ ...form, sectorId: e.target.value })}>
                 <option value="">Seleccionar…</option>
-                {sectors.map((s) => (
+                {guardiaSectors.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </label>
+            <label className="field">
+              <span className="field-label">Fecha</span>
+              <input className="input" type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </label>
             <div className="form-grid">
               <label className="field">
-                <span className="field-label">Fecha</span>
-                <input className="input" type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                <span className="field-label">Inicio</span>
+                <input className="input" type="time" required value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
               </label>
               <label className="field">
-                <span className="field-label">Turno</span>
-                <select className="select" value={form.shift} onChange={(e) => setForm({ ...form, shift: e.target.value })}>
-                  {SHIFTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">Modalidad</span>
-                <select className="select" value={form.modality} onChange={(e) => setForm({ ...form, modality: e.target.value })}>
-                  {MODALITIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">Tipo</span>
-                <select className="select" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                  {TYPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                <span className="field-label">Fin</span>
+                <input className="input" type="time" required value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
               </label>
             </div>
+            <label className="field">
+              <span className="field-label">Modalidad</span>
+              <select className="select" value={form.modality} onChange={(e) => setForm({ ...form, modality: e.target.value })}>
+                {MODALITIES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </label>
             <label className="field">
               <span className="field-label">Profesional</span>
               <input className="input" required placeholder="Apellido y nombre" value={form.professionalName} onChange={(e) => setForm({ ...form, professionalName: e.target.value })} />
@@ -370,11 +339,8 @@ export default function GuardiasMedicas() {
               <span className="field-label">Observaciones</span>
               <textarea className="textarea" rows={3} placeholder="Opcional" value={form.observations} onChange={(e) => setForm({ ...form, observations: e.target.value })} />
             </label>
-            <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: "100%" }}>
-              {saving ? "Guardando…" : "Guardar guardia"}
-            </button>
+            <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: "100%" }}>{saving ? "Guardando…" : "Guardar guardia"}</button>
           </form>
-
           <div className="card gm-table-wrap">
             <div className="section-head">
               <div>
@@ -386,35 +352,21 @@ export default function GuardiasMedicas() {
             <div className="agenda-table-wrap">
               <table className="agenda-table">
                 <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Sector</th>
-                    <th>Turno</th>
-                    <th>Profesional</th>
-                    <th>Modalidad</th>
-                    <th>Tipo</th>
-                    <th />
-                  </tr>
+                  <tr><th>Fecha</th><th>Sector</th><th>Inicio</th><th>Fin</th><th>Profesional</th><th>Modalidad</th><th /></tr>
                 </thead>
                 <tbody>
                   {items.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} style={{ textAlign: "center", padding: 28, color: "hsl(var(--muted-foreground))" }}>
-                        No hay guardias en este mes. Cargá la primera con el formulario.
-                      </td>
-                    </tr>
+                    <tr><td colSpan={7} style={{ textAlign: "center", padding: 28, color: "hsl(var(--muted-foreground))" }}>No hay guardias en este mes.</td></tr>
                   ) : (
                     items.map((g) => (
                       <tr key={g.id}>
-                        <td>{g.date}</td>
+                        <td>{formatDateAR(g.date)}</td>
                         <td>{g.sectorName ?? g.sectorId}</td>
-                        <td><span className={shiftClass(g.shift)}>{labelShift(g.shift)}</span></td>
+                        <td>{g.startTime}</td>
+                        <td>{g.endTime}</td>
                         <td className="agenda-title">{g.professionalName}</td>
-                        <td>{labelMod(g.modality)}</td>
-                        <td>{labelType(g.type)}</td>
-                        <td style={{ textAlign: "right" }}>
-                          <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>
-                        </td>
+                        <td><span className={modalityClass(g.modality)}>{labelMod(g.modality)}</span></td>
+                        <td style={{ textAlign: "right" }}><button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button></td>
                       </tr>
                     ))
                   )}
