@@ -98,6 +98,21 @@ export const guardiasTable = pgTable("guardias", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const liquidacionItemsTable = pgTable("liquidacion_items", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  itemType: text("item_type").notNull().default("vencimiento"),
+  status: text("status").notNull().default("pendiente"),
+  dueDate: date("due_date", { mode: "string" }).notNull(),
+  amount: text("amount").notNull().default(""),
+  responsibleName: text("responsible_name").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  alertDays: integer("alert_days").notNull().default(3),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const inventoryItemsTable = pgTable("inventory_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -148,3 +163,4 @@ export type Sector = typeof sectorsTable.$inferSelect;
 export type User = typeof usersTable.$inferSelect;
 export type AgendaItem = typeof agendaItemsTable.$inferSelect;
 export type Guardia = typeof guardiasTable.$inferSelect;
+export type LiquidacionItem = typeof liquidacionItemsTable.$inferSelect;
