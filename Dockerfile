@@ -64,7 +64,6 @@ RUN mkdir -p apps/web/src/pages && \
     (grep -q GuardiasMedicasPage apps/web/src/App.tsx || sed -i "s|import { ErrorBoundary } from '@/components/error-boundary';|import { ErrorBoundary } from '@/components/error-boundary';\nimport GuardiasMedicasPage from '@/pages/GuardiasMedicas';|" apps/web/src/App.tsx) && \
     sed -i 's|<PlaceholderPage kind="Guardias"[^>]*/>|<GuardiasMedicasPage />|g' apps/web/src/App.tsx
 
-# main.tsx
 RUN printf '%s\n' \
   'import { createRoot } from "react-dom/client";' \
   'import App from "./App";' \
@@ -72,7 +71,6 @@ RUN printf '%s\n' \
   'createRoot(document.getElementById("root")!).render(<App />);' \
   > apps/web/src/main.tsx
 
-# vite.config.ts
 RUN printf '%s\n' \
   'import path from "node:path";' \
   'import { fileURLToPath } from "node:url";' \
@@ -89,7 +87,6 @@ RUN printf '%s\n' \
   '});' \
   > apps/web/vite.config.ts
 
-# tsconfig sin references rotos
 RUN printf '%s\n' \
   '{' \
   '  "compilerOptions": {' \
@@ -108,30 +105,14 @@ RUN printf '%s\n' \
   '  "include": ["src"]' \
   '}' > apps/web/tsconfig.json
 
-# CSS: Tailwind v4 requiere @import tailwindcss antes de @layer suelto
-RUN python3 - <<'PY'
-from pathlib import Path
-p = Path("apps/web/src/index.css")
-t = p.read_text()
-# quitar @layer suelto al inicio (rompe vite/tailwind v4)
-lines = t.splitlines(True)
-out = []
-for i, line in enumerate(lines):
-    if i < 5 and line.strip().startswith("@layer theme"):
-        continue
-    out.append(line)
-t2 = "".join(out)
-if "@import 'tailwindcss'" not in t2 and '@import "tailwindcss"' not in t2:
-    t2 = "@import 'tailwindcss';\n" + t2
-p.write_text(t2)
-print("css fixed")
-PY
+# CSS: quitar @layer suelto al inicio (rompe Tailwind v4) y basura clerk
+RUN sed -i '/^@layer theme/d' apps/web/src/index.css && \
+    sed -i '/clerk/Id; /@clerk/d; /tw-animate-css/d' apps/web/src/index.css || true
 
 RUN node -e "const fs=require('fs');const p='apps/web/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.name='@salvador/web';d.scripts={build:'vite build --config vite.config.ts'};const strip=o=>{if(!o)return;for(const k of Object.keys(o)){if(String(k).includes('clerk')||String(k).includes('replit'))delete o[k];if(String(k).startsWith('@workspace/')){o[k.replace('@workspace/','@salvador/')]=o[k];delete o[k];}}};strip(d.dependencies);strip(d.devDependencies);d.dependencies=d.dependencies||{};d.dependencies['@salvador/api-client-react']='workspace:*';['react','react-dom','wouter','@tanstack/react-query','lucide-react'].forEach(k=>{if(d.devDependencies&&d.devDependencies[k])d.dependencies[k]=d.devDependencies[k];});fs.writeFileSync(p,JSON.stringify(d,null,2));"
 
 RUN pnpm install --no-frozen-lockfile
 
-# Build Vite desde apps/web (error visible)
 WORKDIR /app/apps/web
 RUN pnpm exec vite build --config vite.config.ts 2>&1 || (echo '==== VITE ERROR ARRIBA ===='; exit 1)
 RUN ls -la dist | head
