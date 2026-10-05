@@ -15,14 +15,14 @@ type Item = {
 const API = "/api";
 const TYPES = [
   { value: "vencimiento", label: "Vencimiento" },
-  { value: "liquidacion", label: "Liquidación" },
   { value: "cheque", label: "Cheque / pago" },
+  { value: "seguro", label: "Seguro / contrato" },
   { value: "nota", label: "Nota" },
   { value: "recordatorio", label: "Recordatorio" },
 ];
 const STATUSES = [
   { value: "pendiente", label: "Pendiente" },
-  { value: "hecho", label: "Hecho" },
+  { value: "hecho", label: "Cumplido" },
   { value: "anulado", label: "Anulado" },
 ];
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -31,6 +31,8 @@ const ALERT_OPTS = [
   { value: 1, label: "1 día antes" },
   { value: 3, label: "3 días antes" },
   { value: 7, label: "7 días antes" },
+  { value: 15, label: "15 días antes" },
+  { value: 30, label: "30 días antes" },
 ];
 
 function monthRange(d: Date) {
@@ -40,40 +42,47 @@ function monthRange(d: Date) {
     `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
   return { from: iso(new Date(y, m, 1)), to: iso(new Date(y, m + 1, 0)), year: y, month: m };
 }
-
 function formatDateAR(iso: string) {
   if (!iso || iso.length < 10) return iso;
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
 }
-
+function daysUntil(iso: string, today: string) {
+  const a = new Date(iso + "T12:00:00").getTime();
+  const b = new Date(today + "T12:00:00").getTime();
+  return Math.round((a - b) / 86400000);
+}
 function typeLabel(v: string) {
   return TYPES.find((t) => t.value === v)?.label ?? v;
 }
 function statusLabel(v: string) {
   return STATUSES.find((t) => t.value === v)?.label ?? v;
 }
-function typeClass(t: string) {
-  if (t === "vencimiento") return "li-chip li-chip-venc";
-  if (t === "liquidacion") return "li-chip li-chip-liq";
-  if (t === "cheque") return "li-chip li-chip-cheque";
-  if (t === "nota") return "li-chip li-chip-nota";
-  return "li-chip li-chip-rec";
+function urgencyClass(days: number, status: string) {
+  if (status !== "pendiente") return "adm-urg-ok";
+  if (days < 0) return "adm-urg-over";
+  if (days === 0) return "adm-urg-today";
+  if (days <= 3) return "adm-urg-soon";
+  if (days <= 7) return "adm-urg-week";
+  return "adm-urg-ok";
 }
-function statusClass(s: string) {
-  if (s === "hecho") return "badge badge-done";
-  if (s === "anulado") return "badge";
-  return "badge badge-type";
+function urgencyLabel(days: number, status: string) {
+  if (status !== "pendiente") return "—";
+  if (days < 0) return `Vencido hace ${Math.abs(days)} d`;
+  if (days === 0) return "Vence hoy";
+  if (days === 1) return "Mañana";
+  return `En ${days} días`;
 }
 
 export default function Administracion() {
-  const [tab, setTab] = useState<"calendario" | "registro">("calendario");
+  const [tab, setTab] = useState<"listado" | "calendario" | "nuevo">("listado");
   const [cursor, setCursor] = useState(() => new Date());
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState("todos");
+  const [filterStatus, setFilterStatus] = useState("pendiente");
   const [filterType, setFilterType] = useState("todos");
+  const [search, setSearch] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -90,7 +99,7 @@ export default function Administracion() {
     amount: "",
     responsibleName: "",
     notes: "",
-    alertDays: 3,
+    alertDays: 7,
   });
 
   const range = useMemo(() => monthRange(cursor), [cursor]);
@@ -99,7 +108,13 @@ export default function Administracion() {
     setLoading(true);
     setError(null);
     try {
-      const q = new URLSearchParams({ from: range.from, to: range.to });
+      const from = new Date();
+      from.setMonth(from.getMonth() - 1);
+      const to = new Date();
+      to.setMonth(to.getMonth() + 2);
+      const iso = (x: Date) =>
+        `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+      const q = new URLSearchParams({ from: iso(from), to: iso(to) });
       if (filterStatus !== "todos") q.set("status", filterStatus);
       if (filterType !== "todos") q.set("itemType", filterType);
       const res = await fetch(`${API}/administracion?${q}`, { credentials: "include" });
@@ -115,11 +130,29 @@ export default function Administracion() {
     } finally {
       setLoading(false);
     }
-  }, [range.from, range.to, filterStatus, filterType]);
+  }, [filterStatus, filterType]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items
+      .filter((i) => !q || i.title.toLowerCase().includes(q) || i.responsibleName.toLowerCase().includes(q))
+      .slice()
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [items, search]);
+
+  const alerts = useMemo(() => {
+    return filtered
+      .filter((i) => {
+        if (i.status !== "pendiente") return false;
+        const d = daysUntil(i.dueDate, todayIso);
+        return d <= (i.alertDays || 0);
+      })
+      .slice(0, 12);
+  }, [filtered, todayIso]);
 
   const byDate = useMemo(() => {
     const map = new Map<string, Item[]>();
@@ -147,16 +180,6 @@ export default function Administracion() {
   }, [range]);
 
   const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-  const dayDetail = selectedDay ? byDate.get(selectedDay) || [] : [];
-
-  const upcoming = useMemo(() => {
-    const limit = new Date();
-    limit.setDate(limit.getDate() + 7);
-    const lim = `${limit.getFullYear()}-${String(limit.getMonth() + 1).padStart(2, "0")}-${String(limit.getDate()).padStart(2, "0")}`;
-    return items
-      .filter((i) => i.status === "pendiente" && i.dueDate >= todayIso && i.dueDate <= lim)
-      .slice(0, 8);
-  }, [items, todayIso]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -184,8 +207,7 @@ export default function Administracion() {
       }
       setForm((f) => ({ ...f, title: "", amount: "", responsibleName: "", notes: "" }));
       await load();
-      setTab("calendario");
-      setSelectedDay(form.dueDate);
+      setTab("listado");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar");
     } finally {
@@ -220,185 +242,167 @@ export default function Administracion() {
   }
 
   return (
-    <div className="li-page">
-      <div className="li-header">
+    <div className="adm-page">
+      <div className="adm-header">
         <div>
-          <div className="eyebrow">Administración / Agenda</div>
+          <div className="eyebrow">Operación / Administración</div>
           <h1 className="page-title">Administración</h1>
           <p className="page-subtitle">
-            Calendario de vencimientos, recordatorios, notas y control de lo que hoy está en papel.
+            Control de vencimientos, pagos y recordatorios — reemplazo del control en papel.
           </p>
         </div>
-        <div className="gm-tabs" role="tablist">
-          <button type="button" className={`gm-tab${tab === "calendario" ? " is-active" : ""}`} onClick={() => setTab("calendario")}>Calendario</button>
-          <button type="button" className={`gm-tab${tab === "registro" ? " is-active" : ""}`} onClick={() => setTab("registro")}>Registro</button>
+        <div className="adm-tabs" role="tablist">
+          <button type="button" className={`adm-tab${tab === "listado" ? " is-active" : ""}`} onClick={() => setTab("listado")}>Listado</button>
+          <button type="button" className={`adm-tab${tab === "calendario" ? " is-active" : ""}`} onClick={() => setTab("calendario")}>Calendario</button>
+          <button type="button" className={`adm-tab${tab === "nuevo" ? " is-active" : ""}`} onClick={() => setTab("nuevo")}>+ Nuevo</button>
         </div>
       </div>
 
       {error && <div className="form-error">{error}</div>}
 
-      {upcoming.length > 0 && tab === "calendario" && (
-        <div className="card li-upcoming">
-          <div className="section-kicker">Próximos 7 días</div>
-          <div className="li-upcoming-list">
-            {upcoming.map((u) => (
-              <button type="button" key={u.id} className="li-upcoming-item" onClick={() => { setSelectedDay(u.dueDate); setCursor(new Date(u.dueDate + "T12:00:00")); }}>
-                <span className={typeClass(u.itemType)}>{typeLabel(u.itemType)}</span>
-                <strong>{u.title}</strong>
-                <span className="li-upcoming-date">{formatDateAR(u.dueDate)}</span>
-              </button>
-            ))}
+      {alerts.length > 0 && (
+        <div className="adm-alerts card">
+          <div className="adm-alerts-title">Avisos activos ({alerts.length})</div>
+          <div className="adm-alerts-grid">
+            {alerts.map((a) => {
+              const d = daysUntil(a.dueDate, todayIso);
+              return (
+                <div key={a.id} className={`adm-alert-item ${urgencyClass(d, a.status)}`}>
+                  <div className="adm-alert-when">{urgencyLabel(d, a.status)}</div>
+                  <div className="adm-alert-title">{a.title}</div>
+                  <div className="adm-alert-meta">{formatDateAR(a.dueDate)} · {typeLabel(a.itemType)}</div>
+                </div>
+              );
+            })}
           </div>
+        </div>
+      )}
+
+      {tab === "listado" && (
+        <div className="card adm-list-card">
+          <div className="adm-toolbar">
+            <input className="input" placeholder="Buscar por título o responsable…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <select className="select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+              <option value="todos">Todos los estados</option>
+              {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <select className="select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+              <option value="todos">Todos los tipos</option>
+              {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <button type="button" className="btn btn-quiet" onClick={() => void load()}>Actualizar</button>
+          </div>
+          {loading ? <div className="skeleton" style={{ height: 220 }} /> : (
+            <div className="agenda-table-wrap">
+              <table className="agenda-table adm-table">
+                <thead>
+                  <tr>
+                    <th>Urgencia</th><th>Fecha</th><th>Título</th><th>Tipo</th><th>Responsable</th><th>Monto</th><th>Estado</th><th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={8} style={{ textAlign: "center", padding: 32, color: "hsl(var(--muted-foreground))" }}>No hay ítems. Cargá el primero con <strong>+ Nuevo</strong>.</td></tr>
+                  ) : filtered.map((it) => {
+                    const d = daysUntil(it.dueDate, todayIso);
+                    return (
+                      <tr key={it.id}>
+                        <td><span className={`adm-badge ${urgencyClass(d, it.status)}`}>{urgencyLabel(d, it.status)}</span></td>
+                        <td>{formatDateAR(it.dueDate)}</td>
+                        <td className="agenda-title">{it.title}{it.notes ? <div className="adm-note-preview">{it.notes}</div> : null}</td>
+                        <td>{typeLabel(it.itemType)}</td>
+                        <td>{it.responsibleName || "—"}</td>
+                        <td>{it.amount || "—"}</td>
+                        <td>{statusLabel(it.status)}</td>
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          {it.status === "pendiente" && <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => void setStatus(it.id, "hecho")}>Cumplido</button>}
+                          {it.status === "hecho" && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void setStatus(it.id, "pendiente")}>Reabrir</button>}
+                          <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(it.id)}>Eliminar</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {tab === "calendario" && (
-        <div className="li-calendar-layout">
-          <div className="card li-calendar-panel">
-            <div className="gm-cal-toolbar">
-              <div className="gm-cal-nav">
-                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</button>
-                <span className="gm-cal-month">{monthLabel}</span>
-                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</button>
-              </div>
-              <div className="li-filters">
-                <select className="select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="todos">Todos los estados</option>
-                  {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <select className="select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                  <option value="todos">Todos los tipos</option>
-                  {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
+        <div className="adm-cal-wrap card">
+          <div className="adm-cal-toolbar">
+            <div className="adm-cal-nav">
+              <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</button>
+              <span className="adm-cal-month">{monthLabel}</span>
+              <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</button>
             </div>
-            {loading ? <div className="skeleton" style={{ height: 280 }} /> : (
-              <>
-                <div className="gm-weekdays">{WEEKDAYS.map((d) => <div key={d} className="gm-weekday">{d}</div>)}</div>
-                <div className="gm-grid li-grid">
-                  {calendarCells.map((cell, i) => {
-                    if (!cell.day || !cell.iso) return <div key={`e-${i}`} className="gm-cell is-empty li-cell" />;
-                    const dayItems = byDate.get(cell.iso) || [];
-                    const hasPending = dayItems.some((x) => x.status === "pendiente");
-                    const isPast = cell.iso < todayIso && hasPending;
-                    return (
-                      <button type="button" key={cell.iso} className={`gm-cell li-cell${cell.iso === todayIso ? " is-today" : ""}${cell.iso === selectedDay ? " is-selected" : ""}${dayItems.length ? " has-items" : ""}${isPast ? " is-overdue" : ""}`} onClick={() => setSelectedDay(cell.iso)}>
-                        <span className="gm-day-num">{cell.day}</span>
-                        <div className="gm-day-chips">
-                          {dayItems.slice(0, 2).map((it) => (
-                            <span key={it.id} className={typeClass(it.itemType)} title={it.title}>{it.title.length > 14 ? it.title.slice(0, 12) + "…" : it.title}</span>
-                          ))}
-                          {dayItems.length > 2 && <span className="gm-chip gm-chip-more">+{dayItems.length - 2}</span>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="gm-legend">
-                  <span><i className="gm-dot li-chip-venc" /> Vencimiento</span>
-                  <span><i className="gm-dot li-chip-liq" /> Liquidación</span>
-                  <span><i className="gm-dot li-chip-cheque" /> Cheque</span>
-                  <span><i className="gm-dot li-chip-nota" /> Nota</span>
-                  <span><i className="gm-dot li-chip-rec" /> Recordatorio</span>
-                </div>
-              </>
-            )}
+            <span className="page-subtitle" style={{ margin: 0 }}>Vista del mes · puntos por urgencia</span>
           </div>
-          <aside className="card gm-day-panel">
-            <div className="section-kicker">Detalle del día</div>
-            <h2 className="section-title" style={{ marginTop: 6 }}>
-              {selectedDay ? new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Seleccioná un día"}
-            </h2>
-            {!selectedDay && <p className="page-subtitle" style={{ marginTop: 12 }}>Tocá un día para ver vencimientos, notas y recordatorios.</p>}
-            {selectedDay && dayDetail.length === 0 && (
-              <div className="empty-state" style={{ padding: "20px 8px" }}>
-                <p>Nada cargado en este día.</p>
-                <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => { setForm((f) => ({ ...f, dueDate: selectedDay })); setTab("registro"); }}>Agregar ítem</button>
-              </div>
-            )}
-            {dayDetail.map((it) => (
-              <div key={it.id} className="gm-detail-card">
-                <div className="gm-detail-top">
-                  <span className={typeClass(it.itemType)}>{typeLabel(it.itemType)}</span>
-                  <span className={statusClass(it.status)}>{statusLabel(it.status)}</span>
+          <div className="adm-weekdays">{WEEKDAYS.map((d) => <div key={d} className="adm-weekday">{d}</div>)}</div>
+          <div className="adm-grid">
+            {calendarCells.map((cell, i) => {
+              if (!cell.day || !cell.iso) return <div key={`e-${i}`} className="adm-cell is-empty" />;
+              const dayItems = byDate.get(cell.iso) || [];
+              const pending = dayItems.filter((x) => x.status === "pendiente");
+              const d = daysUntil(cell.iso, todayIso);
+              const urg = pending.length ? urgencyClass(d, "pendiente") : "";
+              return (
+                <button type="button" key={cell.iso} className={`adm-cell${cell.iso === todayIso ? " is-today" : ""}${cell.iso === selectedDay ? " is-selected" : ""}${pending.length ? " has-items" : ""} ${urg}`} onClick={() => setSelectedDay(cell.iso)}>
+                  <span className="adm-day-num">{cell.day}</span>
+                  {pending.length > 0 && <span className="adm-dot-count">{pending.length}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {selectedDay && (
+            <div className="adm-day-detail">
+              <strong>{new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}</strong>
+              {(byDate.get(selectedDay) || []).length === 0 && <p className="page-subtitle">Sin ítems este día.</p>}
+              {(byDate.get(selectedDay) || []).map((it) => (
+                <div key={it.id} className="adm-day-row">
+                  <span>{it.title}</span>
+                  <span className="page-subtitle">{typeLabel(it.itemType)} · {statusLabel(it.status)}</span>
                 </div>
-                <div className="gm-detail-name">{it.title}</div>
-                <div className="gm-detail-meta">{formatDateAR(it.dueDate)}{it.amount ? ` · ${it.amount}` : ""}{it.responsibleName ? ` · ${it.responsibleName}` : ""}</div>
-                {it.notes && <div className="gm-detail-obs">{it.notes}</div>}
-                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {it.status === "pendiente" && <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => void setStatus(it.id, "hecho")}>Marcar hecho</button>}
-                  {it.status === "hecho" && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void setStatus(it.id, "pendiente")}>Reabrir</button>}
-                  <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(it.id)}>Eliminar</button>
-                </div>
-              </div>
-            ))}
-          </aside>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {tab === "registro" && (
-        <div className="li-registro-layout">
-          <form className="card gm-form" onSubmit={onSubmit}>
-            <div className="section-kicker">Nuevo ítem</div>
-            <h2 className="section-title" style={{ marginTop: 6, marginBottom: 16 }}>Registrar</h2>
-            <label className="field"><span className="field-label">Título</span>
-              <input className="input" required placeholder="Ej. Seguro responsabilidad civil" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+      {tab === "nuevo" && (
+        <form className="card adm-form" onSubmit={onSubmit}>
+          <div className="section-kicker">Alta</div>
+          <h2 className="section-title" style={{ marginTop: 6, marginBottom: 16 }}>Nuevo vencimiento o nota</h2>
+          <label className="field"><span className="field-label">Título</span>
+            <input className="input" required placeholder="Ej. Seguro RC · renovación" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </label>
+          <div className="form-grid">
+            <label className="field"><span className="field-label">Tipo</span>
+              <select className="select" value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })}>
+                {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
             </label>
-            <div className="form-grid">
-              <label className="field"><span className="field-label">Tipo</span>
-                <select className="select" value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })}>
-                  {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </label>
-              <label className="field"><span className="field-label">Fecha</span>
-                <input className="input" type="date" required value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
-              </label>
-              <label className="field"><span className="field-label">Monto (opcional)</span>
-                <input className="input" placeholder="$ 0,00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-              </label>
-              <label className="field"><span className="field-label">Aviso</span>
-                <select className="select" value={form.alertDays} onChange={(e) => setForm({ ...form, alertDays: Number(e.target.value) })}>
-                  {ALERT_OPTS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                </select>
-              </label>
-            </div>
-            <label className="field"><span className="field-label">Responsable</span>
-              <input className="input" placeholder="Nombre" value={form.responsibleName} onChange={(e) => setForm({ ...form, responsibleName: e.target.value })} />
+            <label className="field"><span className="field-label">Fecha de vencimiento</span>
+              <input className="input" type="date" required value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </label>
-            <label className="field"><span className="field-label">Notas</span>
-              <textarea className="textarea" rows={3} placeholder="Detalle, nro de factura, etc." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <label className="field"><span className="field-label">Avisar con anticipación</span>
+              <select className="select" value={form.alertDays} onChange={(e) => setForm({ ...form, alertDays: Number(e.target.value) })}>
+                {ALERT_OPTS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+              </select>
             </label>
-            <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: "100%" }}>{saving ? "Guardando…" : "Guardar"}</button>
-          </form>
-          <div className="card gm-table-wrap">
-            <div className="section-head">
-              <div><div className="section-kicker">Registro del mes</div><h2 className="section-title" style={{ marginTop: 4 }}>{monthLabel}</h2></div>
-              <button type="button" className="btn btn-quiet" onClick={() => void load()}>Actualizar</button>
-            </div>
-            <div className="agenda-table-wrap">
-              <table className="agenda-table">
-                <thead><tr><th>Fecha</th><th>Título</th><th>Tipo</th><th>Monto</th><th>Estado</th><th /></tr></thead>
-                <tbody>
-                  {items.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign: "center", padding: 28, color: "hsl(var(--muted-foreground))" }}>Sin ítems este mes.</td></tr>
-                  ) : items.map((it) => (
-                    <tr key={it.id}>
-                      <td>{formatDateAR(it.dueDate)}</td>
-                      <td className="agenda-title">{it.title}</td>
-                      <td><span className={typeClass(it.itemType)}>{typeLabel(it.itemType)}</span></td>
-                      <td>{it.amount || "—"}</td>
-                      <td><span className={statusClass(it.status)}>{statusLabel(it.status)}</span></td>
-                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        {it.status === "pendiente" && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void setStatus(it.id, "hecho")}>Hecho</button>}
-                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(it.id)}>Eliminar</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <label className="field"><span className="field-label">Monto (opcional)</span>
+              <input className="input" placeholder="$ 0,00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+            </label>
           </div>
-        </div>
+          <label className="field"><span className="field-label">Responsable</span>
+            <input className="input" placeholder="Quién debe ocuparse" value={form.responsibleName} onChange={(e) => setForm({ ...form, responsibleName: e.target.value })} />
+          </label>
+          <label className="field"><span className="field-label">Notas</span>
+            <textarea className="textarea" rows={3} placeholder="Nro de factura, contacto, detalle…" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+          </label>
+          <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: "100%" }}>{saving ? "Guardando…" : "Guardar"}</button>
+        </form>
       )}
     </div>
   );
