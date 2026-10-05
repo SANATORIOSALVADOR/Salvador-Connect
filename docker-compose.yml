@@ -1,7 +1,7 @@
 # Salvador-Connect — stack producción (Linux + Docker)
 # Uso: copiar .env.example → .env, completar secrets, luego:
 #   docker compose up -d --build
-#   bash scripts/db-migrate.sh
+#   bash scripts/reset-admin.sh
 
 services:
   db:
@@ -13,7 +13,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-sanatorio_db}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # Solo localhost por defecto (seguro). Override en compose override si hace falta.
     ports:
       - "${POSTGRES_BIND:-127.0.0.1:5432}:5432"
     healthcheck:
@@ -33,19 +32,20 @@ services:
     environment:
       NODE_ENV: production
       PORT: "5000"
+      # Cookies en HTTP (LAN). Con HTTPS poner COOKIE_SECURE=true
+      COOKIE_SECURE: "false"
       DATABASE_URL: postgresql://${POSTGRES_USER:-sanatorio}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sanatorio_db}
     depends_on:
       db:
         condition: service_healthy
-    # API interna; el acceso externo va por nginx (web). Opcional exponer en LAN:
     ports:
       - "${API_BIND:-127.0.0.1:5000}:5000"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 8
+      start_period: 40s
     networks:
       - salvador
 
@@ -57,9 +57,9 @@ services:
     restart: unless-stopped
     ports:
       - "${WEB_BIND:-0.0.0.0:8080}:80"
+    # NO exigir API healthy: si el API falla, igual se actualiza el frontend
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     networks:
       - salvador
 
