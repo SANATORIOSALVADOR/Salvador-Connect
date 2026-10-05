@@ -41,21 +41,21 @@ RUN if [ -d lib/api-client-react ]; then rm -rf packages/api-client-react && cp 
 
 RUN mkdir -p /tmp/overlay \
  && if [ -f apps/web/src/pages/GuardiasMedicas.tsx ]; then cp apps/web/src/pages/GuardiasMedicas.tsx /tmp/overlay/; fi \
- && if [ -f apps/web/src/pages/Liquidacion.tsx ]; then cp apps/web/src/pages/Liquidacion.tsx /tmp/overlay/; fi
+ && if [ -f apps/web/src/pages/Administracion.tsx ]; then cp apps/web/src/pages/Administracion.tsx /tmp/overlay/; fi
 
 RUN echo "=== UI Replit ===" && test -f artifacts/sanatorio-salvador/src/components/ui/button.tsx && rm -rf apps/web && cp -a artifacts/sanatorio-salvador apps/web && rm -rf apps/web/.replit-artifact && find apps/web -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.json' \) -print0 | xargs -0 sed -i 's/@workspace\//@salvador\//g' && echo "=== UI OK ==="
 
 RUN mkdir -p apps/web/src/pages \
  && if [ -f /tmp/overlay/GuardiasMedicas.tsx ]; then cp /tmp/overlay/GuardiasMedicas.tsx apps/web/src/pages/GuardiasMedicas.tsx; fi \
- && if [ -f /tmp/overlay/Liquidacion.tsx ]; then cp /tmp/overlay/Liquidacion.tsx apps/web/src/pages/Liquidacion.tsx; fi && \
+ && if [ -f /tmp/overlay/Administracion.tsx ]; then cp /tmp/overlay/Administracion.tsx apps/web/src/pages/Administracion.tsx; fi && \
     sed -i "s/Sanatorio Salvador/Sanatorio del Salvador/g" apps/web/src/App.tsx && \
     sed -i "s/SANATORIO SALVADOR/SANATORIO DEL SALVADOR/g" apps/web/src/App.tsx && \
     sed -i "s/label: 'Guardias'/label: 'Guardias Médicas'/g" apps/web/src/App.tsx && \
     sed -i 's|<Route path="/"><Welcome /></Route>|<Route path="/"><LoginPage /></Route>|g' apps/web/src/App.tsx && \
     (grep -q GuardiasMedicasPage apps/web/src/App.tsx || sed -i "s|import { ErrorBoundary } from '@/components/error-boundary';|import { ErrorBoundary } from '@/components/error-boundary';\nimport GuardiasMedicasPage from '@/pages/GuardiasMedicas';|" apps/web/src/App.tsx) && \
     sed -i 's|<PlaceholderPage kind="Guardias"[^>]*/>|<GuardiasMedicasPage />|g' apps/web/src/App.tsx && \
-    (grep -q LiquidacionPage apps/web/src/App.tsx || sed -i "s|import GuardiasMedicasPage from '@/pages/GuardiasMedicas';|import GuardiasMedicasPage from '@/pages/GuardiasMedicas';\nimport LiquidacionPage from '@/pages/Liquidacion';|" apps/web/src/App.tsx) && \
-    sed -i 's|<PlaceholderPage kind="Liquidación"[^>]*/>|<LiquidacionPage />|g' apps/web/src/App.tsx && \
+    (grep -q AdministracionPage apps/web/src/App.tsx || sed -i "s|import GuardiasMedicasPage from '@/pages/GuardiasMedicas';|import GuardiasMedicasPage from '@/pages/GuardiasMedicas';\nimport AdministracionPage from '@/pages/Administracion';|" apps/web/src/App.tsx) && \
+    sed -i 's|<AgendaPage />|<AdministracionPage />|g' apps/web/src/App.tsx && \
     sed -i "s/const \[mobileOpen, setMobileOpen\] = useState(false);/const [mobileOpen, setMobileOpen] = useState(false);\n  const [collapsed, setCollapsed] = useState(false);/" apps/web/src/App.tsx && \
     sed -i 's/className="workspace-shell"/className={`workspace-shell${collapsed ? " is-collapsed" : ""}`}/' apps/web/src/App.tsx || true
 
