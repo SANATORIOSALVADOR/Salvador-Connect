@@ -51,11 +51,26 @@ RUN printf '%s\n' '{' '  "compilerOptions": {' '    "target": "ES2022",' '    "l
 
 RUN sed -i '/^@layer theme/d' apps/web/src/index.css && sed -i '/clerk/Id; /@clerk/d; /tw-animate-css/d' apps/web/src/index.css || true
 
-RUN node -e "const fs=require('fs');const p='apps/web/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.name='@salvador/web';d.scripts={build:'vite build --config vite.config.ts'};const strip=o=>{if(!o)return;for(const k of Object.keys(o)){if(String(k).includes('clerk')||String(k).includes('replit'))delete o[k];if(String(k).startsWith('@workspace/')){o[k.replace('@workspace/','@salvador/')]=o[k];delete o[k];}}};strip(d.dependencies);strip(d.devDependencies);d.dependencies=d.dependencies||{};d.devDependencies=d.devDependencies||{};['react','react-dom','wouter','@tanstack/react-query','lucide-react','vite','@vitejs/plugin-react','@tailwindcss/vite','tailwindcss','clsx','tailwind-merge','class-variance-authority','zod','date-fns','framer-motion'].forEach(k=>{d.dependencies[k]=d.devDependencies[k]||d.dependencies[k]||'catalog:';});d.dependencies['@salvador/api-client-react']='workspace:*';fs.writeFileSync(p,JSON.stringify(d,null,2));"
+# Fusionar TODAS las deps (radix, vite, etc.) en dependencies para el build
+RUN node -e "const fs=require('fs');const p='apps/web/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.name='@salvador/web';d.scripts={build:'vite build --config vite.config.ts'};const dep={...(d.dependencies||{}),...(d.devDependencies||{})};for (const k of Object.keys(dep)){if(k.includes('clerk')||k.includes('replit'))delete dep[k];if(k.startsWith('@workspace/')){dep[k.replace('@workspace/','@salvador/')]=dep[k];delete dep[k];}}dep['@salvador/api-client-react']='workspace:*';dep['vite']=dep['vite']||'catalog:';dep['@vitejs/plugin-react']=dep['@vitejs/plugin-react']||'catalog:';dep['@tailwindcss/vite']=dep['@tailwindcss/vite']||'catalog:';dep['tailwindcss']=dep['tailwindcss']||'catalog:';d.dependencies=dep;d.devDependencies={};fs.writeFileSync(p,JSON.stringify(d,null,2));console.log('web deps',Object.keys(dep).length);"
 
 WORKDIR /app
 RUN pnpm install --no-frozen-lockfile
-RUN pnpm --filter @salvador/web run build
+
+# Build con log completo
+RUN pnpm --filter @salvador/web run build 2>&1 | tee /tmp/vite-build.log; \
+    STATUS=$${PIPESTATUS[0]}; \
+    if [ "$$STATUS" -ne 0 ]; then \
+      echo '==== VITE BUILD LOG ===='; \
+      cat /tmp/vite-build.log; \
+      echo '==== package.json ===='; \
+      head -30 apps/web/package.json; \
+      echo '==== bins ===='; \
+      ls apps/web/node_modules/.bin 2>/dev/null | head -20 || true; \
+      ls node_modules/.bin 2>/dev/null | head -20 || true; \
+      exit 1; \
+    fi
+
 RUN ls -la apps/web/dist | head
 
 FROM nginx:1.27-alpine AS web
