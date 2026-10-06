@@ -34,18 +34,24 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
   const nav = <nav>
     {!collapsed && <div className="nav-label">Operación</div>}
     {visibleNavItems.map(({ href, label, icon: Icon }) => (
-      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={\`nav-item \${location === href ? 'active' : ''}\`} title={label} data-testid={\`link-nav-\${label.toLowerCase()}\`}>
+      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={{\`nav-item \${location === href ? 'active' : ''}\`}} title={label} data-testid={{\`link-nav-\${label.toLowerCase()}\`}}>
         <Icon className="nav-icon" />{!collapsed && <span>{label}</span>}
       </Link>
     ))}
     {!collapsed && <div className="nav-label">Espacio</div>}
-    <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={\`nav-item \${location === '/configuracion' ? 'active' : ''}\`} title="Configuración" data-testid="link-nav-configuracion">
+    <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={{\`nav-item \${location === '/configuracion' ? 'active' : ''}\`}} title="Configuración" data-testid="link-nav-configuracion">
       <Settings2 className="nav-icon" />{!collapsed && <span>Configuración</span>}
     </Link>
   </nav>;
-  return <div className={\`workspace-shell\${collapsed ? " is-collapsed" : ""}\`}>
-    <aside className="sidebar">
-      <div className="sidebar-top">
+  const sideW = collapsed ? 72 : 248;
+  return <div className={{\`workspace-shell\${collapsed ? " is-collapsed" : ""}\`}} style={{ display: 'flex', minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+    <aside className="sidebar" style={{
+      width: sideW, minWidth: sideW, maxWidth: sideW, flex: \`0 0 \${sideW}px\`,
+      boxSizing: 'border-box', height: '100vh', position: 'sticky', top: 0, alignSelf: 'flex-start',
+      display: 'flex', flexDirection: 'column', padding: collapsed ? '12px 6px 14px' : '14px 10px 16px',
+      overflowX: 'hidden', overflowY: 'auto', zIndex: 20,
+    }}>
+      <div className="sidebar-top" style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', gap: 8, padding: '0 4px 12px', marginBottom: 2, borderBottom: '1px solid hsl(var(--sidebar-border) / 0.5)', flexShrink: 0, flexDirection: collapsed ? 'column' : 'row' }}>
         <Brand compact={collapsed} />
         <button type="button" className="sidebar-toggle" onClick={toggleCollapsed} title={collapsed ? "Expandir menú" : "Contraer menú"} aria-label={collapsed ? "Expandir menú" : "Contraer menú"}>
           <Menu size={15} strokeWidth={2.2} />
@@ -78,7 +84,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
         </aside>
       </div>
     )}
-    <div className="main-column">
+    <div className="main-column" style={{ flex: '1 1 0%', minWidth: 0, maxWidth: '100%', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
       <header className="topbar">
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={18} /></button>
         <div className="topbar-meta"><span className="font-mono">SANATORIO DEL SALVADOR</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
