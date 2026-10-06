@@ -327,7 +327,7 @@ export default function Administracion() {
       {fiscal && (
         <div className="card adm-fiscal-card" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "14px 16px" }}>
           <div className="adm-fiscal-info">
-            <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "hsl(var(--muted-foreground))" }}>Calendario fiscal (ARCA / interno)</div>
+            <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "hsl(var(--muted-foreground))" }}>Calendario fiscal (datos del portal)</div>
             <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{fiscal.razonSocial}</div>
             <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", marginTop: 4 }}>
               CUIT <span className="font-mono">{fiscal.cuit}</span>
@@ -341,15 +341,10 @@ export default function Administracion() {
               IIBB {fiscal.iibb}
             </div>
             <p style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", margin: "6px 0 0", maxWidth: 520, lineHeight: 1.35 }}>
-              Genera F.931, IVA F.2002 e IIBB Córdoba del mes visible en el calendario (sin conectar a ARCA).
+              Genera vencimientos reales del mes (SICORE, SUSS, IVA, IIBB Cba, agente de retención) según el portal de este CUIT.
             </p>
           </div>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={fiscalBusy}
-            onClick={() => void generarFiscal()}
-          >
+          <button type="button" className="btn btn-primary" disabled={fiscalBusy} onClick={() => void generarFiscal()}>
             {fiscalBusy ? "Generando…" : `Generar ${cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" })}`}
           </button>
         </div>
@@ -404,7 +399,7 @@ export default function Administracion() {
                       <tr key={it.id}>
                         <td><span className={`adm-badge ${urgencyClass(d, it.status)}`}>{urgencyLabel(d, it.status)}</span></td>
                         <td>{formatDateAR(it.dueDate)}</td>
-                        <td className="agenda-title">{it.title}{it.source === "fiscal" ? <span className="adm-badge-fiscal" style={{ marginLeft: 8, background: "hsl(220 45% 92%)", color: "hsl(220 45% 32%)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999 }}>Fiscal</span> : null}{it.notes ? <div className="adm-note-preview">{it.notes}</div> : null}</td>
+                        <td className="agenda-title">{it.title}{it.source === "fiscal" ? <span style={{ marginLeft: 8, background: "hsl(220 45% 92%)", color: "hsl(220 45% 32%)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999 }}>Fiscal</span> : null}{it.notes ? <div className="adm-note-preview">{it.notes}</div> : null}</td>
                         <td>{typeLabel(it.itemType)}{it.source === "fiscal" ? " · Fiscal" : ""}</td>
                         <td>{it.responsibleName || "—"}</td>
                         <td>{it.amount || "—"}</td>
