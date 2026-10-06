@@ -34,17 +34,17 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
   const nav = <nav>
     {!collapsed && <div className="nav-label">Operación</div>}
     {visibleNavItems.map(({ href, label, icon: Icon }) => (
-      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={{\`nav-item \${location === href ? 'active' : ''}\`}} title={label} data-testid={{\`link-nav-\${label.toLowerCase()}\`}}>
+      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={\`nav-item \${location === href ? 'active' : ''}\`} title={label} data-testid={\`link-nav-\${label.toLowerCase()}\`}>
         <Icon className="nav-icon" />{!collapsed && <span>{label}</span>}
       </Link>
     ))}
     {!collapsed && <div className="nav-label">Espacio</div>}
-    <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={{\`nav-item \${location === '/configuracion' ? 'active' : ''}\`}} title="Configuración" data-testid="link-nav-configuracion">
+    <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={\`nav-item \${location === '/configuracion' ? 'active' : ''}\`} title="Configuración" data-testid="link-nav-configuracion">
       <Settings2 className="nav-icon" />{!collapsed && <span>Configuración</span>}
     </Link>
   </nav>;
   const sideW = collapsed ? 72 : 248;
-  return <div className={{\`workspace-shell\${collapsed ? " is-collapsed" : ""}\`}} style={{ display: 'flex', minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+  return <div className={\`workspace-shell\${collapsed ? " is-collapsed" : ""}\`} style={{ display: 'flex', minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
     <aside className="sidebar" style={{
       width: sideW, minWidth: sideW, maxWidth: sideW, flex: \`0 0 \${sideW}px\`,
       boxSizing: 'border-box', height: '100vh', position: 'sticky', top: 0, alignSelf: 'flex-start',
