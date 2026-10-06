@@ -131,3 +131,37 @@ t = t.replace(/SANATORIO SALVADOR/g, "SANATORIO DEL SALVADOR");
 
 fs.writeFileSync(path, t);
 console.log("Shell patched OK");
+
+// Forzar offset del contenido respecto al sidebar fijo (aplica a todos los módulos)
+const cssPath = "apps/web/src/index.css";
+if (fs.existsSync(cssPath)) {
+  let css = fs.readFileSync(cssPath, "utf8");
+  if (!css.includes("OFFSET FORZADO SIDEBAR")) {
+    css += `
+/* OFFSET FORZADO SIDEBAR */
+.workspace-shell > .main-column,
+.main-column {
+  margin-left: 248px !important;
+  width: calc(100% - 248px) !important;
+  max-width: calc(100% - 248px) !important;
+  box-sizing: border-box !important;
+}
+.workspace-shell.is-collapsed > .main-column,
+.workspace-shell.is-collapsed .main-column {
+  margin-left: 72px !important;
+  width: calc(100% - 72px) !important;
+  max-width: calc(100% - 72px) !important;
+}
+.sidebar, .workspace-shell > .sidebar {
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  z-index: 40 !important;
+}
+.topbar { padding-left: 20px !important; padding-right: 20px !important; }
+`;
+    fs.writeFileSync(cssPath, css);
+    console.log("CSS offset forced");
+  }
+}
