@@ -63,180 +63,194 @@ RUN printf '%s\n' '{' '  "compilerOptions": {' '    "target": "ES2022",' '    "l
 RUN sed -i '/^@layer theme/d' apps/web/src/index.css && sed -i '/clerk/Id; /@clerk/d; /tw-animate-css/d' apps/web/src/index.css || true
 
 RUN cat >> apps/web/src/index.css << 'CSSEOF'
-/* Sidebar refinada */
+/* Sidebar fija — mismo ancho en todos los módulos */
+.workspace-shell { display: flex; min-height: 100vh; width: 100%; overflow-x: hidden; }
 .sidebar {
-  width: 260px;
-  flex: 0 0 260px;
+  width: 248px !important;
+  min-width: 248px !important;
+  max-width: 248px !important;
+  flex: 0 0 248px !important;
+  box-sizing: border-box !important;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 16px 12px 18px;
+  padding: 14px 10px 16px !important;
   background: hsl(var(--sidebar));
   color: hsl(var(--sidebar-foreground));
   border-right: 1px solid hsl(var(--sidebar-border));
-  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.main-column {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
 }
 .sidebar-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 0 4px 14px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid hsl(var(--sidebar-border) / 0.55);
+  gap: 8px;
+  padding: 0 4px 12px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid hsl(var(--sidebar-border) / 0.5);
+  flex-shrink: 0;
 }
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   text-decoration: none;
   color: inherit;
   min-width: 0;
   flex: 1;
-  padding: 2px 0;
+  overflow: hidden;
 }
 .sidebar-brand .font-display {
   font-weight: 800;
-  font-size: 13px;
+  font-size: 12.5px !important;
   letter-spacing: -0.02em;
-  line-height: 1.25;
-  white-space: normal;
-  word-break: break-word;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sidebar-brand .brand-sub {
   font-size: 9px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  opacity: 0.5;
-  margin-top: 3px;
+  opacity: 0.48;
+  margin-top: 2px;
   font-weight: 600;
 }
 .brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 9px !important;
   display: grid;
   place-items: center;
   background: hsl(var(--sidebar-primary));
   color: hsl(var(--sidebar-primary-foreground));
   flex-shrink: 0;
-  box-shadow: 0 2px 8px hsl(var(--sidebar-primary) / 0.25);
 }
 .sidebar-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  margin-top: 3px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
   border: 1px solid hsl(var(--sidebar-border));
   background: transparent;
-  color: hsl(var(--sidebar-foreground) / 0.75);
+  color: hsl(var(--sidebar-foreground) / 0.7);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background .15s, color .15s, border-color .15s;
 }
 .sidebar-toggle:hover {
   background: hsl(var(--sidebar-accent));
   color: hsl(var(--sidebar-foreground));
-  border-color: hsl(var(--sidebar-primary) / 0.35);
 }
 .sidebar nav {
   display: grid;
-  gap: 2px;
-  padding: 10px 0 8px;
+  gap: 1px;
+  padding: 8px 0 6px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .nav-label {
-  font-size: 10px;
+  font-size: 10px !important;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.42;
-  padding: 12px 12px 6px;
+  letter-spacing: 0.06em;
+  opacity: 0.45;
+  padding: 10px 10px 4px !important;
   font-weight: 700;
 }
 .nav-item {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 10px 12px;
-  margin: 0 2px;
-  border-radius: 10px;
-  color: hsl(var(--sidebar-foreground) / 0.82);
-  text-decoration: none;
-  font-size: 13.5px;
-  font-weight: 500;
-  line-height: 1.2;
-  border: 1px solid transparent;
-  transition: background .12s, color .12s, border-color .12s;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 9px 10px !important;
+  margin: 0 2px !important;
+  border-radius: 10px !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: hsl(var(--sidebar-foreground) / 0.85) !important;
+  text-decoration: none !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  box-sizing: border-box !important;
+  transition: background .12s, color .12s;
 }
 .nav-item span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .nav-item:hover {
-  background: hsl(var(--sidebar-accent));
-  color: hsl(var(--sidebar-foreground));
+  background: hsl(var(--sidebar-accent)) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 9px 10px !important;
 }
-.nav-item.active {
-  background: hsl(var(--sidebar-primary) / 0.16);
-  color: hsl(var(--sidebar-primary));
-  font-weight: 700;
-  border-color: hsl(var(--sidebar-primary) / 0.22);
-  box-shadow: inset 3px 0 0 hsl(var(--sidebar-primary));
+.nav-item.active,
+.nav-item.active:hover {
+  background: hsl(var(--sidebar-accent)) !important;
+  color: hsl(var(--sidebar-primary)) !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 9px 10px !important;
+  transform: none !important;
 }
 .nav-icon {
-  width: 17px;
-  height: 17px;
-  flex-shrink: 0;
-  opacity: 0.9;
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0 !important;
 }
-.nav-item.active .nav-icon { opacity: 1; }
 .sidebar-foot {
   margin-top: auto;
-  border-top: 1px solid hsl(var(--sidebar-border) / 0.55);
-  padding-top: 14px;
-  padding-left: 4px;
-  padding-right: 4px;
+  border-top: 1px solid hsl(var(--sidebar-border) / 0.5);
+  padding-top: 12px;
+  flex-shrink: 0;
 }
 .sidebar-foot .btn {
   border-radius: 10px;
   font-size: 12.5px;
   font-weight: 600;
+  padding: 8px 10px !important;
 }
 .workspace-shell.is-collapsed .sidebar {
-  width: 76px;
-  min-width: 76px;
-  flex-basis: 76px;
-  padding: 14px 8px 16px;
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+  flex: 0 0 72px !important;
+  padding: 12px 6px 14px !important;
 }
 .workspace-shell.is-collapsed .sidebar-top {
   flex-direction: column;
   align-items: center;
-  padding: 0 0 12px;
-  gap: 10px;
+  padding: 0 0 10px;
+  gap: 8px;
 }
-.workspace-shell.is-collapsed .sidebar-brand {
-  justify-content: center;
-  flex: 0;
-}
-.workspace-shell.is-collapsed .sidebar-brand > div:not(.brand-mark) { display: none; }
+.workspace-shell.is-collapsed .sidebar-brand { justify-content: center; flex: 0; }
+.workspace-shell.is-collapsed .sidebar-brand > div:not(.brand-mark) { display: none !important; }
 .workspace-shell.is-collapsed .nav-label { display: none !important; }
 .workspace-shell.is-collapsed .nav-item {
-  justify-content: center;
-  padding: 11px;
-  margin: 0 2px;
+  justify-content: center !important;
+  padding: 10px !important;
+  margin: 0 2px !important;
 }
 .workspace-shell.is-collapsed .nav-item span { display: none !important; }
-.workspace-shell.is-collapsed .nav-item.active {
-  box-shadow: none;
-  border-color: hsl(var(--sidebar-primary) / 0.35);
-}
-.workspace-shell.is-collapsed .sidebar-foot .avatar + div { display: none; }
-.main-column { min-width: 0; flex: 1; }
+.workspace-shell.is-collapsed .sidebar-foot .avatar + div { display: none !important; }
 
 .gm-tabs { display: inline-flex; padding: 4px; gap: 4px; background: hsl(var(--secondary)); border-radius: 12px; border: 1px solid hsl(var(--border)); }
 .gm-tab { border: none; background: transparent; cursor: pointer; padding: 9px 16px; border-radius: 9px; font-size: 13px; font-weight: 700; color: hsl(var(--muted-foreground)); }
@@ -296,7 +310,7 @@ RUN cat >> apps/web/src/index.css << 'CSSEOF'
 
 @media (max-width: 980px) { .gm-calendar-layout { grid-template-columns: 1fr; } }
 @media (max-width: 900px) {
-  .workspace-shell .sidebar { display: none; }
+  .workspace-shell .sidebar { display: none !important; }
   .mobile-menu { display: inline-flex !important; }
   .adm-cal-wrap { max-width: none; }
 }
