@@ -1,37 +1,39 @@
-# Estado actual — migración finalizada
+# Estado actual del sistema (octubre 2026)
 
-> **No hay “parte 1/4” pendiente.** Ese texto solo aparece en un commit viejo del historial de Git. El estado actual del código es la estructura profesional completa.
+## Operativo en server de prueba (Docker)
 
-## Estructura vigente
+- Login + sesión
+- Sidebar colapsable (ancho fijo 248 / 72)
+- Dashboard
+- **Administración**: listado, calendario, ABM vencimientos, generar vencimientos fiscales
+- **Guardias Médicas**: calendario + carga (activa/pasiva, inicio/fin)
+- **Inventario**: ABM activos fijos + sector
+- **Instructivos**: ABM metadatos PDF
+- **Usuarios**: ABM + módulos + sectores
+- **Configuración**: ABM sectores
+- **Liquidación**: placeholder
 
-```text
-apps/api                 @salvador/api
-apps/web                 @salvador/web
-packages/db              @salvador/db
-packages/api-spec        @salvador/api-spec
-packages/api-zod         @salvador/api-zod
-packages/api-client-react
-scripts/
-docs/
-```
+## Stack real
 
-## Qué hacer si todavía ves `artifacts/` o `lib/` en el árbol
+| Capa | Tecnología |
+|------|------------|
+| Web | React 18, Vite, Tailwind (snapshot Replit) |
+| API | Express, TypeScript, cookie auth |
+| DB | PostgreSQL 16, Drizzle |
+| Deploy | Docker Compose (`db`, `api`, `web`) |
 
-Son carpetas **legadas** de Replit. Borrarlas una sola vez:
+## Estructura de código
 
-```bash
-git pull
-git rm -rf artifacts lib
-git commit -m "chore: eliminar artifacts/ y lib/ legados"
-git push
-```
+Monorepo `apps/*` + `packages/*`. El build de web **reconstruye** UI desde `artifacts/sanatorio-salvador` y aplica overlay de páginas en `apps/web/src/pages/`.
 
-## Comandos
+## Próximos pasos acordados
 
-```bash
-pnpm install
-export DATABASE_URL=postgresql://...
-pnpm run db:push
-pnpm run dev:api
-pnpm run dev:web
-```
+1. Estabilizar UI (layout) en todos los módulos.
+2. Claude Code para desarrollo continuo módulo a módulo.
+3. Migrar el mismo stack a **Proxmox**.
+4. DB formal (migraciones versionadas, backups) cuando el producto lo pida.
+5. ARCA/AFIP: mantener pendiente; hoy generación local de vencimientos.
+
+## No es deuda de estructura “parte 1/4”
+
+Cualquier texto viejo de “parte 1/4” es histórico. El árbol vigente es el de `apps/` + `packages/`.

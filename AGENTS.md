@@ -1,17 +1,36 @@
-# AGENTS.md
+# AGENTS.md — Salvador-Connect
 
-Estructura **final** del monorepo. No hay “parte 1/4” pendiente.
+Instrucciones cortas para cualquier agente (Claude Code, etc.).
 
-| Path | Package |
-|------|--------|
-| `apps/api` | `@salvador/api` |
-| `apps/web` | `@salvador/web` |
-| `packages/db` | `@salvador/db` |
-| `packages/api-*` | contratos |
+## Proyecto
+Sistema interno **Sanatorio del Salvador**. Monorepo pnpm.
 
+## Paths canónicos
+| Qué | Dónde |
+|-----|--------|
+| API | `apps/api` (`@salvador/api`) |
+| Web | `apps/web` (`@salvador/web`) |
+| Schema | `packages/db/src/schema/index.ts` |
+| Páginas módulo | `apps/web/src/pages/*.tsx` |
+| Auth | `apps/api/src/lib/auth.ts` |
+| Build UI | `Dockerfile` (overlay + CSS) |
+
+## Flujo
+Schema → `pnpm run db:push` → API → UI. Un módulo por cambio.
+
+## Reglas de negocio fijas
+- Guardias: sector + fecha + inicio/fin + modalidad `activa`/`pasiva` (sin turnos mañana/tarde).
+- Inventario: **activos fijos**, no consumibles.
+- Instructivos: PDF por enlace/ruta, no wiki.
+- Liquidación: no implementar.
+- Nombre UI: **Sanatorio del Salvador**.
+
+## Comandos
 ```bash
 pnpm install && pnpm run db:push
-pnpm run dev:api && pnpm run dev:web
+pnpm run dev:api
+pnpm run dev:web
 ```
 
-Sin Replit / Clerk / Supabase. Inventario = activos fijos.
+## No hacer
+Replit / Clerk / Supabase · secretos en git · mezclar varios módulos incompletos.

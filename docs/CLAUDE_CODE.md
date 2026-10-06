@@ -1,61 +1,65 @@
-# Guía para Claude Code
+# Guía operativa para Claude Code
 
-Este documento complementa `CLAUDE.md` en la raíz.
+Complementa `CLAUDE.md` (raíz). Usar este archivo cuando se pida “implementar módulo X” o “arreglar bug Y”.
 
-## Antes de tocar código
+## Arranque de sesión
 
-1. Leer `CLAUDE.md` y `docs/ALCANCE_MVP.md`.
-2. Revisar `docs/ESTADO_ACTUAL.md` y `docs/POSTGRES.md`.
-3. Trabajar **por tramos**: no mezclar módulos incompletos.
-
-## Comandos útiles
-
-```bash
-# Typecheck de todo el monorepo
-pnpm run typecheck
-
-# Schema → PostgreSQL
-pnpm --filter @workspace/db run push
-
-# API en desarrollo
-pnpm --filter @workspace/api-server run dev
-
-# Seed sectores (dev)
-pnpm exec tsx scripts/src/seed-sectors.ts
+```text
+1. Leer CLAUDE.md
+2. Leer docs/ESTADO_ACTUAL.md
+3. Localizar archivos del módulo en la tabla de abajo
+4. Implementar en el orden schema → API → UI → Dockerfile overlay si es página nueva
 ```
 
-## Dónde está cada cosa
+## Mapa rápido de archivos
 
-| Qué | Dónde |
-|-----|--------|
-| Schema DB | `lib/db/src/schema/index.ts` |
-| Auth + bootstrap | `artifacts/api-server/src/lib/auth.ts` |
-| Rutas API | `artifacts/api-server/src/routes/` |
-| OpenAPI | `lib/api-spec/openapi.yaml` |
-| Validación Zod generada | `lib/api-zod/` |
-| Cliente React | `lib/api-client-react/` |
+| Módulo | API | UI | Notas |
+|--------|-----|-----|--------|
+| Auth / sesión | `apps/api/src/routes/auth.ts`, `lib/auth.ts` | Login en App (Replit + patch) | Cookie |
+| Usuarios | `routes/users.ts` | `pages/Usuarios.tsx` | Solo superadmin escribe |
+| Sectores | `routes/sectores.ts` | `pages/Configuracion.tsx` | Solo superadmin escribe |
+| Guardias Médicas | `routes/guardias.ts` | `pages/GuardiasMedicas.tsx` | Calendar + carga |
+| Administración | `routes/administracion.ts` | `pages/Administracion.tsx` | Fiscal + vencimientos |
+| Inventario | `routes/inventario.ts` | `pages/Inventario.tsx` | Activos + movimientos |
+| Instructivos | `routes/instructivos.ts` | `pages/Instructivos.tsx` | Metadatos PDF |
+| Health | `routes/health.ts` | — | |
+| Router | `routes/index.ts` | — | Registrar rutas nuevas aquí |
 
-## Reglas al implementar un módulo
+## Overlay Dockerfile
 
-1. Schema primero (`lib/db`) → `pnpm --filter @workspace/db run push`.
-2. Endpoints + validación Zod.
-3. Actualizar OpenAPI si el contrato cambia (`lib/api-spec`) y regenerar cliente si aplica.
-4. UI solo después de que la API responda correctamente.
-5. Respetar filtro por sector (excepto `superadmin`).
+Páginas custom **deben** existir en `apps/web/src/pages/` **y** estar en el bucle:
 
-## Inventario (importante)
+```dockerfile
+for f in GuardiasMedicas Administracion Usuarios Inventario Instructivos Configuracion; do
+```
 
-- Modelo = **activos fijos** (marca, modelo, serie, estado, sector).
-- Movimiento entre sectores = fila en `inventory_movements`.
-- No modelar stock de consumibles en el MVP.
+Si agregás una página nueva, sumala al `for` y al script `node -e` que reescribe `App.tsx`.
 
-## Guardias (importante)
+## CSS
 
-- Campos: sector, fecha, shift, **modality** (`presencial` | `retencion`), profesional, observaciones.
-- Shifts: `manana` | `tarde` | `noche` | `pasiva` | `otro`.
+Muchas reglas de layout viven en el bloque `CSSEOF` del `Dockerfile` (se appendean a `index.css` en build).
+Si el calendario se ve en una columna o la toolbar se apila: revisar `.gm-weekdays`, `.gm-grid`, `.adm-toolbar`.
 
-## No hacer
+## Base de datos
 
-- No agregar Supabase.
-- No poner contraseñas en README o issues.
-- No implementar Liquidación ni notificaciones externas en el MVP.
+```bash
+export DATABASE_URL=postgresql://USER:PASS@HOST:5432/DB
+pnpm run db:push
+```
+
+En Docker de prueba, preferir red interna `db:5432` y no publicar 5432 si el host ya tiene Postgres.
+
+## Criterios de “listo”
+
+- Listar / crear / editar / borrar funciona con el rol correcto.
+- `superadmin` no queda bloqueado; `usuario` no escribe donde no debe.
+- UI no rompe el sidebar (ancho fijo).
+- Sin dependencias Clerk/Replit nuevas.
+
+## Pendientes de producto (no inventar sin pedido)
+
+- Integración ARCA/AFIP real (hoy reglas locales).
+- Upload binario de PDFs.
+- QR / mantenimientos de inventario.
+- Liquidación.
+- Hardening Proxmox (mismo Docker; backups y secrets).
