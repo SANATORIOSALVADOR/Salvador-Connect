@@ -28,7 +28,7 @@ import {
   type CreateUserBody,
   type UserAdmin,
 } from "@salvador/api-client-react";
-import { queryClient } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 const MODULE_CATALOG = [
   { key: "dashboard", label: "Resumen", desc: "Panel de inicio y lectura del día", icon: LayoutDashboard },
@@ -109,6 +109,7 @@ function StatusMessage({ title, detail, action }: { title: string; detail: strin
 }
 
 export default function UsuariosPage() {
+  const queryClient = useQueryClient();
   const users = useListUsers({ query: { queryKey: getListUsersQueryKey(), retry: false } });
   const sectors = useListSectors({ query: { queryKey: getListSectorsQueryKey(), retry: false } });
   const create = useCreateUser();
