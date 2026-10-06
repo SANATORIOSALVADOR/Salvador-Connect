@@ -203,7 +203,7 @@ export default function GuardiasMedicas() {
 
   return (
     <div className="gm-page">
-      <div className="gm-header">
+      <div className="gm-header" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
         <div>
           <div className="eyebrow">Operación / Cobertura</div>
           <h1 className="page-title">Guardias Médicas</h1>
@@ -226,9 +226,9 @@ export default function GuardiasMedicas() {
                 <span className="gm-cal-month">{monthLabel}</span>
                 <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>Mes siguiente →</button>
               </div>
-              <label className="gm-filter">
+              <label className="gm-filter" style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 600 }}>
                 <span>Sector</span>
-                <select className="select" value={filterSector} onChange={(e) => setFilterSector(e.target.value)}>
+                <select className="select" value={filterSector} onChange={(e) => setFilterSector(e.target.value)} style={{ minWidth: 180 }}>
                   <option value="">Todos</option>
                   {guardiaSectors.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -251,7 +251,7 @@ export default function GuardiasMedicas() {
                         <div className="gm-day-chips">
                           {dayItems.slice(0, 3).map((g) => (
                             <span key={g.id} className={modalityClass(g.modality)} title={`${g.professionalName} ${g.startTime}-${g.endTime}`}>
-                              {g.startTime} {g.professionalName.split(" ").slice(-1)[0]}
+                              {g.startTime} · {g.professionalName.split(" ").slice(-1)[0]}
                             </span>
                           ))}
                           {dayItems.length > 3 && <span className="gm-chip gm-chip-more">+{dayItems.length - 3}</span>}
@@ -281,13 +281,13 @@ export default function GuardiasMedicas() {
             )}
             {dayDetail.map((g) => (
               <div key={g.id} className="gm-detail-card">
-                <div className="gm-detail-top">
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span className={modalityClass(g.modality)}>{labelMod(g.modality)}</span>
                   <span className="badge">{g.startTime} – {g.endTime}</span>
                 </div>
-                <div className="gm-detail-name">{g.professionalName}</div>
-                <div className="gm-detail-meta">{g.sectorName || "Sector"} · {formatDateAR(g.date)}</div>
-                {g.observations && <div className="gm-detail-obs">{g.observations}</div>}
+                <div style={{ fontWeight: 800, marginTop: 8 }}>{g.professionalName}</div>
+                <div className="page-subtitle" style={{ marginTop: 4 }}>{g.sectorName || "Sector"} · {formatDateAR(g.date)}</div>
+                {g.observations && <div style={{ marginTop: 6, fontSize: 13 }}>{g.observations}</div>}
                 <button type="button" className="btn btn-quiet" style={{ marginTop: 8, fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>
               </div>
             ))}
@@ -296,7 +296,7 @@ export default function GuardiasMedicas() {
       )}
 
       {tab === "carga" && (
-        <div className="gm-carga-layout">
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 380px) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
           <form className="card gm-form" onSubmit={onSubmit}>
             <div className="section-kicker">Nueva guardia</div>
             <h2 className="section-title" style={{ marginTop: 6, marginBottom: 16 }}>Registrar cobertura</h2>
@@ -342,7 +342,7 @@ export default function GuardiasMedicas() {
             <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: "100%" }}>{saving ? "Guardando…" : "Guardar guardia"}</button>
           </form>
           <div className="card gm-table-wrap">
-            <div className="section-head">
+            <div className="section-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div>
                 <div className="section-kicker">Registro del mes</div>
                 <h2 className="section-title" style={{ marginTop: 4 }}>{monthLabel}</h2>
