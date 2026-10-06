@@ -31,7 +31,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
     });
   };
   const visibleNavItems = navItems.filter((item) => user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1)));
-  const nav = <nav>
+  const nav = <nav style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
     {!collapsed && <div className="nav-label">Operación</div>}
     {visibleNavItems.map(({ href, label, icon: Icon }) => (
       <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={\`nav-item \${location === href ? 'active' : ''}\`} title={label} data-testid={\`link-nav-\${label.toLowerCase()}\`}>
@@ -44,12 +44,14 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
     </Link>
   </nav>;
   const sideW = collapsed ? 72 : 248;
-  return <div className={\`workspace-shell\${collapsed ? " is-collapsed" : ""}\`} style={{ display: 'flex', minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+  return <div className={\`workspace-shell\${collapsed ? " is-collapsed" : ""}\`} style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
     <aside className="sidebar" style={{
-      width: sideW, minWidth: sideW, maxWidth: sideW, flex: \`0 0 \${sideW}px\`,
-      boxSizing: 'border-box', height: '100vh', position: 'sticky', top: 0, alignSelf: 'flex-start',
-      display: 'flex', flexDirection: 'column', padding: collapsed ? '12px 6px 14px' : '14px 10px 16px',
-      overflowX: 'hidden', overflowY: 'auto', zIndex: 20,
+      position: 'fixed', left: 0, top: 0, bottom: 0,
+      width: sideW, minWidth: sideW, maxWidth: sideW,
+      boxSizing: 'border-box',
+      display: 'flex', flexDirection: 'column',
+      padding: collapsed ? '12px 6px 14px' : '14px 10px 16px',
+      overflowX: 'hidden', overflowY: 'auto', zIndex: 40,
     }}>
       <div className="sidebar-top" style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', gap: 8, padding: '0 4px 12px', marginBottom: 2, borderBottom: '1px solid hsl(var(--sidebar-border) / 0.5)', flexShrink: 0, flexDirection: collapsed ? 'column' : 'row' }}>
         <Brand compact={collapsed} />
@@ -58,7 +60,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
         </button>
       </div>
       {nav}
-      <div className="sidebar-foot">
+      <div className="sidebar-foot" style={{ marginTop: 'auto', flexShrink: 0, borderTop: '1px solid hsl(var(--sidebar-border) / 0.5)', paddingTop: 12 }}>
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 8px' }}>
             <div className="avatar" style={{ width: 32, height: 32, background: 'hsl(var(--sidebar-primary) / .18)', color: 'hsl(var(--sidebar-primary))', border: 'none' }}>{initials(user?.name)}</div>
@@ -74,8 +76,8 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
       </div>
     </aside>
     {mobileOpen && (
-      <div className="modal-backdrop" style={{ display: 'block', padding: 0 }} onClick={() => setMobileOpen(false)}>
-        <aside className="sidebar sidebar-drawer" style={{ display: 'flex', minHeight: '100dvh', width: 268 }} onClick={(event) => event.stopPropagation()}>
+      <div className="modal-backdrop" style={{ display: 'block', padding: 0, zIndex: 50 }} onClick={() => setMobileOpen(false)}>
+        <aside className="sidebar sidebar-drawer" style={{ display: 'flex', minHeight: '100dvh', width: 268, position: 'fixed', left: 0, top: 0, zIndex: 51 }} onClick={(event) => event.stopPropagation()}>
           <div className="sidebar-top" style={{ borderBottom: 'none' }}>
             <Brand />
             <button className="sidebar-toggle" onClick={() => setMobileOpen(false)} data-testid="button-close-menu"><X size={15} /></button>
@@ -84,7 +86,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
         </aside>
       </div>
     )}
-    <div className="main-column" style={{ flex: '1 1 0%', minWidth: 0, maxWidth: '100%', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
+    <div className="main-column" style={{ marginLeft: sideW, minWidth: 0, width: \`calc(100% - \${sideW}px)\`, maxWidth: \`calc(100% - \${sideW}px)\`, display: 'flex', flexDirection: 'column', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <header className="topbar">
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={18} /></button>
         <div className="topbar-meta"><span className="font-mono">SANATORIO DEL SALVADOR</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
