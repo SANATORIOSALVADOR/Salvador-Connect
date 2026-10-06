@@ -86,7 +86,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
         </aside>
       </div>
     )}
-    <div className="main-column" style={{ marginLeft: sideW, minWidth: 0, width: \`calc(100% - \${sideW}px)\`, maxWidth: \`calc(100% - \${sideW}px)\`, display: 'flex', flexDirection: 'column', overflowX: 'hidden', boxSizing: 'border-box' }}>
+    <div className="main-column" style={{ marginLeft: sideW, minWidth: 0, display: 'flex', flexDirection: 'column', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <header className="topbar">
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={18} /></button>
         <div className="topbar-meta"><span className="font-mono">SANATORIO DEL SALVADOR</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
