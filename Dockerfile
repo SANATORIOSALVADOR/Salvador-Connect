@@ -67,9 +67,9 @@ RUN cat >> apps/web/src/index.css << 'CSSEOF'
 html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
 .workspace-shell { display: flex !important; min-height: 100vh; width: 100%; max-width: 100vw; overflow-x: hidden !important; }
 .sidebar { width: 248px !important; min-width: 248px !important; max-width: 248px !important; flex: 0 0 248px !important; box-sizing: border-box !important; min-height: 100vh; height: 100vh; position: sticky; top: 0; align-self: flex-start; display: flex !important; flex-direction: column !important; padding: 14px 10px 16px !important; background: hsl(var(--sidebar)) !important; color: hsl(var(--sidebar-foreground)); border-right: 1px solid hsl(var(--sidebar-border)); overflow-x: hidden !important; overflow-y: auto !important; z-index: 20; }
-.main-column { flex: 1 1 0% !important; min-width: 0 !important; max-width: 100% !important; width: auto !important; display: flex; flex-direction: column; overflow-x: hidden !important; }
+.main-column { flex: 1 1 0% !important; min-width: 0 !important; max-width: 100% !important; display: flex; flex-direction: column; overflow-x: hidden !important; }
 .main-column > :not(.topbar) { padding: 0 !important; min-width: 0 !important; max-width: 100% !important; }
-.content-wrap, .adm-page, .gm-page, .usr-page { padding: 20px 22px 36px !important; max-width: 100%; min-width: 0; overflow-x: auto; }
+.content-wrap, .adm-page, .gm-page, .usr-page { padding: 20px 22px 36px !important; max-width: 100%; min-width: 0; overflow-x: hidden !important; }
 .sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 12px; margin-bottom: 2px; border-bottom: 1px solid hsl(var(--sidebar-border) / 0.5); flex-shrink: 0; }
 .sidebar-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; min-width: 0; flex: 1; overflow: hidden; }
 .sidebar-brand .font-display { font-weight: 800; font-size: 12.5px !important; letter-spacing: -0.02em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
@@ -81,22 +81,57 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
 .workspace-shell.is-collapsed .nav-item span { display: none !important; }
 .workspace-shell.is-collapsed .nav-label { display: none !important; }
 .agenda-table-wrap { overflow-x: auto !important; max-width: 100%; }
-.adm-page { display: flex; flex-direction: column; gap: 16px; padding: 20px 22px 36px !important; }
+.adm-page { display: flex; flex-direction: column; gap: 16px; padding: 20px 22px 36px !important; overflow-x: hidden !important; }
 .adm-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 14px; }
-.adm-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
-.adm-list-card { padding: 16px; overflow: hidden; max-width: 100%; }
-.gm-tabs { display: inline-flex; padding: 4px; gap: 4px; background: hsl(var(--secondary)); border-radius: 12px; border: 1px solid hsl(var(--border)); }
-.gm-tab { border: none; background: transparent; cursor: pointer; padding: 9px 16px; border-radius: 9px; font-size: 13px; font-weight: 700; color: hsl(var(--muted-foreground)); }
-.gm-tab.is-active { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
-.gm-calendar-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.9fr); gap: 16px; max-width: 100%; }
-.gm-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.gm-cell { min-height: 88px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); padding: 8px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px; color: inherit; font: inherit; }
+.adm-toolbar { display: flex !important; flex-wrap: wrap !important; gap: 10px !important; align-items: center !important; margin-bottom: 14px !important; }
+.adm-toolbar .input, .adm-toolbar .select { width: auto !important; min-width: 140px !important; max-width: 280px !important; flex: 1 1 160px !important; }
+.adm-toolbar .btn { flex: 0 0 auto !important; }
+.adm-list-card { padding: 16px; overflow-x: auto !important; max-width: 100%; }
 .adm-tabs { display: inline-flex; flex-wrap: wrap; padding: 4px; gap: 4px; background: hsl(var(--secondary)); border-radius: 12px; border: 1px solid hsl(var(--border)); }
 .adm-tab { border: none; background: transparent; cursor: pointer; padding: 9px 14px; border-radius: 9px; font-size: 13px; font-weight: 700; color: hsl(var(--muted-foreground)); }
 .adm-tab.is-active { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
-@media (max-width: 980px) { .gm-calendar-layout { grid-template-columns: 1fr; } }
+.adm-alerts { padding: 14px 16px; }
+.adm-alerts-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: hsl(var(--muted-foreground)); margin-bottom: 10px; }
+.adm-alerts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.adm-alert-item { border-radius: 10px; padding: 10px 12px; border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
+.adm-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.adm-urg-over { background: hsl(0 70% 94%); color: hsl(0 65% 35%); }
+.adm-urg-today, .adm-urg-soon { background: hsl(25 90% 92%); color: hsl(25 70% 32%); }
+.adm-urg-week { background: hsl(45 90% 92%); color: hsl(40 60% 30%); }
+.adm-urg-ok { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+.adm-note-preview { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: 2px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.gm-tabs { display: inline-flex; padding: 4px; gap: 4px; background: hsl(var(--secondary)); border-radius: 12px; border: 1px solid hsl(var(--border)); }
+.gm-tab { border: none; background: transparent; cursor: pointer; padding: 9px 16px; border-radius: 9px; font-size: 13px; font-weight: 700; color: hsl(var(--muted-foreground)); }
+.gm-tab.is-active { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.gm-calendar-layout { display: grid !important; grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.9fr) !important; gap: 16px !important; max-width: 100% !important; align-items: start !important; }
+.gm-cal-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.gm-cal-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gm-cal-month { font-weight: 800; text-transform: capitalize; min-width: 140px; text-align: center; }
+.gm-weekdays { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 6px !important; margin-bottom: 6px !important; }
+.gm-weekday { text-align: center !important; font-size: 11px !important; font-weight: 700 !important; text-transform: uppercase !important; color: hsl(var(--muted-foreground)) !important; padding: 4px 0 !important; }
+.gm-grid { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 6px !important; max-width: 100% !important; }
+.gm-cell { min-height: 92px !important; border: 1px solid hsl(var(--border)) !important; border-radius: 12px !important; background: hsl(var(--card)) !important; padding: 8px !important; text-align: left !important; cursor: pointer !important; display: flex !important; flex-direction: column !important; gap: 4px !important; color: inherit !important; font: inherit !important; width: 100% !important; box-sizing: border-box !important; overflow: hidden !important; }
+.gm-cell.is-empty { background: hsl(var(--muted) / .35) !important; border-style: dashed !important; cursor: default !important; }
+.gm-cell.is-today { border-color: hsl(var(--primary)) !important; }
+.gm-cell.is-selected { border-color: hsl(var(--primary)); background: hsl(var(--primary) / .06); }
+.gm-day-num { font-size: 12px; font-weight: 800; color: hsl(var(--muted-foreground)); }
+.gm-day-chips { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gm-chip { display: block !important; font-size: 10px !important; font-weight: 700 !important; line-height: 1.25 !important; padding: 2px 5px !important; border-radius: 6px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 100% !important; }
+.gm-chip-activa { background: hsl(160 45% 92%); color: hsl(160 50% 28%); }
+.gm-chip-pasiva { background: hsl(220 40% 93%); color: hsl(220 45% 32%); }
+.gm-chip-more { background: hsl(var(--secondary)); color: hsl(var(--muted-foreground)); }
+.gm-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: hsl(var(--muted-foreground)); align-items: center; }
+.gm-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.gm-dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; }
+.gm-dot.gm-chip-activa { background: hsl(160 45% 45%); }
+.gm-dot.gm-chip-pasiva { background: hsl(220 45% 50%); }
+.gm-form, .gm-table-wrap, .gm-day-panel, .gm-calendar-panel { padding: 16px; }
+.gm-detail-card { margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid hsl(var(--border)); }
+
+@media (max-width: 980px) { .gm-calendar-layout { grid-template-columns: 1fr !important; } }
 @media (max-width: 900px) { .workspace-shell .sidebar { display: none !important; } .mobile-menu { display: inline-flex !important; } }
-@media (max-width: 640px) { .adm-page, .content-wrap, .usr-page { padding: 14px 12px 28px !important; } }
+@media (max-width: 640px) { .adm-page, .content-wrap, .usr-page, .gm-page { padding: 14px 12px 28px !important; } }
 CSSEOF
 
 RUN node -e "const fs=require('fs');const p='apps/web/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.name='@salvador/web';d.scripts={build:'vite build --config vite.config.ts'};const dep={...(d.dependencies||{}),...(d.devDependencies||{})};for (const k of Object.keys(dep)){if(k.includes('clerk')||k.includes('replit'))delete dep[k];if(k.startsWith('@workspace/')){dep[k.replace('@workspace/','@salvador/')]=dep[k];delete dep[k];}}dep['@salvador/api-client-react']='workspace:*';dep['vite']=dep['vite']||'catalog:';dep['@vitejs/plugin-react']=dep['@vitejs/plugin-react']||'catalog:';dep['@tailwindcss/vite']=dep['@tailwindcss/vite']||'catalog:';dep['tailwindcss']=dep['tailwindcss']||'catalog:';d.dependencies=dep;d.devDependencies={};fs.writeFileSync(p,JSON.stringify(d,null,2));"
