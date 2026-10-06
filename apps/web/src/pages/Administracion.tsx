@@ -46,6 +46,10 @@ const ALERT_OPTS = [
   { value: 15, label: "15 días antes" },
   { value: 30, label: "30 días antes" },
 ];
+const MONTH_NAMES_ES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
 
 function monthRange(d: Date) {
   const y = d.getFullYear();
@@ -100,6 +104,9 @@ export default function Administracion() {
   const [fiscal, setFiscal] = useState<FiscalConfig | null>(null);
   const [fiscalBusy, setFiscalBusy] = useState(false);
   const [fiscalMsg, setFiscalMsg] = useState<string | null>(null);
+  const [fiscalPicker, setFiscalPicker] = useState(false);
+  const [fiscalYear, setFiscalYear] = useState(() => new Date().getFullYear());
+  const [fiscalMonth, setFiscalMonth] = useState(() => new Date().getMonth() + 1);
 
   const todayIso = (() => {
     const n = new Date();
@@ -344,8 +351,17 @@ export default function Administracion() {
               Genera vencimientos reales del mes (SICORE, SUSS, IVA, IIBB Cba, agente de retención) según el portal de este CUIT.
             </p>
           </div>
-          <button type="button" className="btn btn-primary" disabled={fiscalBusy} onClick={() => void generarFiscal()}>
-            {fiscalBusy ? "Generando…" : `Generar ${cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" })}`}
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={fiscalBusy}
+            onClick={() => {
+              setFiscalYear(new Date().getFullYear());
+              setFiscalMonth(new Date().getMonth() + 1);
+              setFiscalPicker(true);
+            }}
+          >
+            {fiscalBusy ? "Generando…" : "Generar vencimientos"}
           </button>
         </div>
       )}
@@ -392,7 +408,7 @@ export default function Administracion() {
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={8} style={{ textAlign: "center", padding: 32, color: "hsl(var(--muted-foreground))" }}>No hay ítems. Generá el mes fiscal o usá <strong>+ Nuevo</strong>.</td></tr>
+                    <tr><td colSpan={8} style={{ textAlign: "center", padding: 32, color: "hsl(var(--muted-foreground))" }}>No hay ítems. Generá vencimientos o usá <strong>+ Nuevo</strong>.</td></tr>
                   ) : filtered.map((it) => {
                     const d = daysUntil(it.dueDate, todayIso);
                     return (
@@ -493,6 +509,67 @@ export default function Administracion() {
           </label>
           <button type="submit" className="btn btn-primary" disabled={saving} style={{ width: "100%" }}>{saving ? "Guardando…" : "Guardar"}</button>
         </form>
+      )}
+
+      {fiscalPicker && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", zIndex: 80, padding: 16 }}
+          onClick={() => !fiscalBusy && setFiscalPicker(false)}
+        >
+          <div
+            className="card"
+            role="dialog"
+            aria-modal="true"
+            style={{ width: "min(420px, 100%)", padding: 20, display: "grid", gap: 14 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "hsl(var(--muted-foreground))" }}>
+                Calendario fiscal
+              </div>
+              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800 }}>Generar vencimientos</h2>
+              <p style={{ margin: "6px 0 0", fontSize: 13, color: "hsl(var(--muted-foreground))", lineHeight: 1.4 }}>
+                Elegí el mes cuyas fechas de vencimiento querés cargar (SICORE, SUSS, IVA, IIBB, agente de retención).
+              </p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
+              <label className="field">
+                <span className="field-label">Mes</span>
+                <select className="select" value={fiscalMonth} onChange={(e) => setFiscalMonth(Number(e.target.value))} disabled={fiscalBusy}>
+                  {MONTH_NAMES_ES.map((name, i) => (
+                    <option key={name} value={i + 1}>{name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">Año</span>
+                <select className="select" value={fiscalYear} onChange={(e) => setFiscalYear(Number(e.target.value))} disabled={fiscalBusy}>
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+              <button type="button" className="btn btn-quiet" disabled={fiscalBusy} onClick={() => setFiscalPicker(false)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={fiscalBusy}
+                onClick={() => {
+                  void (async () => {
+                    await generarFiscal(fiscalYear, fiscalMonth);
+                    setFiscalPicker(false);
+                  })();
+                }}
+              >
+                {fiscalBusy ? "Generando…" : "Generar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
