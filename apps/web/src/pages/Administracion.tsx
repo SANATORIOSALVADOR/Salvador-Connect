@@ -249,8 +249,8 @@ export default function Administracion() {
   }
 
   return (
-    <div className="adm-page" style={{ padding: "20px 22px 36px", display: "flex", flexDirection: "column", gap: 16, maxWidth: "100%", minWidth: 0 }}>
-      <div className="adm-header">
+    <div className="adm-page" style={{ padding: "20px 24px 40px", display: "flex", flexDirection: "column", gap: 16, maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <div className="adm-header" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 14, alignItems: "flex-start" }}>
         <div>
           <div className="eyebrow">Operación / Administración</div>
           <h1 className="page-title">Administración</h1>
@@ -265,22 +265,13 @@ export default function Administracion() {
 
       {error && <div className="form-error">{error}</div>}
 
-      <div className="card" style={{ padding: 16 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
-          <div>
-            <div className="eyebrow">Calendario fiscal (datos del portal)</div>
-            <div style={{ fontWeight: 800, marginTop: 4 }}>Sanatorio del Salvador</div>
-            <div className="page-subtitle" style={{ marginTop: 4 }}>
-              CUIT 30-68976794-6 · Term. 6 · Responsable Inscripto · Empleador sí · IIBB Córdoba
-            </div>
-            <p className="page-subtitle" style={{ marginTop: 6 }}>
-              Genera vencimientos reales del mes (SICORE, SUSS, IVA, IIBB Cba, agente de retención) según el portal de este CUIT.
-            </p>
-          </div>
-          <button type="button" className="btn btn-primary" onClick={() => setFiscalPicker(true)} disabled={fiscalBusy}>
-            Generar vencimientos
-          </button>
-        </div>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <p className="page-subtitle" style={{ margin: 0, maxWidth: 520 }}>
+          Genera los vencimientos del mes según el portal ARCA de este CUIT.
+        </p>
+        <button type="button" className="btn btn-primary" onClick={() => setFiscalPicker(true)} disabled={fiscalBusy}>
+          {fiscalBusy ? "Generando…" : "Generar vencimientos"}
+        </button>
       </div>
 
       {alerts.length > 0 && (
@@ -368,74 +359,93 @@ export default function Administracion() {
       )}
 
       {tab === "calendario" && (
-        <div className="card" style={{ padding: 18, maxWidth: 560 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</button>
-              <span style={{ fontWeight: 800, textTransform: "capitalize", minWidth: 140, textAlign: "center" }}>{monthLabel}</span>
-              <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</button>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 420px) minmax(240px, 1fr)", gap: 20, alignItems: "start", maxWidth: 960 }}>
+          <div className="card" style={{ padding: 18 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</button>
+                <span style={{ fontWeight: 800, textTransform: "capitalize", minWidth: 140, textAlign: "center" }}>{monthLabel}</span>
+                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</button>
+              </div>
+              <span className="page-subtitle" style={{ margin: 0 }}>Puntos = ítems pendientes</span>
             </div>
-            <span className="page-subtitle" style={{ margin: 0 }}>Vista del mes · puntos por urgencia</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
-            {WEEKDAYS.map((d) => (
-              <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "hsl(var(--muted-foreground))", padding: "4px 0" }}>{d}</div>
-            ))}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
-            {calendarCells.map((cell, i) => {
-              if (!cell.day || !cell.iso) return <div key={`e-${i}`} style={{ minHeight: 48, borderRadius: 10, border: "1px dashed hsl(var(--border))", background: "hsl(var(--muted) / .3)" }} />;
-              const dayItems = byDate.get(cell.iso) || [];
-              const pending = dayItems.filter((x) => x.status === "pendiente");
-              const isToday = cell.iso === todayIso;
-              const isSel = cell.iso === selectedDay;
-              return (
-                <button
-                  type="button"
-                  key={cell.iso}
-                  onClick={() => setSelectedDay(cell.iso)}
-                  style={{
-                    minHeight: 52,
-                    borderRadius: 10,
-                    border: isToday || isSel ? "1.5px solid hsl(var(--primary))" : "1px solid hsl(var(--border))",
-                    background: isSel ? "hsl(var(--primary) / .08)" : "hsl(var(--card))",
-                    padding: "6px 8px",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    font: "inherit",
-                    color: "inherit",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    gap: 4,
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 800, color: "hsl(var(--muted-foreground))" }}>{cell.day}</span>
-                  {pending.length > 0 && (
-                    <span style={{
-                      alignSelf: "flex-end", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999,
-                      fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))",
-                    }}>{pending.length}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {selectedDay && (
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid hsl(var(--border))" }}>
-              <strong>{new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}</strong>
-              {(byDate.get(selectedDay) || []).length === 0 && <p className="page-subtitle">Sin ítems este día.</p>}
-              {(byDate.get(selectedDay) || []).map((it) => (
-                <div key={it.id} style={{ marginTop: 8, padding: "8px 10px", borderRadius: 10, border: "1px solid hsl(var(--border))" }}>
-                  <div style={{ fontWeight: 700 }}>{it.title}{it.source === "fiscal" ? " · Fiscal" : ""}</div>
-                  <div className="page-subtitle">{typeLabel(it.itemType)} · {statusLabel(it.status)}</div>
-                </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
+              {WEEKDAYS.map((d) => (
+                <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "hsl(var(--muted-foreground))", padding: "4px 0" }}>{d}</div>
               ))}
             </div>
-          )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
+              {calendarCells.map((cell, i) => {
+                if (!cell.day || !cell.iso) return <div key={`e-${i}`} style={{ minHeight: 48, borderRadius: 10, border: "1px dashed hsl(var(--border))", background: "hsl(var(--muted) / .3)" }} />;
+                const dayItems = byDate.get(cell.iso) || [];
+                const pending = dayItems.filter((x) => x.status === "pendiente");
+                const isToday = cell.iso === todayIso;
+                const isSel = cell.iso === selectedDay;
+                return (
+                  <button
+                    type="button"
+                    key={cell.iso}
+                    onClick={() => setSelectedDay(cell.iso)}
+                    style={{
+                      minHeight: 52,
+                      borderRadius: 10,
+                      border: isToday || isSel ? "1.5px solid hsl(var(--primary))" : "1px solid hsl(var(--border))",
+                      background: isSel ? "hsl(var(--primary) / .08)" : "hsl(var(--card))",
+                      padding: "6px 8px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      font: "inherit",
+                      color: "inherit",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: 4,
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "hsl(var(--muted-foreground))" }}>{cell.day}</span>
+                    {pending.length > 0 && (
+                      <span style={{
+                        alignSelf: "flex-end", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999,
+                        fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))",
+                      }}>{pending.length}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 18, minHeight: 280 }}>
+            {!selectedDay ? (
+              <div>
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>Detalle del día</div>
+                <p className="page-subtitle" style={{ margin: 0 }}>Hacé clic en un día del calendario para ver vencimientos y recordatorios.</p>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontWeight: 800, marginBottom: 12, textTransform: "capitalize" }}>
+                  {new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+                </div>
+                {(byDate.get(selectedDay) || []).length === 0 && (
+                  <p className="page-subtitle">Sin ítems este día.</p>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(byDate.get(selectedDay) || []).map((it) => (
+                    <div key={it.id} style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{it.title}{it.source === "fiscal" ? " · Fiscal" : ""}</div>
+                      <div className="page-subtitle" style={{ marginTop: 2 }}>{typeLabel(it.itemType)} · {statusLabel(it.status)}</div>
+                      {it.status === "pendiente" && (
+                        <button type="button" className="btn btn-primary" style={{ marginTop: 8, fontSize: 12 }} onClick={() => void setStatus(it.id, "cumplido")}>Marcar cumplido</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
