@@ -10,6 +10,18 @@ type Item = {
   responsibleName: string;
   notes: string;
   alertDays: number;
+  source?: string;
+  fiscalCode?: string | null;
+  fiscalPeriod?: string | null;
+};
+
+type FiscalConfig = {
+  cuit: string;
+  terminacion: number;
+  razonSocial: string;
+  condicionIva: string;
+  empleador: boolean;
+  iibb: string;
 };
 
 const API = "/api";
@@ -85,6 +97,9 @@ export default function Administracion() {
   const [search, setSearch] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fiscal, setFiscal] = useState<FiscalConfig | null>(null);
+  const [fiscalBusy, setFiscalBusy] = useState(false);
+  const [fiscalMsg, setFiscalMsg] = useState<string | null>(null);
 
   const todayIso = (() => {
     const n = new Date();
@@ -135,6 +150,50 @@ export default function Administracion() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`${API}/administracion/fiscal-config`, { credentials: "include" });
+        if (res.ok) setFiscal(await res.json());
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  async function generarFiscal(year?: number, month?: number) {
+    setFiscalBusy(true);
+    setFiscalMsg(null);
+    setError(null);
+    try {
+      const y = year ?? cursor.getFullYear();
+      const m = month ?? cursor.getMonth() + 1;
+      const res = await fetch(`${API}/administracion/generar-fiscal`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: y, month: m }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((body as { message?: string }).message || "No se pudo generar");
+      const created = (body as { created?: number }).created ?? 0;
+      const skipped = (body as { skipped?: number }).skipped ?? 0;
+      const period = (body as { period?: string }).period ?? `${y}-${m}`;
+      setFiscalMsg(
+        created > 0
+          ? `Se generaron ${created} vencimiento(s) fiscal(es) para ${period}.` +
+            (skipped ? ` (${skipped} ya existían)` : "")
+          : `No hay nuevos: los ${skipped} vencimientos de ${period} ya estaban generados.`,
+      );
+      await load();
+      setTab("listado");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al generar fiscal");
+    } finally {
+      setFiscalBusy(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -259,6 +318,42 @@ export default function Administracion() {
       </div>
 
       {error && <div className="form-error">{error}</div>}
+      {fiscalMsg && (
+        <div className="card" style={{ padding: "12px 16px", fontSize: 13 }}>
+          {fiscalMsg}
+        </div>
+      )}
+
+      {fiscal && (
+        <div className="card adm-fiscal-card" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+          <div className="adm-fiscal-info">
+            <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "hsl(var(--muted-foreground))" }}>Calendario fiscal (ARCA / interno)</div>
+            <div style={{ fontSize: 15, fontWeight: 800, marginTop: 2 }}>{fiscal.razonSocial}</div>
+            <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", marginTop: 4 }}>
+              CUIT <span className="font-mono">{fiscal.cuit}</span>
+              <span style={{ margin: "0 6px", opacity: 0.5 }}>·</span>
+              Term. {fiscal.terminacion}
+              <span style={{ margin: "0 6px", opacity: 0.5 }}>·</span>
+              {fiscal.condicionIva}
+              <span style={{ margin: "0 6px", opacity: 0.5 }}>·</span>
+              Empleador {fiscal.empleador ? "sí" : "no"}
+              <span style={{ margin: "0 6px", opacity: 0.5 }}>·</span>
+              IIBB {fiscal.iibb}
+            </div>
+            <p style={{ fontSize: 12, color: "hsl(var(--muted-foreground))", margin: "6px 0 0", maxWidth: 520, lineHeight: 1.35 }}>
+              Genera F.931, IVA F.2002 e IIBB Córdoba del mes visible en el calendario (sin conectar a ARCA).
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={fiscalBusy}
+            onClick={() => void generarFiscal()}
+          >
+            {fiscalBusy ? "Generando…" : `Generar ${cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" })}`}
+          </button>
+        </div>
+      )}
 
       {alerts.length > 0 && (
         <div className="adm-alerts card">
@@ -302,15 +397,15 @@ export default function Administracion() {
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={8} style={{ textAlign: "center", padding: 32, color: "hsl(var(--muted-foreground))" }}>No hay ítems. Cargá el primero con <strong>+ Nuevo</strong>.</td></tr>
+                    <tr><td colSpan={8} style={{ textAlign: "center", padding: 32, color: "hsl(var(--muted-foreground))" }}>No hay ítems. Generá el mes fiscal o usá <strong>+ Nuevo</strong>.</td></tr>
                   ) : filtered.map((it) => {
                     const d = daysUntil(it.dueDate, todayIso);
                     return (
                       <tr key={it.id}>
                         <td><span className={`adm-badge ${urgencyClass(d, it.status)}`}>{urgencyLabel(d, it.status)}</span></td>
                         <td>{formatDateAR(it.dueDate)}</td>
-                        <td className="agenda-title">{it.title}{it.notes ? <div className="adm-note-preview">{it.notes}</div> : null}</td>
-                        <td>{typeLabel(it.itemType)}</td>
+                        <td className="agenda-title">{it.title}{it.source === "fiscal" ? <span className="adm-badge-fiscal" style={{ marginLeft: 8, background: "hsl(220 45% 92%)", color: "hsl(220 45% 32%)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999 }}>Fiscal</span> : null}{it.notes ? <div className="adm-note-preview">{it.notes}</div> : null}</td>
+                        <td>{typeLabel(it.itemType)}{it.source === "fiscal" ? " · Fiscal" : ""}</td>
                         <td>{it.responsibleName || "—"}</td>
                         <td>{it.amount || "—"}</td>
                         <td>{statusLabel(it.status)}</td>
@@ -361,7 +456,7 @@ export default function Administracion() {
               {(byDate.get(selectedDay) || []).length === 0 && <p className="page-subtitle">Sin ítems este día.</p>}
               {(byDate.get(selectedDay) || []).map((it) => (
                 <div key={it.id} className="adm-day-row">
-                  <span>{it.title}</span>
+                  <span>{it.title}{it.source === "fiscal" ? " · Fiscal" : ""}</span>
                   <span className="page-subtitle">{typeLabel(it.itemType)} · {statusLabel(it.status)}</span>
                 </div>
               ))}
