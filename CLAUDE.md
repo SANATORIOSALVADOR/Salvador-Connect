@@ -2,40 +2,60 @@
 
 Sistema interno modular del **Sanatorio del Salvador**.
 Stack: **React + Vite** (web) · **Express + TypeScript** (API) · **PostgreSQL + Drizzle** · **Docker Compose**.
-Nombre comercial en UI: **Sanatorio del Salvador** (nunca “Salvador” solo en títulos de producto).
+
+Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo “Salvador” en títulos de producto).
 
 ---
 
 ## Cómo trabajar (orden obligatorio)
 
-1. Leer este archivo + `docs/ALCANCE_MVP.md` + `docs/ESTADO_ACTUAL.md`.
-2. Un **módulo por vez**. No mezclar Inventario + Guardias + AFIP en el mismo PR.
-3. **Schema DB** (`packages/db`) → `pnpm run db:push` → **API** (`apps/api`) → **UI** (`apps/web`).
-4. Probar en Docker o `pnpm run dev:api` / `dev:web` antes de dar por cerrado.
-5. No commitear secretos, `.env`, ni tokens.
+1. Leer este archivo + `docs/ESTADO_ACTUAL.md` + la skill del módulo si existe (`.claude/skills/`).
+2. **Un módulo por vez**. No mezclar Guardias + Inventario + fiscal en el mismo cambio.
+3. Orden técnico: **schema** (`packages/db`) → `pnpm run db:push` → **API** (`apps/api`) → **UI** (`apps/web/src/pages/`).
+4. Probar (Docker o `dev:api` / `dev:web`) antes de cerrar.
+5. **No** commitear secretos, `.env`, tokens GitHub, ni contraseñas.
+
+---
+
+## Módulos — prioridad y estado
+
+| Módulo | Estado | Notas |
+|--------|--------|--------|
+| **Administración** | Activo / prioritario | Vencimientos, recordatorios, calendario, generar fiscal (reglas locales ARCA) |
+| **Guardias Médicas** | Activo / prioritario | Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
+| **Usuarios / Configuración** | Activo (base) | ABM usuarios, roles, módulos visibles, sectores |
+| **Inventario** | Código existe; producto poco definido | No ampliar hasta que el usuario lo pida |
+| **Instructivos** | Código existe; producto poco definido | No ampliar hasta pedido |
+| **Liquidación** | Placeholder | No implementar lógica |
+
+**Definidos en uso real hoy:** Administración + Guardias Médicas + Usuarios/Config.
 
 ---
 
 ## Estructura del monorepo
 
 ```text
-apps/api/          → @salvador/api   (Express, rutas, auth)
-apps/web/          → @salvador/web   (React + Vite + Tailwind)
-packages/db/       → @salvador/db    (Drizzle schema + push)
-packages/api-spec/ → OpenAPI (legado parcial)
-packages/api-zod/
-packages/api-client-react/
-scripts/           → patch-shell, prod-up, reset-admin, migraciones
-docs/              → arquitectura, producción, alcance
-artifacts/         → snapshot UI original Replit (NO editar a diario; el Dockerfile lo copia en build)
-lib/               → cliente API legado (build puede copiar a packages/)
-Dockerfile         → multi-stage api + web (overlay de páginas custom sobre UI Replit)
+apps/api/                 → Express, rutas, auth cookie
+apps/web/src/pages/       → Páginas canónicas de módulos (overlay en Docker build)
+packages/db/              → Drizzle schema + push
+scripts/patch-shell.mjs   → Shell, sidebar fixed, offset CSS
+artifacts/sanatorio-salvador/ → Snapshot UI Replit (NO editar a diario)
+Dockerfile                → Multi-stage: copia artifacts → overlay pages → patch-shell
 docker-compose.yml
+docs/
+.claude/skills/           → Skills por dominio para Claude Code
 ```
 
-**Importante en build web:** el Dockerfile copia `artifacts/sanatorio-salvador` → `apps/web` y luego aplica overlay de:
-`GuardiasMedicas`, `Administracion`, `Usuarios`, `Inventario`, `Instructivos`, `Configuracion` + `scripts/patch-shell.mjs`.
-Si tocás una página de módulo, el archivo canónico a editar es `apps/web/src/pages/<Modulo>.tsx` (queda en el overlay del build).
+### Build web (crítico)
+
+El Dockerfile:
+
+1. Copia `artifacts/sanatorio-salvador` → `apps/web`
+2. Overlay de `apps/web/src/pages/{GuardiasMedicas,Administracion,Usuarios,Inventario,Instructivos,Configuracion}.tsx`
+3. Ejecuta `scripts/patch-shell.mjs` (sidebar fixed + margin-left del main-column)
+
+**Archivo a editar para un módulo:** `apps/web/src/pages/<Modulo>.tsx`  
+Si agregás página nueva: sumarla al `for` del Dockerfile y al wiring de `App.tsx`.
 
 ---
 
@@ -43,136 +63,116 @@ Si tocás una página de módulo, el archivo canónico a editar es `apps/web/src
 
 ```bash
 pnpm install
-cp .env.example .env   # completar DATABASE_URL / POSTGRES_*
+cp .env.example .env
 
 pnpm run db:push
-pnpm run db:seed-sectors   # opcional
-
-pnpm run dev:api           # API :5000
-pnpm run dev:web           # Vite dev
+pnpm run dev:api    # :5000
+pnpm run dev:web
 pnpm run build
 pnpm run typecheck
 
-# Producción / server de prueba
-bash scripts/prod-up.sh
-# o: docker compose up -d --build
+# Server Docker
+git fetch && git reset --hard origin/main
+docker compose build --no-cache web   # o api web
+docker compose up -d --force-recreate
 ```
-
-Usuario bootstrap típico (solo en entornos controlados): se crea en API al arrancar si no existe. No documentar contraseñas reales en el repo.
 
 ---
 
-## Roles y permisos
+## Roles
 
 | Rol | Acceso |
 |-----|--------|
-| `superadmin` | Todo + ABM usuarios + ABM sectores |
-| `responsable` | Escritura en módulos asignados / sectores |
-| `usuario` | Lectura / uso según `user_modules` y `user_sectors` |
+| `superadmin` | Todo |
+| `responsable` | Escritura en sus sectores / módulos asignados |
+| `usuario` | Lectura limitada |
 
-Módulos de navegación (keys): `dashboard`, `administracion`, `guardias`, `inventario`, `instructivos`, `usuarios`, `configuracion`, `liquidacion` (placeholder).
-
-Escritura ABM Inventario / Instructivos: `superadmin` o `responsable`.
-Sectores: solo `superadmin`.
+Permisos de escritura típicos: `superadmin` o `responsable`.
 
 ---
 
-## Módulos MVP — estado y reglas
+## Auth y API
 
-### 1. Fundación (hecho)
-Login cookie, layout sidebar colapsable, dashboard, roles/módulos.
+- Cookie de sesión; `credentials: "include"` en fetch del frontend.
+- Rutas bajo `/api/...` (nginx proxy en producción).
+- Bootstrap usuario: solo en entornos controlados; **no** hardcodear passwords en docs del repo.
 
-### 2. Administración (activo)
-- Vencimientos / recordatorios (reemplazo de papel).
-- Calendario + listado + ABM.
-- Generación fiscal **local** (reglas CUIT del sanatorio, sin API ARCA en vivo todavía).
-- Botón **Generar vencimientos** → pide mes/año.
-- Pendiente futuro: integración ARCA/AFIP.
+Rutas principales:
 
-### 3. Guardias Médicas (activo)
-- **No** usar turnos tipo mañana/tarde/noche en el modelo actual.
-- Campos: **sector**, **fecha**, **inicio**, **fin**, **modalidad** (`activa` \| `pasiva`), profesional, observaciones.
-- Sectores típicos: Guardia Central, UTI Neo, UTI UCO, Piso Gineco, Piso Clínica Médica, Residentes.
-- UI: pestaña **Calendario** + pestaña **Carga y registro**.
-- CSS crítico: `.gm-weekdays` y `.gm-grid` con `grid-template-columns: repeat(7, …)`.
-
-### 4. Inventario (activo — activos fijos)
-- **No** es stock de consumibles.
-- Alta/edición/baja; asignación a sector; historial en `inventory_movements`.
-- Categorías: equipo_medico, informatico, mobiliario, infraestructura, otro.
-- Estados: activo, en_reparacion, reservado, baja.
-
-### 5. Instructivos (activo)
-- Repositorio de metadatos PDF (título, versión, sector, `filePath` = URL o ruta).
-- Sin wiki colaborativa. Upload binario: mejora futura.
-
-### 6. Configuración (activo)
-- ABM **sectores** (superadmin).
-- Usuarios: módulo **Usuarios** (ABM + permisos por módulo/sector).
-
-### 7. Liquidación
-- **Placeholder.** No implementar lógica de negocio en el MVP.
+- `auth`, `users`, `sectores` / management
+- `administracion` (+ `generar-fiscal`)
+- `guardias`
+- `inventario`, `instructivos` (existentes; no expandir sin pedido)
 
 ---
 
-## Base de datos
+## UI / layout (reglas duras)
 
-- Solo **PostgreSQL** (no Supabase).
-- Schema: `packages/db/src/schema/index.ts`.
-- Migraciones operativas: `pnpm run db:push` (Drizzle). Scripts SQL en `scripts/` para ajustes puntuales.
+1. Sidebar **fixed**, anchos **248px** abierto / **72px** colapsado.
+2. `.main-column` debe tener `margin-left` igual al ancho del sidebar (CSS `!important` + inline en patch-shell).
+3. Calendarios: grilla **7 columnas** (preferir **inline styles** `display:grid; gridTemplateColumns: repeat(7, ...)` para no depender solo del CSS del build).
+4. No reintroducir Clerk, Replit auth, ni dependencias del snapshot viejas.
+5. Textos de página no deben quedar debajo del sidebar.
 
----
-
-## API — rutas principales
-
-| Prefijo | Archivo |
-|---------|---------|
-| `/api/auth/*` | `apps/api/src/routes/auth.ts` |
-| `/api/users/*` | `users.ts` |
-| `/api/guardias/*` | `guardias.ts` |
-| `/api/administracion/*` | `administracion.ts` |
-| `/api/inventario/*` | `inventario.ts` |
-| `/api/instructivos/*` | `instructivos.ts` |
-| `/api/sectores/*` | `sectores.ts` |
-| `/api/sectors`, agenda… | `management.ts` |
-
-Auth: cookie de sesión + `requireAuth` / `requireSuperadmin` en `apps/api/src/lib/auth.ts`.
+Skills relacionadas: `.claude/skills/layout-ui/SKILL.md`
 
 ---
 
-## UI / CSS
+## Fiscal (Administración)
 
-- Base visual: snapshot Replit en `artifacts/sanatorio-salvador`.
-- Estilos de layout y módulos se **inyectan en el Dockerfile** (`CSSEOF` → `index.css`).
-- Sidebar fija 248px / colapsada 72px; no debe crecer al cambiar de módulo.
-- No depender de Clerk ni paquetes Replit.
+- Generación **local** con reglas del CUIT del sanatorio (no API ARCA real todavía).
+- Botón “Generar vencimientos” → modal mes/año.
+- Idempotencia por marca en notes `[FISCAL:CODE:YYYY-MM]`.
+- Pendiente de producto: integración real ARCA/AFIP (no implementar sin pedido explícito).
 
----
-
-## Deploy
-
-- Docker Compose: servicios `db`, `api`, `web`.
-- Postgres en host: si el puerto 5432 está ocupado, usar `POSTGRES_BIND=127.0.0.1:15432`.
-- Migración a **Proxmox**: mismo stack Docker; no requiere reescritura de app.
+Skill: `.claude/skills/administracion/SKILL.md`
 
 ---
 
-## Prohibido
+## Guardias Médicas
 
-- Replit packages, Clerk, Supabase.
-- Inventario como consumibles/stock.
-- Liquidación completa en MVP.
-- Contraseñas o tokens en el repo.
-- Force-push a `main` sin acuerdo.
-- Romper el overlay del Dockerfile (páginas custom deben seguir listadas en el `for f in …`).
+Campos de carga:
+
+- Sector: Guardia Central, UTI Neo, UTI UCO, Piso Gineco, Piso Clínica Médica, Residentes
+- Fecha, Inicio, Fin
+- Modalidad: **activa** | **pasiva**
+- Profesional / observaciones según schema
+
+**No** usar campos “turno” ni “tipo” en la UI nueva.
+
+Skill: `.claude/skills/guardias-medicas/SKILL.md`
 
 ---
 
-## Checklist al cerrar una tarea
+## Criterios de “listo”
 
-- [ ] Schema actualizado si hubo tablas nuevas
-- [ ] `db:push` documentado o aplicado
-- [ ] Rutas API con `requireAuth` y permisos de escritura correctos
-- [ ] UI en `apps/web/src/pages/` y nombre en overlay del Dockerfile
+- [ ] Listar / crear / editar / borrar con el rol correcto
+- [ ] `usuario` no escribe donde no debe
+- [ ] Sidebar no tapa títulos ni tablas
+- [ ] Calendario legible (7 columnas) si aplica
+- [ ] `db:push` si hubo cambio de schema
 - [ ] Sin secretos en el commit
-- [ ] Probar listado + alta + edición + baja del ABM tocado
+
+---
+
+## No hacer sin pedido explícito
+
+- Integración ARCA/AFIP real
+- Upload binario de PDFs en producción
+- QR / mantenimientos de inventario
+- Lógica de Liquidación
+- Reescribir todo el frontend desde cero
+- Publicar Postgres en 0.0.0.0
+
+---
+
+## Docs útiles
+
+| Archivo | Contenido |
+|---------|-----------|
+| `docs/ESTADO_ACTUAL.md` | Qué está en producción de prueba |
+| `docs/ALCANCE_MVP.md` | Alcance funcional original |
+| `docs/PRODUCCION.md` | Deploy Docker |
+| `docs/POSTGRES.md` | DB |
+| `AGENTS.md` | Resumen corto para cualquier agente |
+| `.claude/skills/*/SKILL.md` | Procedimientos por dominio |

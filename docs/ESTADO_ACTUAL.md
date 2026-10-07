@@ -1,39 +1,32 @@
-# Estado actual del sistema (octubre 2026)
+# Estado actual (octubre 2026)
 
-## Operativo en server de prueba (Docker)
+## En uso real (prioridad)
 
-- Login + sesión
-- Sidebar colapsable (ancho fijo 248 / 72)
-- Dashboard
-- **Administración**: listado, calendario, ABM vencimientos, generar vencimientos fiscales
-- **Guardias Médicas**: calendario + carga (activa/pasiva, inicio/fin)
-- **Inventario**: ABM activos fijos + sector
-- **Instructivos**: ABM metadatos PDF
-- **Usuarios**: ABM + módulos + sectores
-- **Configuración**: ABM sectores
-- **Liquidación**: placeholder
+- Login + sesión cookie
+- Sidebar colapsable (248 / 72), fixed, offset de contenido
+- **Administración**: listado, avisos, calendario (detalle a la derecha), ABM ítems, **Generar vencimientos** (fiscal local CUIT)
+- **Guardias Médicas**: calendario + carga (activa/pasiva, inicio/fin, sectores definidos)
+- **Usuarios** + **Configuración** (sectores)
 
-## Stack real
+## Código presente pero no prioritario
 
-| Capa | Tecnología |
-|------|------------|
-| Web | React 18, Vite, Tailwind (snapshot Replit) |
-| API | Express, TypeScript, cookie auth |
-| DB | PostgreSQL 16, Drizzle |
-| Deploy | Docker Compose (`db`, `api`, `web`) |
+- Inventario (ABM activos) — no expandir sin definición de negocio
+- Instructivos (metadatos) — idem
+- Liquidación — placeholder
 
-## Estructura de código
+## Infra
 
-Monorepo `apps/*` + `packages/*`. El build de web **reconstruye** UI desde `artifacts/sanatorio-salvador` y aplica overlay de páginas en `apps/web/src/pages/`.
+- Repo: `https://github.com/SANATORIOSALVADOR/Salvador-Connect`
+- Deploy prueba: Docker Compose en Linux (`db`, `api`, `web`)
+- Próximo: mismo stack en **Proxmox** cuando el usuario lo indique
+- DB formal (migraciones versionadas + backups): cuando el usuario dé OK
 
-## Próximos pasos acordados
+## Fiscal
 
-1. Estabilizar UI (layout) en todos los módulos.
-2. Claude Code para desarrollo continuo módulo a módulo.
-3. Migrar el mismo stack a **Proxmox**.
-4. DB formal (migraciones versionadas, backups) cuando el producto lo pida.
-5. ARCA/AFIP: mantener pendiente; hoy generación local de vencimientos.
+- Generación local según portal (SICORE, SUSS, IVA, IIBB Córdoba, agente retención)
+- **No** hay integración ARCA online todavía (pendiente de producto)
 
-## No es deuda de estructura “parte 1/4”
+## UI conocida / deuda controlada
 
-Cualquier texto viejo de “parte 1/4” es histórico. El árbol vigente es el de `apps/` + `packages/`.
+- Layout reforzado con CSS `OFFSET FORZADO SIDEBAR` vía `patch-shell.mjs`
+- Preferir estilos inline en grillas de calendario para evitar regresiones del build

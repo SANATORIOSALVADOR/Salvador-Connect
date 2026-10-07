@@ -1,65 +1,73 @@
-# Guía operativa para Claude Code
+# Guía operativa — Claude Code
 
-Complementa `CLAUDE.md` (raíz). Usar este archivo cuando se pida “implementar módulo X” o “arreglar bug Y”.
-
-## Arranque de sesión
-
-```text
-1. Leer CLAUDE.md
-2. Leer docs/ESTADO_ACTUAL.md
-3. Localizar archivos del módulo en la tabla de abajo
-4. Implementar en el orden schema → API → UI → Dockerfile overlay si es página nueva
-```
-
-## Mapa rápido de archivos
-
-| Módulo | API | UI | Notas |
-|--------|-----|-----|--------|
-| Auth / sesión | `apps/api/src/routes/auth.ts`, `lib/auth.ts` | Login en App (Replit + patch) | Cookie |
-| Usuarios | `routes/users.ts` | `pages/Usuarios.tsx` | Solo superadmin escribe |
-| Sectores | `routes/sectores.ts` | `pages/Configuracion.tsx` | Solo superadmin escribe |
-| Guardias Médicas | `routes/guardias.ts` | `pages/GuardiasMedicas.tsx` | Calendar + carga |
-| Administración | `routes/administracion.ts` | `pages/Administracion.tsx` | Fiscal + vencimientos |
-| Inventario | `routes/inventario.ts` | `pages/Inventario.tsx` | Activos + movimientos |
-| Instructivos | `routes/instructivos.ts` | `pages/Instructivos.tsx` | Metadatos PDF |
-| Health | `routes/health.ts` | — | |
-| Router | `routes/index.ts` | — | Registrar rutas nuevas aquí |
-
-## Overlay Dockerfile
-
-Páginas custom **deben** existir en `apps/web/src/pages/` **y** estar en el bucle:
-
-```dockerfile
-for f in GuardiasMedicas Administracion Usuarios Inventario Instructivos Configuracion; do
-```
-
-Si agregás una página nueva, sumala al `for` y al script `node -e` que reescribe `App.tsx`.
-
-## CSS
-
-Muchas reglas de layout viven en el bloque `CSSEOF` del `Dockerfile` (se appendean a `index.css` en build).
-Si el calendario se ve en una columna o la toolbar se apila: revisar `.gm-weekdays`, `.gm-grid`, `.adm-toolbar`.
-
-## Base de datos
+## Arranque en una máquina nueva
 
 ```bash
-export DATABASE_URL=postgresql://USER:PASS@HOST:5432/DB
+git clone https://github.com/SANATORIOSALVADOR/Salvador-Connect.git
+cd Salvador-Connect
+pnpm install
+cp .env.example .env
+# Completar DATABASE_URL / POSTGRES_*
 pnpm run db:push
+pnpm run dev:api   # terminal 1
+pnpm run dev:web   # terminal 2
 ```
 
-En Docker de prueba, preferir red interna `db:5432` y no publicar 5432 si el host ya tiene Postgres.
+Abrir el proyecto en Claude Code desde la raíz del repo. Claude lee `CLAUDE.md` automáticamente.
 
-## Criterios de “listo”
+## Skills del proyecto
 
-- Listar / crear / editar / borrar funciona con el rol correcto.
-- `superadmin` no queda bloqueado; `usuario` no escribe donde no debe.
-- UI no rompe el sidebar (ancho fijo).
-- Sin dependencias Clerk/Replit nuevas.
+Ubicación: `.claude/skills/`
 
-## Pendientes de producto (no inventar sin pedido)
+| Skill | Cuándo usarla |
+|-------|----------------|
+| `administracion` | Vencimientos, fiscal, calendario admin |
+| `guardias-medicas` | Carga y calendario de guardias |
+| `layout-ui` | Sidebar, márgenes, grillas, CSS build |
+| `deploy-docker` | Build/up en server Linux |
+| `db-schema` | Tablas Drizzle, push, tablas faltantes |
 
-- Integración ARCA/AFIP real (hoy reglas locales).
-- Upload binario de PDFs.
-- QR / mantenimientos de inventario.
-- Liquidación.
-- Hardening Proxmox (mismo Docker; backups y secrets).
+Invocá la skill cuando el pedido del usuario coincida con el dominio.
+
+## Flujo de un ticket típico
+
+1. Confirmar módulo (¿Administración o Guardias?).
+2. Cargar skill correspondiente.
+3. Cambiar schema solo si hace falta → `db:push`.
+4. API en `apps/api/src/routes/`.
+5. UI en `apps/web/src/pages/`.
+6. Si tocás shell/sidebar → `scripts/patch-shell.mjs`.
+7. Probar login + flujo feliz + rol `usuario` sin permiso de escritura.
+
+## Server de prueba (Docker)
+
+```bash
+cd ~/salvador-connect   # o ruta del clone
+git fetch origin && git reset --hard origin/main
+docker compose build --no-cache web    # o api web
+docker compose up -d --force-recreate
+```
+
+Tablas nuevas:
+
+```bash
+# Con db healthy y DATABASE_URL hacia el servicio db
+pnpm run db:push
+# o el one-liner docker run node + pnpm run db:push en la red compose
+```
+
+## Errores frecuentes
+
+| Síntoma | Causa probable | Acción |
+|---------|----------------|--------|
+| Textos debajo del sidebar | margin-left no aplicado | Revisar patch-shell + CSS OFFSET |
+| Calendario en 1 columna | CSS grid no cargó | Inline `gridTemplateColumns: repeat(7,...)` |
+| “relation does not exist” | Falta db:push | Ejecutar push |
+| Login 500 | DB o hash usuario | Logs api + tabla users |
+| Build web falla | Overlay / vite | Logs docker build; no editar artifacts a mano salvo restauración |
+
+## Qué no pedir a Claude sin contexto
+
+- “Rehacer todo el front” — romperá el overlay Replit.
+- “Conectar AFIP ya” — pendiente de producto; solo reglas locales.
+- Credenciales en el chat público — usar env en el server.

@@ -8,3 +8,4 @@ pnpm-lock.yaml
 .env
 .env.*
 !.env.example
+artifacts/mockup-sandbox/
