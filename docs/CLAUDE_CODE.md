@@ -26,6 +26,7 @@ Ubicación: `.claude/skills/`
 | `layout-ui` | Sidebar, márgenes, grillas, CSS build |
 | `deploy-docker` | Build/up en server Linux |
 | `db-schema` | Tablas Drizzle, push, tablas faltantes |
+| `usuarios` | ABM usuarios, módulos visibles, roles |
 
 Invocá la skill cuando el pedido del usuario coincida con el dominio.
 
