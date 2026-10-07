@@ -79,11 +79,32 @@ router.get("/users", async (_request, response): Promise<void> => {
 router.post("/users", async (request, response): Promise<void> => {
   const parsed = CreateUserBody.safeParse(request.body);
   if (!parsed.success) {
-    response.status(400).json({ message: "Revisá los datos del usuario." });
+    response.status(400).json({
+      message: "Revisá los datos del usuario (nombre, usuario y contraseña de al menos 6 caracteres).",
+    });
     return;
   }
   const data = parsed.data;
   const username = data.username.trim().toLowerCase();
+  if (!username || !data.name.trim()) {
+    response.status(400).json({ message: "Nombre y usuario son obligatorios." });
+    return;
+  }
+  if (!data.password || data.password.length < 6) {
+    response.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres." });
+    return;
+  }
+  const existing = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.username, username))
+    .limit(1);
+  if (existing.length) {
+    response.status(409).json({
+      message: `El usuario "${username}" ya existe. Elegí otro nombre de usuario.`,
+    });
+    return;
+  }
   const passwordHash = await hashPassword(data.password);
   try {
     const created = await db.transaction(async (tx) => {
@@ -94,7 +115,7 @@ router.post("/users", async (request, response): Promise<void> => {
           name: data.name.trim(),
           email: data.email?.trim() || null,
           passwordHash,
-          role: data.role,
+          role: data.role === "responsable" ? "responsable" : "usuario",
           active: data.active ?? true,
           mustChangePassword: true,
         })
@@ -104,8 +125,9 @@ router.post("/users", async (request, response): Promise<void> => {
     });
     const result = await serializeUser(created.id);
     response.status(201).json(CreateUserResponse.parse(result));
-  } catch {
-    response.status(409).json({ message: "Ese nombre de usuario ya existe." });
+  } catch (err) {
+    console.error("[users.create]", err);
+    response.status(500).json({ message: "No se pudo crear el usuario. Revisá los logs del API." });
   }
 });
 
