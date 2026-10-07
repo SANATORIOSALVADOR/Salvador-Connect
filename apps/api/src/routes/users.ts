@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import {
   db,
   sectorsTable,
@@ -9,12 +9,10 @@ import {
 } from "@salvador/db";
 import {
   CreateUserBody,
-  CreateUserResponse,
   ListUsersResponse,
   ResetUserPasswordBody,
   ResetUserPasswordResponse,
   UpdateUserBody,
-  UpdateUserResponse,
 } from "@salvador/api-zod";
 import { ALL_MODULES, hashPassword, requireAuth, requireSuperadmin } from "../lib/auth";
 
@@ -51,8 +49,9 @@ async function serializeUser(userId: number) {
     sectors: sectors.filter(
       (sector) => user.role === "superadmin" || sectorAssignments.some((item) => item.sectorId === sector.id),
     ),
-    createdAt: user.createdAt,
-    lastLoginAt: user.lastLoginAt,
+    createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
+    lastLoginAt:
+      user.lastLoginAt instanceof Date ? user.lastLoginAt.toISOString() : user.lastLoginAt,
   };
 }
 
@@ -64,70 +63,122 @@ async function replaceAssignments(
 ) {
   await tx.delete(userModulesTable).where(eq(userModulesTable.userId, userId));
   await tx.delete(userSectorsTable).where(eq(userSectorsTable.userId, userId));
-  if (modules.length) await tx.insert(userModulesTable).values(modules.map((moduleKey) => ({ userId, moduleKey })));
-  if (sectorIds.length) await tx.insert(userSectorsTable).values(sectorIds.map((sectorId) => ({ userId, sectorId })));
+  if (modules.length) {
+    await tx.insert(userModulesTable).values(modules.map((moduleKey) => ({ userId, moduleKey })));
+  }
+  if (sectorIds.length) {
+    await tx.insert(userSectorsTable).values(sectorIds.map((sectorId) => ({ userId, sectorId })));
+  }
 }
 
 router.use(requireAuth, requireSuperadmin);
 
 router.get("/users", async (_request, response): Promise<void> => {
-  const users = await db.select().from(usersTable).orderBy(asc(usersTable.name));
-  const serialized = await Promise.all(users.map((user) => serializeUser(user.id)));
-  response.json(ListUsersResponse.parse(serialized.filter(Boolean)));
+  try {
+    const users = await db.select().from(usersTable).orderBy(asc(usersTable.name));
+    const serialized = await Promise.all(users.map((user) => serializeUser(user.id)));
+    response.json(ListUsersResponse.parse(serialized.filter(Boolean)));
+  } catch (err) {
+    console.error("[users.list]", err);
+    response.status(500).json({ message: "No se pudo listar usuarios." });
+  }
 });
 
 router.post("/users", async (request, response): Promise<void> => {
   const parsed = CreateUserBody.safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({
-      message: "Revisá los datos del usuario (nombre, usuario y contraseña de al menos 6 caracteres).",
+      message: "Revisá los datos (nombre, usuario y contraseña de al menos 6 caracteres).",
+      details: parsed.error.flatten(),
     });
     return;
   }
+
   const data = parsed.data;
-  const username = data.username.trim().toLowerCase();
-  if (!username || !data.name.trim()) {
-    response.status(400).json({ message: "Nombre y usuario son obligatorios." });
+  const username = data.username.trim().toLowerCase().replace(/\s+/g, "");
+  const name = data.name.trim();
+  const password = data.password || "";
+
+  if (!username || username.length < 2) {
+    response.status(400).json({ message: "El usuario debe tener al menos 2 caracteres." });
     return;
   }
-  if (!data.password || data.password.length < 6) {
+  if (!name) {
+    response.status(400).json({ message: "El nombre es obligatorio." });
+    return;
+  }
+  if (password.length < 6) {
     response.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres." });
     return;
   }
-  const existing = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(eq(usersTable.username, username))
-    .limit(1);
-  if (existing.length) {
-    response.status(409).json({
-      message: `El usuario "${username}" ya existe. Elegí otro nombre de usuario.`,
-    });
-    return;
-  }
-  const passwordHash = await hashPassword(data.password);
+
   try {
+    const existing = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.username, username))
+      .limit(1);
+    if (existing.length) {
+      response.status(409).json({
+        message: `El usuario "${username}" ya existe. Elegí otro nombre de usuario.`,
+      });
+      return;
+    }
+
+    let sectorIds = Array.isArray(data.sectorIds)
+      ? [...new Set(data.sectorIds.filter((id) => Number.isInteger(id) && id > 0))]
+      : [];
+    if (sectorIds.length) {
+      const found = await db
+        .select({ id: sectorsTable.id })
+        .from(sectorsTable)
+        .where(inArray(sectorsTable.id, sectorIds));
+      const ok = new Set(found.map((s) => s.id));
+      sectorIds = sectorIds.filter((id) => ok.has(id));
+    }
+
+    const modules = validateModules(data.modules);
+    if (!modules.includes("dashboard")) modules.unshift("dashboard");
+
+    const passwordHash = await hashPassword(password);
+    const role = data.role === "responsable" ? "responsable" : "usuario";
+
     const created = await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(usersTable)
         .values({
           username,
-          name: data.name.trim(),
-          email: data.email?.trim() || null,
+          name,
+          email: null,
           passwordHash,
-          role: data.role === "responsable" ? "responsable" : "usuario",
+          role,
           active: data.active ?? true,
           mustChangePassword: true,
         })
         .returning({ id: usersTable.id });
-      await replaceAssignments(tx, user.id, validateModules(data.modules), data.sectorIds ?? []);
+      await replaceAssignments(tx, user.id, modules, sectorIds);
       return user;
     });
+
     const result = await serializeUser(created.id);
-    response.status(201).json(CreateUserResponse.parse(result));
+    if (!result) {
+      response.status(500).json({ message: "Usuario creado pero no se pudo leer. Recargá la lista." });
+      return;
+    }
+    response.status(201).json(result);
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("[users.create]", err);
-    response.status(500).json({ message: "No se pudo crear el usuario. Revisá los logs del API." });
+    if (/unique|duplicate|users_username|users_email/i.test(msg)) {
+      response.status(409).json({
+        message: `El usuario "${username}" ya existe o hay un dato duplicado.`,
+      });
+      return;
+    }
+    response.status(500).json({
+      message: "No se pudo crear el usuario.",
+      error: msg.slice(0, 300),
+    });
   }
 });
 
@@ -148,10 +199,10 @@ router.patch("/users/:id", async (request, response): Promise<void> => {
       const [updated] = await tx
         .update(usersTable)
         .set({
-          ...(data.username ? { username: data.username.trim().toLowerCase() } : {}),
+          ...(data.username ? { username: data.username.trim().toLowerCase().replace(/\s+/g, "") } : {}),
           ...(data.name ? { name: data.name.trim() } : {}),
           ...(data.email !== undefined ? { email: data.email?.trim() || null } : {}),
-          ...(data.role ? { role: data.role } : {}),
+          ...(data.role ? { role: data.role === "responsable" ? "responsable" : "usuario" } : {}),
           ...(data.active !== undefined ? { active: data.active } : {}),
         })
         .where(eq(usersTable.id, id))
@@ -166,7 +217,7 @@ router.patch("/users/:id", async (request, response): Promise<void> => {
               .from(userModulesTable)
               .where(eq(userModulesTable.userId, id))
           ).map((item) => item.moduleKey);
-        const currentSectors =
+        let currentSectors =
           data.sectorIds ??
           (
             await tx
@@ -174,6 +225,9 @@ router.patch("/users/:id", async (request, response): Promise<void> => {
               .from(userSectorsTable)
               .where(eq(userSectorsTable.userId, id))
           ).map((item) => item.sectorId);
+        if (data.sectorIds) {
+          currentSectors = [...new Set(data.sectorIds.filter((sid) => Number.isInteger(sid) && sid > 0))];
+        }
         await replaceAssignments(tx, id, validateModules(currentModules), currentSectors);
       }
       return updated;
@@ -182,9 +236,11 @@ router.patch("/users/:id", async (request, response): Promise<void> => {
       response.status(404).json({ message: "Usuario no encontrado." });
       return;
     }
-    response.json(UpdateUserResponse.parse(await serializeUser(result.id)));
-  } catch {
-    response.status(409).json({ message: "No se pudo guardar el usuario." });
+    const serialized = await serializeUser(result.id);
+    response.json(serialized);
+  } catch (err) {
+    console.error("[users.update]", err);
+    response.status(500).json({ message: "No se pudo guardar el usuario." });
   }
 });
 
