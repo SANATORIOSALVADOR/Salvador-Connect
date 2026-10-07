@@ -63,11 +63,12 @@ async function replaceAssignments(
 ) {
   await tx.delete(userModulesTable).where(eq(userModulesTable.userId, userId));
   await tx.delete(userSectorsTable).where(eq(userSectorsTable.userId, userId));
-  if (modules.length) {
-    await tx.insert(userModulesTable).values(modules.map((moduleKey) => ({ userId, moduleKey })));
+  // De a uno: evita fallos de batch cuando la secuencia serial está desfasada
+  for (const moduleKey of modules) {
+    await tx.insert(userModulesTable).values({ userId, moduleKey });
   }
-  if (sectorIds.length) {
-    await tx.insert(userSectorsTable).values(sectorIds.map((sectorId) => ({ userId, sectorId })));
+  for (const sectorId of sectorIds) {
+    await tx.insert(userSectorsTable).values({ userId, sectorId });
   }
 }
 
