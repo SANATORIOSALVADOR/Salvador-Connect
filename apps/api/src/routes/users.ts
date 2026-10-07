@@ -144,18 +144,19 @@ router.post("/users", async (request, response): Promise<void> => {
     const role = data.role === "responsable" ? "responsable" : "usuario";
 
     const created = await db.transaction(async (tx) => {
-      const [user] = await tx
+      const inserted = await tx
         .insert(usersTable)
         .values({
           username,
           name,
-          email: null,
           passwordHash,
           role,
           active: data.active ?? true,
           mustChangePassword: true,
         })
         .returning({ id: usersTable.id });
+      const user = inserted[0];
+      if (!user?.id) throw new Error("INSERT users no devolvió id");
       await replaceAssignments(tx, user.id, modules, sectorIds);
       return user;
     });
@@ -176,7 +177,7 @@ router.post("/users", async (request, response): Promise<void> => {
       return;
     }
     response.status(500).json({
-      message: "No se pudo crear el usuario.",
+      message: `No se pudo crear el usuario: ${msg.slice(0, 240)}`,
       error: msg.slice(0, 300),
     });
   }
