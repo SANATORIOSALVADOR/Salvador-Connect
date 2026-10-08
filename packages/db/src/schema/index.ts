@@ -32,7 +32,7 @@ export const usersTable = pgTable("users", {
 });
 
 export const userModulesTable = pgTable("user_modules", {
-  id: serial("id").primaryKey(),
+  // Tabla real: solo user_id + module_key (sin serial id)
   userId: integer("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
@@ -50,7 +50,7 @@ export const sessionsTable = pgTable("sessions", {
 });
 
 export const userSectorsTable = pgTable("user_sectors", {
-  id: serial("id").primaryKey(),
+  // Tabla real: solo user_id + sector_id (sin serial id)
   userId: integer("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
@@ -97,70 +97,3 @@ export const guardiasTable = pgTable("guardias", {
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
-
-export const liquidacionItemsTable = pgTable("liquidacion_items", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  itemType: text("item_type").notNull().default("vencimiento"),
-  status: text("status").notNull().default("pendiente"),
-  dueDate: date("due_date", { mode: "string" }).notNull(),
-  amount: text("amount").notNull().default(""),
-  responsibleName: text("responsible_name").notNull().default(""),
-  notes: text("notes").notNull().default(""),
-  alertDays: integer("alert_days").notNull().default(3),
-  createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const inventoryItemsTable = pgTable("inventory_items", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  category: text("category").notNull().default("general"),
-  serialNumber: text("serial_number"),
-  status: text("status").notNull().default("activo"),
-  sectorId: integer("sector_id").references(() => sectorsTable.id),
-  locationNote: text("location_note").notNull().default(""),
-  acquiredAt: date("acquired_at", { mode: "string" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export const inventoryMovementsTable = pgTable("inventory_movements", {
-  id: serial("id").primaryKey(),
-  itemId: integer("item_id")
-    .notNull()
-    .references(() => inventoryItemsTable.id, { onDelete: "cascade" }),
-  fromSectorId: integer("from_sector_id").references(() => sectorsTable.id),
-  toSectorId: integer("to_sector_id").references(() => sectorsTable.id),
-  note: text("note").notNull().default(""),
-  movedAt: timestamp("moved_at", { withTimezone: true }).notNull().defaultNow(),
-  movedByUserId: integer("moved_by_user_id").references(() => usersTable.id),
-});
-
-export const instructivosTable = pgTable("instructivos", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  sectorId: integer("sector_id").references(() => sectorsTable.id),
-  filePath: text("file_path").notNull(),
-  version: text("version").notNull().default("1.0"),
-  publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
-  createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
-});
-
-export const insertSectorSchema = createInsertSchema(sectorsTable).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertAgendaItemSchema = createInsertSchema(agendaItemsTable).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type Sector = typeof sectorsTable.$inferSelect;
-export type User = typeof usersTable.$inferSelect;
-export type AgendaItem = typeof agendaItemsTable.$inferSelect;
-export type Guardia = typeof guardiasTable.$inferSelect;
-export type LiquidacionItem = typeof liquidacionItemsTable.$inferSelect;
