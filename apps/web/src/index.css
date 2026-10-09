@@ -179,3 +179,14 @@ body {
     padding: 28px 20px 40px;
   }
 }
+
+
+/* Cobertura en calendario de guardias */
+.gm-cell-sin {
+  outline: 2px solid rgba(185, 28, 28, 0.35);
+  background: rgba(254, 226, 226, 0.35);
+}
+.gm-cell-baja {
+  outline: 2px solid rgba(202, 138, 4, 0.4);
+  background: rgba(254, 243, 199, 0.35);
+}
