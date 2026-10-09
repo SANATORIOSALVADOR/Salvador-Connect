@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 import { db, guardiasTable, sectorsTable } from "@salvador/db";
 import { requireAuth } from "../lib/auth";
 
@@ -8,18 +8,21 @@ router.use(requireAuth);
 
 const MODALITIES = ["activa", "pasiva"] as const;
 const TIME_RE = /^\d{2}:\d{2}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function mapRow(
   row: typeof guardiasTable.$inferSelect,
   sectorName?: string | null,
   sectorShort?: string | null,
 ) {
+  const endDate = row.endDate || row.date;
   return {
     id: row.id,
     sectorId: row.sectorId,
     sectorName: sectorName ?? null,
     sectorShortName: sectorShort ?? null,
     date: row.date,
+    endDate,
     startTime: row.startTime,
     endTime: row.endTime,
     modality: row.modality,
@@ -33,6 +36,7 @@ function mapRow(
 type ParsedGuardia = {
   sectorId: number;
   date: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   modality: string;
@@ -42,7 +46,9 @@ type ParsedGuardia = {
 
 function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuardia } | { ok: false; message: string } {
   const sectorId = Number(body.sectorId);
-  const date = String(body.date ?? "").slice(0, 10);
+  const date = String(body.date ?? body.startDate ?? "").slice(0, 10);
+  let endDate = String(body.endDate ?? "").slice(0, 10);
+  if (!endDate || !DATE_RE.test(endDate)) endDate = date;
   const startTime = String(body.startTime ?? "").slice(0, 5);
   const endTime = String(body.endTime ?? "").slice(0, 5);
   const modality = String(body.modality ?? "activa").toLowerCase();
@@ -50,9 +56,14 @@ function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuard
   const observations = String(body.observations ?? "").trim();
 
   if (!sectorId || Number.isNaN(sectorId)) return { ok: false, message: "Sector obligatorio." };
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: "Fecha inválida." };
+  if (!date || !DATE_RE.test(date)) return { ok: false, message: "Fecha de inicio inválida." };
+  if (!DATE_RE.test(endDate)) return { ok: false, message: "Fecha de fin inválida." };
+  if (endDate < date) return { ok: false, message: "La fecha de fin no puede ser anterior a la de inicio." };
   if (!TIME_RE.test(startTime) || !TIME_RE.test(endTime)) {
     return { ok: false, message: "Hora inicio/fin inválida (HH:MM)." };
+  }
+  if (date === endDate && endTime < startTime) {
+    return { ok: false, message: "En el mismo día, la hora de fin debe ser posterior a la de inicio." };
   }
   if (!MODALITIES.includes(modality as (typeof MODALITIES)[number])) {
     return { ok: false, message: "Modalidad inválida (activa, pasiva)." };
@@ -61,7 +72,7 @@ function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuard
 
   return {
     ok: true,
-    data: { sectorId, date, startTime, endTime, modality, professionalName, observations },
+    data: { sectorId, date, endDate, startTime, endTime, modality, professionalName, observations },
   };
 }
 
@@ -75,8 +86,14 @@ router.get("/guardias", async (req, res): Promise<void> => {
         : undefined;
 
     const conditions = [];
-    if (from) conditions.push(gte(guardiasTable.date, from));
-    if (to) conditions.push(lte(guardiasTable.date, to));
+    if (from && to) {
+      conditions.push(lte(guardiasTable.date, to));
+      conditions.push(sql`COALESCE(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${from}`);
+    } else if (from) {
+      conditions.push(sql`COALESCE(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${from}`);
+    } else if (to) {
+      conditions.push(lte(guardiasTable.date, to));
+    }
     if (sectorId && !Number.isNaN(sectorId)) conditions.push(eq(guardiasTable.sectorId, sectorId));
 
     const rows = await db
@@ -120,6 +137,7 @@ router.post("/guardias", async (req, res): Promise<void> => {
       .values({
         sectorId: data.sectorId,
         date: data.date,
+        endDate: data.endDate,
         shift: `${data.startTime}-${data.endTime}`,
         startTime: data.startTime,
         endTime: data.endTime,
@@ -164,6 +182,7 @@ router.patch("/guardias/:id", async (req, res): Promise<void> => {
       .set({
         sectorId: data.sectorId,
         date: data.date,
+        endDate: data.endDate,
         shift: `${data.startTime}-${data.endTime}`,
         startTime: data.startTime,
         endTime: data.endTime,
