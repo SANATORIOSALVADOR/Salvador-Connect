@@ -94,6 +94,9 @@ export const guardiasTable = pgTable("guardias", {
   type: text("type").notNull().default(""),
   professionalName: text("professional_name").notNull(),
   observations: text("observations").notNull().default(""),
+  // Etiqueta opcional (ej. GUARDIA EXTRA) + color
+  tagLabel: text("tag_label").notNull().default(""),
+  tagColor: text("tag_color").notNull().default(""),
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
