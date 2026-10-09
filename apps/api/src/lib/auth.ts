@@ -20,8 +20,6 @@ export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guard
 
 const BOOTSTRAP_USERNAME = "sistemas";
 
-// En HTTP (LAN / staging) las cookies Secure no se guardan. Activar solo con HTTPS:
-// COOKIE_SECURE=true
 function cookieSecure(): boolean {
   return process.env.COOKIE_SECURE === "true";
 }
@@ -34,7 +32,6 @@ export async function ensureBootstrapSuperadmin(): Promise<void> {
     .limit(1);
 
   if (existing) {
-    // Asegura hash y permisos del bootstrap en staging
     await db
       .update(usersTable)
       .set({
@@ -183,6 +180,47 @@ export const requireSuperadmin: RequestHandler = (request, response, next) => {
   }
   next();
 };
+
+/** Exige módulo en la lista (superadmin siempre pasa; modules vacío = legacy permitido). */
+export const requireModule = (moduleKey: string): RequestHandler => (request, response, next) => {
+  const user = request.authUser;
+  if (!user) {
+    response.status(401).json({ message: "Sesión no válida o vencida." });
+    return;
+  }
+  if (user.role === "superadmin") {
+    next();
+    return;
+  }
+  if (!user.modules || user.modules.length === 0) {
+    next();
+    return;
+  }
+  if (!user.modules.includes(moduleKey)) {
+    response.status(403).json({ message: "No tenés acceso a este módulo." });
+    return;
+  }
+  next();
+};
+
+/** Escritura en Guardias: superadmin o responsable / niveles 2-3. */
+export const requireGuardiasWrite: RequestHandler = (request, response, next) => {
+  const user = request.authUser;
+  if (!user) {
+    response.status(401).json({ message: "Sesión no válida o vencida." });
+    return;
+  }
+  if (user.role === "superadmin" || user.role === "responsable" || user.role === "nivel2" || user.role === "nivel3") {
+    next();
+    return;
+  }
+  response.status(403).json({ message: "No tenés permiso para cargar o modificar guardias." });
+};
+
+export function canWriteGuardias(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  return user.role === "superadmin" || user.role === "responsable" || user.role === "nivel2" || user.role === "nivel3";
+}
 
 declare global {
   namespace Express {
