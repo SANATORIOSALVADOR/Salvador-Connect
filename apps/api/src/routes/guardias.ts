@@ -30,6 +30,41 @@ function mapRow(
   };
 }
 
+type ParsedGuardia = {
+  sectorId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  modality: string;
+  professionalName: string;
+  observations: string;
+};
+
+function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuardia } | { ok: false; message: string } {
+  const sectorId = Number(body.sectorId);
+  const date = String(body.date ?? "").slice(0, 10);
+  const startTime = String(body.startTime ?? "").slice(0, 5);
+  const endTime = String(body.endTime ?? "").slice(0, 5);
+  const modality = String(body.modality ?? "activa").toLowerCase();
+  const professionalName = String(body.professionalName ?? "").trim();
+  const observations = String(body.observations ?? "").trim();
+
+  if (!sectorId || Number.isNaN(sectorId)) return { ok: false, message: "Sector obligatorio." };
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, message: "Fecha inválida." };
+  if (!TIME_RE.test(startTime) || !TIME_RE.test(endTime)) {
+    return { ok: false, message: "Hora inicio/fin inválida (HH:MM)." };
+  }
+  if (!MODALITIES.includes(modality as (typeof MODALITIES)[number])) {
+    return { ok: false, message: "Modalidad inválida (activa, pasiva)." };
+  }
+  if (!professionalName) return { ok: false, message: "Profesional obligatorio." };
+
+  return {
+    ok: true,
+    data: { sectorId, date, startTime, endTime, modality, professionalName, observations },
+  };
+}
+
 router.get("/guardias", async (req, res): Promise<void> => {
   try {
     const from = typeof req.query.from === "string" ? req.query.from : undefined;
@@ -64,56 +99,34 @@ router.get("/guardias", async (req, res): Promise<void> => {
 
 router.post("/guardias", async (req, res): Promise<void> => {
   try {
-    const body = req.body ?? {};
-    const sectorId = Number(body.sectorId);
-    const date = String(body.date ?? "").slice(0, 10);
-    const startTime = String(body.startTime ?? "").slice(0, 5);
-    const endTime = String(body.endTime ?? "").slice(0, 5);
-    const modality = String(body.modality ?? "activa").toLowerCase();
-    const professionalName = String(body.professionalName ?? "").trim();
-    const observations = String(body.observations ?? "").trim();
+    const parsed = parseBody(req.body ?? {});
+    if (!parsed.ok) {
+      res.status(400).json({ message: parsed.message });
+      return;
+    }
+    const data = parsed.data;
 
-    if (!sectorId || Number.isNaN(sectorId)) {
-      res.status(400).json({ message: "Sector obligatorio." });
-      return;
-    }
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      res.status(400).json({ message: "Fecha inválida." });
-      return;
-    }
-    if (!TIME_RE.test(startTime) || !TIME_RE.test(endTime)) {
-      res.status(400).json({ message: "Hora inicio/fin inválida (HH:MM)." });
-      return;
-    }
-    if (!MODALITIES.includes(modality as (typeof MODALITIES)[number])) {
-      res.status(400).json({ message: "Modalidad inválida (activa, pasiva)." });
-      return;
-    }
-    if (!professionalName) {
-      res.status(400).json({ message: "Profesional obligatorio." });
-      return;
-    }
-
-    const [sector] = await db.select().from(sectorsTable).where(eq(sectorsTable.id, sectorId)).limit(1);
+    const [sector] = await db.select().from(sectorsTable).where(eq(sectorsTable.id, data.sectorId)).limit(1);
     if (!sector) {
       res.status(400).json({ message: "Sector no encontrado." });
       return;
     }
 
-    const userId = (req as { user?: { id: number } }).user?.id ?? null;
+    const authUser = (req as { authUser?: { id: number } }).authUser;
+    const userId = authUser?.id ?? null;
 
     const [row] = await db
       .insert(guardiasTable)
       .values({
-        sectorId,
-        date,
-        shift: `${startTime}-${endTime}`,
-        startTime,
-        endTime,
-        modality,
+        sectorId: data.sectorId,
+        date: data.date,
+        shift: `${data.startTime}-${data.endTime}`,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        modality: data.modality,
         type: "",
-        professionalName,
-        observations,
+        professionalName: data.professionalName,
+        observations: data.observations,
         createdByUserId: userId,
       })
       .returning();
@@ -125,6 +138,54 @@ router.post("/guardias", async (req, res): Promise<void> => {
   }
 });
 
+router.patch("/guardias/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      res.status(400).json({ message: "ID inválido." });
+      return;
+    }
+
+    const parsed = parseBody(req.body ?? {});
+    if (!parsed.ok) {
+      res.status(400).json({ message: parsed.message });
+      return;
+    }
+    const data = parsed.data;
+
+    const [sector] = await db.select().from(sectorsTable).where(eq(sectorsTable.id, data.sectorId)).limit(1);
+    if (!sector) {
+      res.status(400).json({ message: "Sector no encontrado." });
+      return;
+    }
+
+    const [row] = await db
+      .update(guardiasTable)
+      .set({
+        sectorId: data.sectorId,
+        date: data.date,
+        shift: `${data.startTime}-${data.endTime}`,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        modality: data.modality,
+        professionalName: data.professionalName,
+        observations: data.observations,
+      })
+      .where(eq(guardiasTable.id, id))
+      .returning();
+
+    if (!row) {
+      res.status(404).json({ message: "Guardia no encontrada." });
+      return;
+    }
+
+    res.json(mapRow(row, sector.name, sector.shortName));
+  } catch (err) {
+    console.error("[guardias.patch]", err);
+    res.status(500).json({ message: "Error al modificar la guardia." });
+  }
+});
+
 router.delete("/guardias/:id", async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -132,7 +193,11 @@ router.delete("/guardias/:id", async (req, res): Promise<void> => {
       res.status(400).json({ message: "ID inválido." });
       return;
     }
-    await db.delete(guardiasTable).where(eq(guardiasTable.id, id));
+    const [deleted] = await db.delete(guardiasTable).where(eq(guardiasTable.id, id)).returning({ id: guardiasTable.id });
+    if (!deleted) {
+      res.status(404).json({ message: "Guardia no encontrada." });
+      return;
+    }
     res.status(204).end();
   } catch (err) {
     console.error(err);
