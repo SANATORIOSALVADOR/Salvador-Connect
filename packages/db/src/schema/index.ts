@@ -84,7 +84,9 @@ export const guardiasTable = pgTable("guardias", {
   sectorId: integer("sector_id")
     .notNull()
     .references(() => sectorsTable.id),
+  // date = fecha de inicio; endDate = fecha de fin (puede ser el día siguiente)
   date: date("date", { mode: "string" }).notNull(),
+  endDate: date("end_date", { mode: "string" }),
   shift: text("shift").notNull().default(""),
   startTime: text("start_time").notNull().default("08:00"),
   endTime: text("end_time").notNull().default("16:00"),
