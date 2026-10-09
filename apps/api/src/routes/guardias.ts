@@ -28,6 +28,8 @@ function mapRow(
     modality: row.modality,
     professionalName: row.professionalName,
     observations: row.observations,
+    tagLabel: row.tagLabel || "",
+    tagColor: row.tagColor || "",
     createdByUserId: row.createdByUserId,
     createdAt: row.createdAt,
   };
@@ -42,6 +44,8 @@ type ParsedGuardia = {
   modality: string;
   professionalName: string;
   observations: string;
+  tagLabel: string;
+  tagColor: string;
 };
 
 function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuardia } | { ok: false; message: string } {
@@ -54,6 +58,10 @@ function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuard
   const modality = String(body.modality ?? "activa").toLowerCase();
   const professionalName = String(body.professionalName ?? "").trim();
   const observations = String(body.observations ?? "").trim();
+  const tagLabel = String(body.tagLabel ?? "").trim().slice(0, 40);
+  let tagColor = String(body.tagColor ?? "").trim().slice(0, 20);
+  if (tagLabel && !tagColor) tagColor = "#0d9488";
+  if (!tagLabel) tagColor = "";
 
   if (!sectorId || Number.isNaN(sectorId)) return { ok: false, message: "Sector obligatorio." };
   if (!date || !DATE_RE.test(date)) return { ok: false, message: "Fecha de inicio inválida." };
@@ -72,7 +80,7 @@ function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuard
 
   return {
     ok: true,
-    data: { sectorId, date, endDate, startTime, endTime, modality, professionalName, observations },
+    data: { sectorId, date, endDate, startTime, endTime, modality, professionalName, observations, tagLabel, tagColor },
   };
 }
 
@@ -145,6 +153,8 @@ router.post("/guardias", async (req, res): Promise<void> => {
         type: "",
         professionalName: data.professionalName,
         observations: data.observations,
+        tagLabel: data.tagLabel,
+        tagColor: data.tagColor,
         createdByUserId: userId,
       })
       .returning();
@@ -189,6 +199,8 @@ router.patch("/guardias/:id", async (req, res): Promise<void> => {
         modality: data.modality,
         professionalName: data.professionalName,
         observations: data.observations,
+        tagLabel: data.tagLabel,
+        tagColor: data.tagColor,
       })
       .where(eq(guardiasTable.id, id))
       .returning();
