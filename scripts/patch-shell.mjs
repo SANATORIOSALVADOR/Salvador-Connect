@@ -23,6 +23,8 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
   });
   const [, setLocation] = useLocation();
   const logout = useLogout();
+  // Sale siempre: aunque la sesión ya no exista en el servidor (vencida o cerrada), limpia y vuelve al login.
+  const doLogout = () => logout.mutate(undefined, { onSettled: () => { queryClient.clear(); setMobileOpen(false); setLocation('/'); } });
   const toggleCollapsed = () => {
     setCollapsed((v) => {
       const next = !v;
@@ -71,7 +73,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
             </div>
           </div>
         )}
-        <button className="btn btn-quiet" style={{ width: '100%', marginTop: collapsed ? 0 : 4, color: 'hsl(var(--sidebar-foreground) / .78)', background: 'transparent', borderColor: 'hsl(var(--sidebar-border))', padding: collapsed ? '10px' : undefined }} onClick={() => logout.mutate(undefined, { onSuccess: () => { queryClient.clear(); setLocation('/'); } })} data-testid="button-logout" title="Cerrar sesión">
+        <button className="btn btn-quiet" style={{ width: '100%', marginTop: collapsed ? 0 : 4, color: 'hsl(var(--sidebar-foreground) / .78)', background: 'transparent', borderColor: 'hsl(var(--sidebar-border))', padding: collapsed ? '10px' : undefined }} onClick={doLogout} disabled={logout.isPending} data-testid="button-logout" title="Cerrar sesión">
           {collapsed ? "⎋" : "Cerrar sesión"}
         </button>
       </div>
@@ -84,6 +86,9 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
             <button className="sidebar-toggle" onClick={() => setMobileOpen(false)} data-testid="button-close-menu"><X size={15} /></button>
           </div>
           {nav}
+          <div style={{ borderTop: '1px solid hsl(var(--sidebar-border) / 0.5)', padding: '12px 4px 4px' }}>
+            <button className="btn btn-quiet" style={{ width: '100%', color: 'hsl(var(--sidebar-foreground) / .78)', background: 'transparent', borderColor: 'hsl(var(--sidebar-border))' }} onClick={doLogout} disabled={logout.isPending} data-testid="button-logout-drawer">Cerrar sesión</button>
+          </div>
         </aside>
       </div>
     )}
@@ -97,6 +102,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
             <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>@{user?.username || 'usuario'}</div>
           </div>
           <div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div>
+          <button className="btn btn-quiet" style={{ fontSize: 12, padding: '6px 10px' }} onClick={doLogout} disabled={logout.isPending} title="Cerrar sesión" data-testid="button-logout-top">Salir</button>
         </div>
       </header>
       {children}
