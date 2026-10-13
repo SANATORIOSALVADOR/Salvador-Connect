@@ -1,0 +1,20 @@
+{
+  "name": "Sanatorio del Salvador",
+  "short_name": "Salvador",
+  "description": "Sistema interno del Sanatorio del Salvador",
+  "lang": "es-AR",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ef",
+  "theme_color": "#103b4c",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Guardias", "url": "/guardias", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Administración", "url": "/administracion", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

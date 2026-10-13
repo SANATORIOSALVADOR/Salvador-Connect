@@ -8,3 +8,10 @@ import App from "./App";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// App instalable (PWA): solo en producción, para no interferir con la recarga en vivo de desarrollo.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  });
+}
