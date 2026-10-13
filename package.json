@@ -11,7 +11,9 @@
     "build": "pnpm -r --filter @salvador/api --filter @salvador/web --if-present run build",
     "typecheck": "pnpm -r --filter './apps/*' --filter './packages/*' --filter './scripts' --if-present run typecheck",
     "db:push": "pnpm --filter @salvador/db run push",
-    "db:seed-sectors": "pnpm --filter @salvador/scripts run seed-sectors"
+    "db:seed-sectors": "pnpm --filter @salvador/scripts run seed-sectors",
+    "test": "node tests/web-logic.test.mjs && node tests/sw.test.mjs",
+    "test:api": "bash tests/api.sh"
   },
   "devDependencies": {
     "prettier": "^3.5.3",

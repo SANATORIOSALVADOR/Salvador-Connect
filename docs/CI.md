@@ -1,27 +1,20 @@
-# Qué es CI y por qué fallaba
+# CI (GitHub Actions)
 
-## Qué es CI
+`.github/workflows/ci.yml` corre en cada push o pull request a `main`:
 
-**CI = Continuous Integration (Integración Continua)**.
+1. **Tipos y compilación**: `pnpm run typecheck` (todo el proyecto), build de la API y de la web.
+2. **Pruebas**:
+   - `tests/web-logic.test.mjs`: lógica de Guardias (horas, nocturnas, huecos de cobertura, estadísticas).
+   - `tests/sw.test.mjs`: service worker de la app instalable (caché, sin red, servidor caído, logout).
+   - `tests/api.sh`: más de 100 casos de punta a punta contra un PostgreSQL vacío. La API arranca
+     sobre esa base, así que también se prueba que las migraciones crean el esquema desde cero.
 
-Es un proceso automático en GitHub Actions que, en cada `push` o Pull Request a `main`, hace:
+## Correrlas a mano
 
-1. Instalar dependencias (`pnpm install`)
-2. Typecheck (TypeScript)
-3. Build del API y del frontend
+```bash
+pnpm test                       # lógica + service worker
+# API: levantarla sobre una base vacía con BOOTSTRAP_ADMIN_PASSWORD y después:
+API_URL=http://127.0.0.1:5000/api ADMIN_PASSWORD=<la misma> DATABASE_URL=<url> pnpm test:api
+```
 
-Sirve para detectar roturas antes de desplegar.
-
-## Por qué estaba en rojo (failure)
-
-1. El monorepo estaba **a medias**: `packages/api-zod` sin código generado → el API no compilaba.
-2. `apps/web` sin `src/` → el build del frontend fallaba.
-3. `pnpm-lock.yaml` desactualizado / grafo de dependencias de Replit.
-4. Carpetas duplicadas (`artifacts/`, `lib/`) confundían la estructura real.
-
-## Estado esperado después de la reparación
-
-- Código completo en `apps/` y `packages/`
-- CI que instala, typecheckea y buildea API + Web
-
-Ver Actions: https://github.com/SANATORIOSALVADOR/Salvador-Connect/actions
+Si una prueba falla, el resultado aparece en la pestaña **Actions** de GitHub (con el log de la API).

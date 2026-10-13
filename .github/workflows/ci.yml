@@ -12,34 +12,78 @@ concurrency:
 
 jobs:
   typecheck-and-build:
-    name: Typecheck & Build
+    name: Tipos y compilación
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "pnpm"
-
-      - name: Install dependencies
+      - name: Instalar dependencias
         run: pnpm install
-
-      - name: Typecheck core packages
-        run: pnpm --filter @salvador/db --filter @salvador/api-zod --filter @salvador/api --if-present run typecheck
-
-      - name: Build API
+      - name: Chequeo de tipos (todo el proyecto)
+        run: pnpm run typecheck
+      - name: Compilar API
         run: pnpm --filter @salvador/api run build
         env:
           NODE_ENV: production
-
-      - name: Build Web
+      - name: Compilar web
         run: pnpm --filter @salvador/web run build
         env:
           NODE_ENV: production
+
+  tests:
+    name: Pruebas (API con PostgreSQL, lógica y service worker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: sanatorio_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d sanatorio_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      # Valores solo de prueba para esta base efímera.
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/sanatorio_ci
+      ADMIN_PASSWORD: ci-prueba-1234567
+      API_URL: http://127.0.0.1:5000/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Instalar dependencias
+        run: pnpm install
+      - name: Lógica de Guardias
+        run: node tests/web-logic.test.mjs
+      - name: Service worker
+        run: node tests/sw.test.mjs
+      - name: Compilar y arrancar la API (aplica las migraciones sobre la base vacía)
+        run: |
+          pnpm --filter @salvador/api run build
+          cd apps/api
+          NODE_ENV=production PORT=5000 BOOTSTRAP_ADMIN_PASSWORD="$ADMIN_PASSWORD" node dist/index.mjs > ../../api.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:5000/api/health && break; sleep 1; done
+          grep -E "Base de datos|Migración aplicada" ../../api.log
+      - name: Pruebas de la API
+        run: bash tests/api.sh
+      - name: Log de la API si algo falló
+        if: failure()
+        run: tail -n 100 api.log
