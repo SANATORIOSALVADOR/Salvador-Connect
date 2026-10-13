@@ -44,6 +44,23 @@ const COVERAGE_STYLE: Record<string, CSSProperties> = {
   sin: { boxShadow: "inset 0 0 0 2px rgba(185,28,28,.6), inset 0 0 0 999px rgba(254,226,226,.55)" },
   baja: { boxShadow: "inset 0 0 0 2px rgba(202,138,4,.6), inset 0 0 0 999px rgba(254,243,199,.55)" },
 };
+/** Colores por sector (fijos según el orden de los sectores, no cambian al filtrar). */
+const SECTOR_PALETTE = [
+  { solid: "#0d9488", bg: "#ccfbf1", fg: "#115e59" },
+  { solid: "#2563eb", bg: "#dbeafe", fg: "#1e3a8a" },
+  { solid: "#7c3aed", bg: "#ede9fe", fg: "#4c1d95" },
+  { solid: "#ea580c", bg: "#ffedd5", fg: "#9a3412" },
+  { solid: "#db2777", bg: "#fce7f3", fg: "#9d174d" },
+  { solid: "#16a34a", bg: "#dcfce7", fg: "#14532d" },
+  { solid: "#ca8a04", bg: "#fef9c3", fg: "#713f12" },
+  { solid: "#0891b2", bg: "#cffafe", fg: "#155e75" },
+  { solid: "#b45309", bg: "#fde68a", fg: "#78350f" },
+  { solid: "#475569", bg: "#e2e8f0", fg: "#1e293b" },
+];
+type SectorColor = (typeof SECTOR_PALETTE)[number];
+/** Filtro de etiqueta: "" = todas, NO_TAG = guardias sin etiqueta, otro = etiqueta (sin tildes ni mayúsculas). */
+const NO_TAG = "__sin_etiqueta__";
+
 const PANEL: CSSProperties = { padding: 16, borderRadius: 14 };
 const KPI: CSSProperties = { padding: 14, borderRadius: 12, background: "hsl(var(--muted) / .45)" };
 const KPI_LABEL: CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "hsl(var(--muted-foreground))" };
@@ -250,6 +267,7 @@ export default function GuardiasMedicas() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [filterSector, setFilterSector] = useState("");
+  const [filterTag, setFilterTag] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -392,11 +410,34 @@ export default function GuardiasMedicas() {
   const canEdit = (g: Guardia) => canEditSector(g.sectorId);
   const canDelete = (g: Guardia) => canTotal && canEditSector(g.sectorId);
 
-  /** Configs según el filtro de sector del calendario. */
-  const expectedConfigs = useMemo(
-    () => (filterSector ? activeConfigs.filter((c) => c.sectorId === Number(filterSector)) : activeConfigs),
-    [activeConfigs, filterSector],
-  );
+  const sectorColor = useMemo(() => {
+    const ids = [...new Set([...configs.map((c) => c.sectorId), ...sectors.map((s) => s.id)])].sort((a, b) => a - b);
+    const map = new Map<number, SectorColor>();
+    ids.forEach((id, i) => map.set(id, SECTOR_PALETTE[i % SECTOR_PALETTE.length]));
+    return map;
+  }, [configs, sectors]);
+  const colorOf = useCallback((sectorId: number): SectorColor => sectorColor.get(sectorId) ?? SECTOR_PALETTE[SECTOR_PALETTE.length - 1], [sectorColor]);
+
+  /** Etiquetas usadas en el mes (agrupadas sin tildes ni mayúsculas), con su color y cantidad. */
+  const tagOptions = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; color: string; count: number }>();
+    for (const g of items) {
+      const label = (g.tagLabel || "").trim();
+      if (!label) continue;
+      const key = personKey(label);
+      const cur = map.get(key) || { key, label, color: g.tagColor || "#0d9488", count: 0 };
+      cur.count++;
+      map.set(key, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, [items]);
+  const untaggedCount = useMemo(() => items.filter((g) => !(g.tagLabel || "").trim()).length, [items]);
+
+  /** Configs según el filtro de sector del calendario. Con filtro de etiqueta no se evalúa cobertura. */
+  const expectedConfigs = useMemo(() => {
+    if (filterTag) return [];
+    return filterSector ? activeConfigs.filter((c) => c.sectorId === Number(filterSector)) : activeConfigs;
+  }, [activeConfigs, filterSector, filterTag]);
 
   /** Hasta dónde está planificado: no se marca en rojo lo que todavía no se cargó. */
   const horizon = useMemo(() => {
@@ -405,7 +446,16 @@ export default function GuardiasMedicas() {
     return max;
   }, [items, todayIso]);
 
-  const calendarItems = useMemo(() => (filterSector ? items.filter((g) => g.sectorId === Number(filterSector)) : items), [items, filterSector]);
+  const calendarItems = useMemo(
+    () =>
+      items.filter((g) => {
+        if (filterSector && g.sectorId !== Number(filterSector)) return false;
+        if (!filterTag) return true;
+        const key = personKey(g.tagLabel || "");
+        return filterTag === NO_TAG ? !key : key === filterTag;
+      }),
+    [items, filterSector, filterTag],
+  );
 
   const byDate = useMemo(() => {
     const map = new Map<string, Guardia[]>();
@@ -719,7 +769,7 @@ export default function GuardiasMedicas() {
     return (
       <div className="gm-day-chips">
         {aggs.slice(0, 3).map(([id, a]) => (
-          <span key={id} className="gm-chip gm-chip-activa" title={`${a.name}: ${a.people.size} persona(s) · ${Math.round(a.hours * 10) / 10} h`}>
+          <span key={id} className="gm-chip" style={{ background: colorOf(id).bg, color: colorOf(id).fg, borderLeft: `3px solid ${colorOf(id).solid}` }} title={`${a.name}: ${a.people.size} persona(s) · ${Math.round(a.hours * 10) / 10} h`}>
             {shortSector(a.name)} = {a.people.size}
           </span>
         ))}
@@ -797,7 +847,7 @@ export default function GuardiasMedicas() {
               {ahora.length === 0 && <div style={{ fontSize: 13, color: "hsl(var(--muted-foreground))" }}>No hay sectores de guardia configurados.</div>}
               {ahora.map(({ cfg, list, uncovered }) => (
                 <div key={cfg.sectorId} style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${uncovered ? "rgba(185,28,28,.45)" : "hsl(var(--border))"}`, background: uncovered ? "rgba(254,226,226,.45)" : "hsl(var(--card))" }}>
-                  <div style={{ fontSize: 12, fontWeight: 800 }}>{cfg.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800 }}><i style={DOT(colorOf(cfg.sectorId).solid)} />{cfg.name}</div>
                   {list.length === 0 ? (
                     <div style={{ fontSize: 12, marginTop: 4, color: uncovered ? "#991b1b" : "hsl(var(--muted-foreground))" }}>{uncovered ? "Nadie de guardia" : "Sin guardia (no requerida ahora)"}</div>
                   ) : (
@@ -830,7 +880,21 @@ export default function GuardiasMedicas() {
                     {guardiaSectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 600 }}>
+                  <span>Etiqueta</span>
+                  <select className="select" value={filterTag} onChange={(e) => setFilterTag(e.target.value)} style={{ minWidth: 170 }}>
+                    <option value="">Todas</option>
+                    {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.label} ({t.count})</option>)}
+                    <option value={NO_TAG}>Sin etiqueta ({untaggedCount})</option>
+                  </select>
+                </label>
               </div>
+              {filterTag && (
+                <div style={{ fontSize: 12, marginBottom: 10, color: "hsl(var(--muted-foreground))" }}>
+                  Mostrando solo guardias {filterTag === NO_TAG ? "sin etiqueta" : <>con la etiqueta <TagBadge label={tagOptions.find((t) => t.key === filterTag)?.label} color={tagOptions.find((t) => t.key === filterTag)?.color} /></>}. La cobertura no se marca mientras filtrás por etiqueta.{" "}
+                  <button type="button" className="btn btn-quiet" style={{ fontSize: 11, padding: "2px 8px" }} onClick={() => setFilterTag("")}>Quitar filtro</button>
+                </div>
+              )}
               {loading ? (
                 <div className="skeleton" style={{ height: 320 }} />
               ) : isNarrow ? (
@@ -878,8 +942,21 @@ export default function GuardiasMedicas() {
                   </div>
                 </>
               )}
-              <div className="gm-legend" style={{ flexWrap: "wrap" }}>
-                <span><i style={DOT("hsl(160 45% 85%)")} />Sector = personas</span>
+              <div className="gm-legend" style={{ flexWrap: "wrap", gap: 10 }}>
+                {guardiaSectors.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setFilterSector(filterSector === String(s.id) ? "" : String(s.id))}
+                    title={filterSector === String(s.id) ? "Ver todos los sectores" : `Ver solo ${s.name}`}
+                    style={{ display: "inline-flex", alignItems: "center", fontSize: 12, padding: "2px 8px", borderRadius: 999, cursor: "pointer", border: `1px solid ${filterSector === String(s.id) ? colorOf(s.id).solid : "transparent"}`, background: colorOf(s.id).bg, color: colorOf(s.id).fg, font: "inherit" }}
+                  >
+                    <i style={DOT(colorOf(s.id).solid)} />{s.name}
+                  </button>
+                ))}
+              </div>
+              <div className="gm-legend" style={{ flexWrap: "wrap", marginTop: 6 }}>
+                <span>Chip = sector · cantidad de personas</span>
                 <span><i style={DOT("rgba(202,138,4,.55)")} />Falta cubrir parte del horario</span>
                 <span><i style={DOT("rgba(185,28,28,.6)")} />Sin nadie de guardia</span>
               </div>
@@ -910,7 +987,7 @@ export default function GuardiasMedicas() {
                 <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => { setForm((f) => ({ ...f, date: selectedDay, endDate: selectedDay })); setTab("carga"); }}>Cargar guardia este día</button>
               )}
               {[...dayDetail].sort((a, b) => (a.sectorName || "").localeCompare(b.sectorName || "", "es") || a.startTime.localeCompare(b.startTime)).map((g) => (
-                <div key={g.id} style={DETAIL_CARD}>
+                <div key={g.id} style={{ ...DETAIL_CARD, borderLeft: `4px solid ${colorOf(g.sectorId).solid}` }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <span className={modalityClass(g.modality)} style={{ display: "inline-block" }}>{labelMod(g.modality)}</span>
                     <span className="badge">{g.startTime} – {g.endTime}</span>
@@ -963,10 +1040,19 @@ export default function GuardiasMedicas() {
               <div>
                 <div className="section-kicker">Registro</div>
                 <h2 className="section-title" style={{ marginTop: 4, textTransform: "capitalize" }}>{monthLabel}</h2>
-                <p className="page-subtitle" style={{ marginTop: 4 }}>{historialItems.length} guardias{filterSector ? " del sector filtrado" : ""}.</p>
+                <p className="page-subtitle" style={{ marginTop: 4 }}>{historialItems.length} guardias{filterSector || filterTag ? " (con los filtros del calendario)" : ""}.</p>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input className="input" placeholder="Buscar profesional, sector…" value={historialSearch} onChange={(e) => setHistorialSearch(e.target.value)} style={{ minWidth: 180 }} />
+                <select className="select" value={filterSector} onChange={(e) => setFilterSector(e.target.value)} style={{ minWidth: 150 }} aria-label="Filtrar por sector">
+                  <option value="">Todos los sectores</option>
+                  {guardiaSectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <select className="select" value={filterTag} onChange={(e) => setFilterTag(e.target.value)} style={{ minWidth: 150 }} aria-label="Filtrar por etiqueta">
+                  <option value="">Todas las etiquetas</option>
+                  {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.label} ({t.count})</option>)}
+                  <option value={NO_TAG}>Sin etiqueta ({untaggedCount})</option>
+                </select>
                 <button type="button" className="btn btn-quiet" onClick={prevMonth}>← Mes</button>
                 <button type="button" className="btn btn-quiet" onClick={nextMonth}>Mes →</button>
                 <button type="button" className="btn btn-quiet" onClick={exportGuardiasCsv}>Exportar CSV</button>
@@ -994,7 +1080,7 @@ export default function GuardiasMedicas() {
                       <tr key={g.id}>
                         <td>{formatDateAR(g.date)}</td>
                         <td>{formatDateAR(g.endDate || g.date)}</td>
-                        <td>{g.sectorName ?? g.sectorId}</td>
+                        <td style={{ whiteSpace: "nowrap" }}><i style={DOT(colorOf(g.sectorId).solid)} />{g.sectorName ?? g.sectorId}</td>
                         <td style={{ whiteSpace: "nowrap" }}>{g.startTime}–{g.endTime}</td>
                         <td>{hoursOfGuardia(g)}</td>
                         <td className="agenda-title">{g.professionalName}</td>
