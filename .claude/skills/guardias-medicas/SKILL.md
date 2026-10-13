@@ -12,8 +12,10 @@ Ver quién está de guardia por día/sector y cargar registros con horario.
 ## Archivos
 
 - UI: `apps/web/src/pages/GuardiasMedicas.tsx`
+- Lógica pura (fechas, cobertura, estadísticas): `apps/web/src/pages/guardias/logic.ts`
+  (el Dockerfile copia la carpeta `pages/guardias/` en el overlay)
 - API: `apps/api/src/routes/guardias.ts`
-- Schema: `guardias` en `packages/db`
+- Schema: `guardias`, `profesionales`, `guardia_sectores`, `guardias_auditoria` en `packages/db`
 
 ## Campos de carga (vigentes)
 
@@ -27,10 +29,14 @@ Ver quién está de guardia por día/sector y cargar registros con horario.
 
 ## Vistas
 
-1. **Calendario** — mes con chips por día; detalle del día seleccionado
-2. **Carga / registro** — formulario + listado
+1. **Calendario** — panel "De guardia ahora", mes de 7 columnas (lista en celular), cobertura por sector y detalle del día con huecos
+2. **Carga nueva** — formulario; mantiene sector y horario para cargar la siguiente
+3. **Registro** — tabla del mes, CSV, copiar semana / mes anterior, historial de cambios
+4. **Estadísticas** — productividad: horas activas / pasivas, nocturnas, extras, reemplazos, % del horario requerido cubierto
+5. **Configuración** (escritura) — sectores que participan y su horario requerido; datos de profesionales
 
-Grilla del mes: 7 columnas (inline styles preferidos).
+Estilos de estado en línea: el CSS del build fija `background` / `border` de `.gm-cell` con `!important`
+(por eso el color de cobertura usa `box-shadow` inline).
 
 ## Permisos
 
@@ -42,7 +48,13 @@ Grilla del mes: 7 columnas (inline styles preferidos).
 - Si la hora de fin es menor o igual a la de inicio con la misma fecha, la guardia termina el día siguiente (API y UI lo ajustan solos).
 - Profesionales se comparan sin tildes ni mayúsculas; al guardar se reutiliza la grafía ya cargada.
 - Estadísticas del mes cuentan solo las horas dentro del mes.
-- Cobertura del calendario: rojo si algún sector de guardia no tiene a nadie ese día.
+- Cobertura: cada sector de guardia tiene un horario requerido por día de la semana (`guardia_sectores.cobertura`).
+  Amarillo = falta cubrir parte de ese horario; rojo = ningún sector tiene a nadie. Sin horario fijo: se marca si nadie ese día.
+  Solo se evalúa hasta el último día ya planificado (los meses vacíos a futuro no se pintan).
+- Las guardias activas y pasivas cuentan como cobertura; en estadísticas se separan.
+- Profesionales: tabla propia; se crean solos al cargar un nombre nuevo; renombrar actualiza sus guardias.
+- Copiar período: omite lo que se solapa con guardias del mismo profesional (no duplica si se copia dos veces).
+- Toda alta / modificación / baja / copia queda en `guardias_auditoria`.
 
 ## Checklist
 

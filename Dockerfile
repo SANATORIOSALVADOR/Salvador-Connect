@@ -40,7 +40,8 @@ RUN if [ -d lib/api-client-react ]; then rm -rf packages/api-client-react && cp 
 RUN mkdir -p /tmp/overlay \
  && for f in GuardiasMedicas Administracion Usuarios Inventario Instructivos Configuracion; do \
       if [ -f apps/web/src/pages/$f.tsx ]; then cp apps/web/src/pages/$f.tsx /tmp/overlay/; fi; \
-    done
+    done \
+ && if [ -d apps/web/src/pages/guardias ]; then cp -a apps/web/src/pages/guardias /tmp/overlay/guardias; fi
 
 RUN echo "=== UI Replit ===" && test -f artifacts/sanatorio-salvador/src/components/ui/button.tsx && rm -rf apps/web && cp -a artifacts/sanatorio-salvador apps/web && rm -rf apps/web/.replit-artifact && find apps/web -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.json' \) -print0 | xargs -0 sed -i 's/@workspace\//@salvador\//g' && echo "=== UI OK ==="
 
@@ -48,6 +49,7 @@ RUN mkdir -p apps/web/src/pages \
  && for f in GuardiasMedicas Administracion Usuarios Inventario Instructivos Configuracion; do \
       if [ -f /tmp/overlay/$f.tsx ]; then cp /tmp/overlay/$f.tsx apps/web/src/pages/$f.tsx; fi; \
     done && \
+    if [ -d /tmp/overlay/guardias ]; then cp -a /tmp/overlay/guardias apps/web/src/pages/guardias; fi && \
     sed -i "s/label: 'Guardias'/label: 'Guardias Médicas'/g" apps/web/src/App.tsx && \
     sed -i 's|<Route path="/"><Welcome /></Route>|<Route path="/"><LoginPage /></Route>|g' apps/web/src/App.tsx && \
     node -e "const fs=require('fs');const p='apps/web/src/App.tsx';let t=fs.readFileSync(p,'utf8');const imports=[['GuardiasMedicasPage','@/pages/GuardiasMedicas'],['AdministracionPage','@/pages/Administracion'],['UsuariosPage','@/pages/Usuarios'],['InventarioPage','@/pages/Inventario'],['InstructivosPage','@/pages/Instructivos'],['ConfiguracionPage','@/pages/Configuracion']];for (const [name,path] of imports){if(!t.includes(name)){t=t.replace(\"import { ErrorBoundary } from '@/components/error-boundary';\",\"import { ErrorBoundary } from '@/components/error-boundary';\\nimport \"+name+\" from '\"+path+\"';\");}}t=t.replace(/<PlaceholderPage kind=\\\"Guardias\\\"[^>]*\\/>/g,'<GuardiasMedicasPage />');t=t.replace(/<AgendaPage \/>/g,'<AdministracionPage />');t=t.replace(/<UsersPage \/>/g,'<UsuariosPage />');t=t.replace(/<PlaceholderPage kind=\\\"Inventario\\\"[^>]*\\/>/g,'<InventarioPage />');t=t.replace(/<PlaceholderPage kind=\\\"Instructivos\\\"[^>]*\\/>/g,'<InstructivosPage />');t=t.replace(/<ConfigPage \/>/g,'<ConfiguracionPage />');fs.writeFileSync(p,t);console.log('App routes wired');" && \

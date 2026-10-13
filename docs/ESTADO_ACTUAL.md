@@ -5,7 +5,7 @@
 - Login + sesión cookie
 - Sidebar colapsable (248 / 72), fixed, offset de contenido
 - **Administración**: listado, avisos, calendario (detalle a la derecha), ABM ítems, **Generar vencimientos** (fiscal local CUIT)
-- **Guardias Médicas**: calendario + carga (activa/pasiva, inicio/fin, sectores definidos)
+- **Guardias Médicas**: calendario con cobertura por horario requerido, "de guardia ahora", carga, copiar semana/mes, historial de cambios, productividad por profesional y sector, configuración de sectores y profesionales
 - **Usuarios** + **Configuración** (sectores)
 
 ## Código presente pero no prioritario
