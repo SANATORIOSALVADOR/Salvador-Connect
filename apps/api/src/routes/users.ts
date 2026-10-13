@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq, inArray, ne } from "drizzle-orm";
-import { db, sectorsTable, userModulesTable, userSectorsTable, usersTable } from "@salvador/db";
+import { appSettingsTable, db, sectorsTable, userModulesTable, userSectorsTable, usersTable } from "@salvador/db";
 import { CreateUserBody, ResetUserPasswordBody, ResetUserPasswordResponse, UpdateUserBody } from "@salvador/api-zod";
 import {
   PERMISSION_MODULES,
@@ -116,6 +116,56 @@ function cleanUsername(v: string) {
 
 router.get("/users/modulos", (_req, res): void => {
   res.json(Object.entries(PERMISSION_MODULES).map(([key, levels]) => ({ key, levels })));
+});
+
+// ---------- plantillas de permisos (ej. "Jefe de guardia") ----------
+// Se guardan en app_settings["plantillas_permisos"]: [{ nombre, permissions, sectorIds }].
+
+type Plantilla = { nombre: string; permissions: Record<string, Level>; sectorIds: number[] };
+const PLANTILLAS_KEY = "plantillas_permisos";
+
+async function leerPlantillas(): Promise<Plantilla[]> {
+  const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, PLANTILLAS_KEY)).limit(1);
+  return Array.isArray(row?.value) ? (row!.value as Plantilla[]) : [];
+}
+
+router.get("/users/plantillas", async (_req, res): Promise<void> => {
+  try {
+    res.json(await leerPlantillas());
+  } catch (err) {
+    console.error("[users.plantillas]", err);
+    res.json([]);
+  }
+});
+
+/** Reemplaza la lista completa (alta, cambio y baja se hacen desde la pantalla). */
+router.put("/users/plantillas", async (req, res): Promise<void> => {
+  if (!Array.isArray(req.body)) {
+    res.status(400).json({ message: "Formato inválido." });
+    return;
+  }
+  const vistas = new Set<string>();
+  const limpias: Plantilla[] = [];
+  for (const raw of req.body.slice(0, 50) as Record<string, unknown>[]) {
+    const nombre = String(raw?.nombre ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+    if (!nombre || vistas.has(nombre.toLowerCase())) continue;
+    vistas.add(nombre.toLowerCase());
+    limpias.push({
+      nombre,
+      permissions: parsePermissions({ permissions: raw?.permissions ?? {} }) ?? {},
+      sectorIds: await validSectorIds(raw?.sectorIds),
+    });
+  }
+  try {
+    await db
+      .insert(appSettingsTable)
+      .values({ key: PLANTILLAS_KEY, value: limpias })
+      .onConflictDoUpdate({ target: appSettingsTable.key, set: { value: limpias, updatedAt: new Date() } });
+    res.json(limpias);
+  } catch (err) {
+    console.error("[users.plantillas.put]", err);
+    res.status(500).json({ message: "No se pudieron guardar las plantillas." });
+  }
 });
 
 router.get("/users", async (_req, res): Promise<void> => {

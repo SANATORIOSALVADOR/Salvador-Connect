@@ -54,6 +54,8 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
 }
 
+type Plantilla = { nombre: string; permissions: Record<string, Level>; sectorIds: number[] };
+
 type UserForm = {
   name: string;
   username: string;
@@ -106,6 +108,8 @@ export default function ConfiguracionPage() {
   const [usaving, setUsaving] = useState(false);
   const [resetUser, setResetUser] = useState<UserRow | null>(null);
   const [resetPw, setResetPw] = useState("");
+  const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
+  const [nombrePlantilla, setNombrePlantilla] = useState<string | null>(null);
 
   // sectores
   const [sectorEditor, setSectorEditor] = useState<{ mode: "create" | "edit"; sector?: Sector } | null>(null);
@@ -120,7 +124,8 @@ export default function ConfiguracionPage() {
       const meData = await apiJson<{ id: number; role: string }>("/auth/me");
       setMe(meData);
       if (meData.role !== "superadmin") return;
-      const [u, s] = await Promise.all([apiJson<UserRow[]>("/users"), apiJson<Sector[]>("/sectores")]);
+      const [u, s, pl] = await Promise.all([apiJson<UserRow[]>("/users"), apiJson<Sector[]>("/sectores"), apiJson<Plantilla[]>("/users/plantillas").catch(() => [])]);
+      setPlantillas(Array.isArray(pl) ? pl : []);
       setUsers(Array.isArray(u) ? u : []);
       setSectors(Array.isArray(s) ? s : []);
     } catch (e) {
@@ -212,6 +217,30 @@ export default function ConfiguracionPage() {
     } finally {
       setUsaving(false);
     }
+  }
+
+  async function guardarPlantillas(lista: Plantilla[], mensaje: string) {
+    try {
+      setPlantillas(await apiJson<Plantilla[]>("/users/plantillas", { method: "PUT", body: JSON.stringify(lista) }));
+      setNotice(mensaje);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron guardar las plantillas.");
+    }
+  }
+
+  async function guardarComoPlantilla() {
+    const nombre = (nombrePlantilla ?? "").trim();
+    if (!nombre) return;
+    const existe = plantillas.some((p) => p.nombre.toLowerCase() === nombre.toLowerCase());
+    if (existe && !(await confirmar({ titulo: `Reemplazar la plantilla "${nombre}"?`, accion: "Reemplazar" }))) return;
+    const nueva: Plantilla = { nombre, permissions: { ...uform.permissions }, sectorIds: [...uform.sectorIds] };
+    await guardarPlantillas([...plantillas.filter((p) => p.nombre.toLowerCase() !== nombre.toLowerCase()), nueva], `Plantilla "${nombre}" guardada.`);
+    setNombrePlantilla(null);
+  }
+
+  async function borrarPlantilla(nombre: string) {
+    if (!(await confirmar({ titulo: `¿Borrar la plantilla "${nombre}"?`, mensaje: "Los usuarios que la usaron conservan sus permisos.", accion: "Borrar", peligro: true }))) return;
+    await guardarPlantillas(plantillas.filter((p) => p.nombre !== nombre), "Plantilla borrada.");
   }
 
   async function toggleActive(u: UserRow) {
@@ -347,6 +376,17 @@ export default function ConfiguracionPage() {
             </select>
             <button type="button" className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={openCreate}>+ Nuevo usuario</button>
           </div>
+          {plantillas.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 12, ...MUTED }}>
+              <span>Plantillas de permisos:</span>
+              {plantillas.map((p) => (
+                <span key={p.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 4px 2px 10px", borderRadius: 999, border: "1px solid hsl(var(--border))", color: "hsl(var(--foreground))" }}>
+                  {p.nombre}
+                  <button type="button" onClick={() => void borrarPlantilla(p.nombre)} aria-label={`Borrar plantilla ${p.nombre}`} title="Borrar plantilla" style={{ border: "none", background: "transparent", cursor: "pointer", color: "inherit", fontSize: 14, lineHeight: 1, padding: "0 4px" }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
           <div className="agenda-table-wrap">
             <table className="agenda-table">
               <thead>
@@ -479,13 +519,51 @@ export default function ConfiguracionPage() {
                         if (src) setUform((f) => ({ ...f, permissions: { ...src.permissions }, sectorIds: [...src.sectorIds] }));
                       }}
                     >
-                      <option value="">Copiar permisos de…</option>
+                      <option value="">Copiar de un usuario…</option>
                       {users.filter((u) => u.role === "usuario" && u.id !== editor.user?.id).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                     </select>
+                    {plantillas.length > 0 && (
+                      <select
+                        className="select"
+                        style={{ width: 200, fontSize: 12 }}
+                        value=""
+                        aria-label="Aplicar plantilla de permisos"
+                        onChange={(e) => {
+                          const pl = plantillas.find((p) => p.nombre === e.target.value);
+                          if (pl) setUform((f) => ({ ...f, permissions: { ...pl.permissions }, sectorIds: [...pl.sectorIds] }));
+                        }}
+                      >
+                        <option value="">Aplicar plantilla…</option>
+                        {plantillas.map((p) => <option key={p.nombre} value={p.nombre}>{p.nombre}</option>)}
+                      </select>
+                    )}
                     <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setUform((f) => ({ ...f, permissions: Object.fromEntries(MODULES.map((m) => [m.key, "ver" as Level])) }))}>Ver todo</button>
                     <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setUform((f) => ({ ...f, permissions: {} }))}>Quitar todo</button>
+                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setNombrePlantilla("")}>Guardar como plantilla</button>
                   </div>
                 </div>
+                {nombrePlantilla !== null && (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                    <input
+                      className="input"
+                      autoFocus
+                      maxLength={60}
+                      placeholder="Nombre de la plantilla (ej. Jefe de guardia)"
+                      value={nombrePlantilla}
+                      onChange={(e) => setNombrePlantilla(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void guardarComoPlantilla();
+                        } else if (e.key === "Escape") setNombrePlantilla(null);
+                      }}
+                      style={{ maxWidth: 300 }}
+                    />
+                    <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} disabled={!nombrePlantilla.trim()} onClick={() => void guardarComoPlantilla()}>Guardar plantilla</button>
+                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setNombrePlantilla(null)}>Cancelar</button>
+                    <span style={MUTED}>Guarda los permisos y sectores elegidos arriba.</span>
+                  </div>
+                )}
                 <div className="agenda-table-wrap">
                   <table className="agenda-table">
                     <thead>
