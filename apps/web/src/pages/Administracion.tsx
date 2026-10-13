@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { confirmar } from "@/components/feedback";
 
 type Item = {
   id: number;
@@ -316,7 +317,7 @@ export default function Administracion() {
   }
 
   async function onDelete(id: number) {
-    if (!confirm("¿Eliminar este ítem? No se puede deshacer.")) return;
+    if (!(await confirmar({ titulo: "¿Eliminar este ítem?", mensaje: "No se puede deshacer.", accion: "Eliminar", peligro: true }))) return;
     try {
       const res = await fetch(`${API}/administracion/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) {

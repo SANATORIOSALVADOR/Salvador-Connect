@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { confirmar } from "@/components/feedback";
 
 type Sector = { id: number; name: string; shortName?: string; active?: boolean };
 type Item = {
@@ -157,7 +158,7 @@ export default function InventarioPage() {
   }
 
   async function onDelete(id: number) {
-    if (!confirm("¿Eliminar este activo?")) return;
+    if (!(await confirmar({ titulo: "¿Eliminar este activo?", accion: "Eliminar", peligro: true }))) return;
     try {
       const res = await fetch(`${API}/inventario/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok && res.status !== 204) throw new Error("No se pudo eliminar");

@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { confirmar } from "@/components/feedback";
 
 type Sector = { id: number; name: string; active?: boolean };
 type Doc = {
@@ -113,7 +114,7 @@ export default function InstructivosPage() {
   }
 
   async function onDelete(id: number) {
-    if (!confirm("¿Eliminar este instructivo?")) return;
+    if (!(await confirmar({ titulo: "¿Eliminar este instructivo?", accion: "Eliminar", peligro: true }))) return;
     try {
       const res = await fetch(`${API}/instructivos/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok && res.status !== 204) throw new Error("No se pudo eliminar");

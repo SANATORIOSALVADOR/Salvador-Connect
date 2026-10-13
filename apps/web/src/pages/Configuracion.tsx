@@ -1,11 +1,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { confirmar } from "@/components/feedback";
 import AparienciaConfig from "./shared/AparienciaConfig";
+import { LEVEL_COLOR, LEVEL_LABEL, MODULES, type Level } from "@/lib/permisos";
 
 // Configuración: secciones Usuarios (ABM + permisos por módulo) y Sectores. Solo superadmin.
 
 const API = "/api";
 
-type Level = "ver" | "editar" | "total";
 type Sector = { id: number; name: string; shortName: string; active: boolean };
 type UserRow = {
   id: number;
@@ -22,50 +23,6 @@ type UserRow = {
   createdAt: string;
 };
 
-const LEVEL_LABEL: Record<Level, string> = { ver: "Ver", editar: "Cargar y editar", total: "Control total" };
-const LEVEL_COLOR: Record<Level, { bg: string; fg: string }> = {
-  ver: { bg: "hsl(220 15% 92%)", fg: "hsl(220 20% 30%)" },
-  editar: { bg: "hsl(215 80% 92%)", fg: "hsl(215 70% 32%)" },
-  total: { bg: "hsl(155 55% 88%)", fg: "hsl(155 60% 24%)" },
-};
-
-/** Qué permite cada nivel en cada módulo (debe coincidir con los controles de la API). */
-const MODULES: { key: string; label: string; levels: Level[]; can: Partial<Record<Level, string>> }[] = [
-  { key: "dashboard", label: "Resumen", levels: ["ver"], can: { ver: "Ver el tablero: vencimientos próximos, guardias de hoy y actividad reciente." } },
-  {
-    key: "administracion",
-    label: "Administración",
-    levels: ["ver", "editar", "total"],
-    can: {
-      ver: "Ver el listado, el calendario y los avisos de vencimientos.",
-      editar: "Además: crear y modificar ítems, marcarlos como cumplidos o reabrirlos.",
-      total: "Además: eliminar ítems y generar los vencimientos fiscales del mes.",
-    },
-  },
-  {
-    key: "guardias",
-    label: "Guardias Médicas",
-    levels: ["ver", "editar", "total"],
-    can: {
-      ver: "Ver calendario, quién está de guardia ahora, registro y estadísticas; exportar CSV.",
-      editar: "Además: cargar y modificar guardias, copiar semana o mes, ver el historial de cambios.",
-      total: "Además: eliminar guardias y configurar horarios de sectores y datos de profesionales.",
-    },
-  },
-  {
-    key: "inventario",
-    label: "Inventario",
-    levels: ["ver", "editar", "total"],
-    can: { ver: "Ver activos y movimientos.", editar: "Además: dar de alta y modificar activos.", total: "Además: eliminar activos." },
-  },
-  {
-    key: "instructivos",
-    label: "Instructivos",
-    levels: ["ver", "editar", "total"],
-    can: { ver: "Ver y consultar instructivos.", editar: "Además: publicar y modificar instructivos.", total: "Además: eliminar instructivos." },
-  },
-  { key: "liquidacion", label: "Liquidación", levels: ["ver"], can: { ver: "Ver el módulo (en desarrollo)." } },
-];
 
 const CARD: CSSProperties = { padding: 16, borderRadius: 14 };
 const MUTED: CSSProperties = { fontSize: 12, color: "hsl(var(--muted-foreground))" };
@@ -228,7 +185,7 @@ export default function ConfiguracionPage() {
       setUerror("La contraseña inicial debe tener al menos 6 caracteres.");
       return;
     }
-    if (uform.role === "usuario" && Object.keys(uform.permissions).length === 0 && !confirm("El usuario no va a tener acceso a ningún módulo. ¿Guardar igual?")) return;
+    if (uform.role === "usuario" && Object.keys(uform.permissions).length === 0 && !(await confirmar({ titulo: "Sin acceso a módulos", mensaje: "El usuario no va a tener acceso a ningún módulo. ¿Guardar igual?", accion: "Guardar igual" }))) return;
     setUsaving(true);
     try {
       const body = {
@@ -258,7 +215,7 @@ export default function ConfiguracionPage() {
   }
 
   async function toggleActive(u: UserRow) {
-    if (u.active && !confirm(`¿Desactivar a ${u.name}? No va a poder ingresar, pero se conserva su historial.`)) return;
+    if (u.active && !(await confirmar({ titulo: `¿Desactivar a ${u.name}?`, mensaje: "No va a poder ingresar, pero se conserva su historial.", accion: "Desactivar", peligro: true }))) return;
     try {
       await apiJson(`/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ active: !u.active }) });
       setNotice(u.active ? "Usuario desactivado." : "Usuario activado.");
@@ -269,7 +226,7 @@ export default function ConfiguracionPage() {
   }
 
   async function deleteUser(u: UserRow) {
-    if (!confirm(`¿Eliminar definitivamente a ${u.name}? Si tiene registros cargados, conviene desactivarlo.`)) return;
+    if (!(await confirmar({ titulo: `¿Eliminar definitivamente a ${u.name}?`, mensaje: "Si tiene registros cargados, conviene desactivarlo.", accion: "Eliminar", peligro: true }))) return;
     try {
       await apiJson(`/users/${u.id}`, { method: "DELETE" });
       setNotice("Usuario eliminado.");
@@ -323,7 +280,7 @@ export default function ConfiguracionPage() {
   }
 
   async function deleteSector(s: Sector) {
-    if (!confirm(`¿Eliminar el sector ${s.name}?`)) return;
+    if (!(await confirmar({ titulo: `¿Eliminar el sector ${s.name}?`, mensaje: "Si tiene guardias, usuarios o activos asociados, conviene desactivarlo.", accion: "Eliminar", peligro: true }))) return;
     try {
       await apiJson(`/sectores/${s.id}`, { method: "DELETE" });
       setNotice("Sector eliminado.");

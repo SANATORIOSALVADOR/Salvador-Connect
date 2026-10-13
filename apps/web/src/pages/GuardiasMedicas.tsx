@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { confirmar } from "@/components/feedback";
 import {
   addDaysIso,
   computeStats,
@@ -637,7 +638,7 @@ export default function GuardiasMedicas() {
   }
 
   async function onDelete(id: number) {
-    if (!confirm("¿Eliminar esta guardia? Queda registrado en el historial de cambios.")) return;
+    if (!(await confirmar({ titulo: "¿Eliminar esta guardia?", mensaje: "Queda registrado en el historial de cambios.", accion: "Eliminar", peligro: true }))) return;
     try {
       await apiJson(`/guardias/${id}`, { method: "DELETE" });
       if (editing?.id === id) closeEdit();
