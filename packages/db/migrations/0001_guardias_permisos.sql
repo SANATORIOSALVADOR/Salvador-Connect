@@ -1,14 +1,8 @@
--- Migración oct-2026: Guardias (profesionales, cobertura por sector, auditoría) + permisos por nivel.
--- Idempotente: se puede correr más de una vez. Mismos nombres que genera drizzle-kit.
--- Uso en el servidor:
---   docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < scripts/migrate-2026-10-guardias-permisos.sql
+-- 0001 · Guardias (profesionales, cobertura, auditoría) + permisos por nivel
+-- Idempotente (se aplicó a mano en algunos servidores antes de existir este runner).
 
-BEGIN;
-
--- Permisos por módulo con nivel (ver | editar | total). Vacío = fila vieja.
 ALTER TABLE user_modules ADD COLUMN IF NOT EXISTS level text NOT NULL DEFAULT '';
 
--- Profesionales de guardia
 CREATE TABLE IF NOT EXISTS profesionales (
   id serial PRIMARY KEY,
   name text NOT NULL,
@@ -28,7 +22,6 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Sectores de guardia y horario de cobertura requerido
 CREATE TABLE IF NOT EXISTS guardia_sectores (
   sector_id integer PRIMARY KEY,
   active boolean NOT NULL DEFAULT true,
@@ -37,7 +30,6 @@ CREATE TABLE IF NOT EXISTS guardia_sectores (
   CONSTRAINT guardia_sectores_sector_id_sectors_id_fk FOREIGN KEY (sector_id) REFERENCES sectors(id) ON DELETE CASCADE
 );
 
--- Historial de cambios de guardias
 CREATE TABLE IF NOT EXISTS guardias_auditoria (
   id serial PRIMARY KEY,
   guardia_id integer,
@@ -49,5 +41,3 @@ CREATE TABLE IF NOT EXISTS guardias_auditoria (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT guardias_auditoria_user_id_users_id_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
-
-COMMIT;

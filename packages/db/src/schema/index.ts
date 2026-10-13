@@ -142,6 +142,12 @@ export const guardiasAuditoriaTable = pgTable("guardias_auditoria", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Registro de migraciones aplicadas (lo maneja apps/api/src/lib/migrate.ts). */
+export const schemaMigrationsTable = pgTable("schema_migrations", {
+  id: text("id").primaryKey(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Configuración general del sistema (clave → valor JSON). Ej.: "apariencia". */
 export const appSettingsTable = pgTable("app_settings", {
   key: text("key").primaryKey(),

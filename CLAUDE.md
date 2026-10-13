@@ -11,7 +11,7 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 
 1. Leer este archivo + `docs/ESTADO_ACTUAL.md` + la skill del módulo si existe (`.claude/skills/`).
 2. **Un módulo por vez**. No mezclar Guardias + Inventario + fiscal en el mismo cambio.
-3. Orden técnico: **schema** (`packages/db`) → `pnpm run db:push` → **API** (`apps/api`) → **UI** (`apps/web/src/pages/`).
+3. Orden técnico: **schema** (`packages/db`) → **migración SQL** en `packages/db/migrations/` (idempotente; la API la aplica al arrancar) → **API** (`apps/api`) → **UI** (`apps/web/src/pages/`). Ver `docs/BACKUPS_Y_MIGRACIONES.md`.
 4. Probar (Docker o `dev:api` / `dev:web`) antes de cerrar.
 5. **No** commitear secretos, `.env`, tokens GitHub, ni contraseñas.
 
@@ -159,7 +159,7 @@ Skill: `.claude/skills/guardias-medicas/SKILL.md`
 - [ ] `usuario` no escribe donde no debe
 - [ ] Sidebar no tapa títulos ni tablas
 - [ ] Calendario legible (7 columnas) si aplica
-- [ ] `db:push` si hubo cambio de schema
+- [ ] Migración nueva en `packages/db/migrations/` si hubo cambio de schema
 - [ ] Sin secretos en el commit
 
 ---
@@ -183,5 +183,6 @@ Skill: `.claude/skills/guardias-medicas/SKILL.md`
 | `docs/ALCANCE_MVP.md` | Alcance funcional original |
 | `docs/PRODUCCION.md` | Deploy Docker |
 | `docs/POSTGRES.md` | DB |
+| `docs/BACKUPS_Y_MIGRACIONES.md` | Migraciones automáticas y backups diarios |
 | `AGENTS.md` | Resumen corto para cualquier agente |
 | `.claude/skills/*/SKILL.md` | Procedimientos por dominio |

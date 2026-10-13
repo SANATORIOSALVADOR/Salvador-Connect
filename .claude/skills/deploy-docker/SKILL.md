@@ -23,9 +23,13 @@ docker compose up -d --force-recreate
 
 ## Schema / tablas nuevas
 
-Con `db` healthy, `pnpm run db:push` usando `DATABASE_URL` hacia el host `db` en la red Compose.
+Las migraciones de `packages/db/migrations/` las aplica la API al arrancar (no hace falta db:push).
+`bash scripts/db-migrate.sh` reinicia la API y muestra qué aplicó.
 
-No publicar 5432 en 0.0.0.0 si el host ya tiene Postgres.
+## Backups
+
+Servicio `backup` (diario 03 h, 14 días en `./backups`). `scripts/backup-now.sh`, `scripts/restore-backup.sh`.
+Ver `docs/BACKUPS_Y_MIGRACIONES.md`.
 
 ## Health
 

@@ -13,17 +13,6 @@ POSTGRES_USER="${POSTGRES_USER:-sanatorio}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}"
 POSTGRES_DB="${POSTGRES_DB:-sanatorio_db}"
 
-NETWORK="$(docker compose ps -q db | xargs -r docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -1)"
-NETWORK="${NETWORK:-salvador-connect_salvador}"
-
-echo "==> Schema"
-docker run --rm --network "$NETWORK" \
-  -e DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}" \
-  -v "$PWD":/app -w /app \
-  node:20-bookworm-slim \
-  bash -c 'corepack enable && corepack prepare pnpm@9.15.0 --activate && pnpm install --no-frozen-lockfile && cd packages/db && pnpm exec drizzle-kit push --force --config ./drizzle.config.ts' \
-  || echo "WARN: schema push"
-
 # La contraseña NO se guarda en el repo: se pide por teclado (o ADMIN_PASSWORD en el entorno).
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 if [ -z "$ADMIN_PASSWORD" ]; then

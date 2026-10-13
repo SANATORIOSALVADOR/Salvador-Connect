@@ -65,6 +65,29 @@ services:
     networks:
       - salvador
 
+  # Backup diario de la base (pg_dump comprimido) en ./backups, se guardan 14 días.
+  # Backup en el momento: bash scripts/backup-now.sh · Restaurar: bash scripts/restore-backup.sh
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      TZ: America/Argentina/Cordoba
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-sanatorio}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-sanatorio_db}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_HOUR: ${BACKUP_HOUR:-3}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups
+      - ./scripts/backup-loop.sh:/backup-loop.sh:ro
+    entrypoint: ["sh", "/backup-loop.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - salvador
+
 volumes:
   pgdata:
 
