@@ -23,7 +23,7 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 |--------|--------|--------|
 | **Administración** | Activo / prioritario | Vencimientos, recordatorios, calendario, generar fiscal (reglas locales ARCA) |
 | **Guardias Médicas** | Activo / prioritario | Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
-| **Usuarios / Configuración** | Activo (base) | ABM usuarios, roles, módulos visibles, sectores |
+| **Configuración** | Activo | Secciones Usuarios (ABM + permisos por módulo y nivel) y Sectores. Solo superadmin |
 | **Inventario** | Código existe; producto poco definido | No ampliar hasta que el usuario lo pida |
 | **Instructivos** | Código existe; producto poco definido | No ampliar hasta pedido |
 | **Liquidación** | Placeholder | No implementar lógica |
@@ -79,10 +79,20 @@ docker compose up -d --force-recreate
 
 ---
 
-## Roles
+## Roles y permisos
 
-| Rol | Acceso |
-|-----|--------|
+| Tipo | Acceso |
+|------|--------|
+| `superadmin` | Todo + Configuración (usuarios y sectores) |
+| `usuario` | Un nivel por módulo: **Ver** · **Cargar y editar** · **Control total** (o sin acceso) |
+
+- Ver = consultar (GET). Cargar y editar = crear / modificar. Control total = eliminar y configurar el módulo.
+- API: `requireModuleAccess("<modulo>")` en cada router; acciones de configuración con `requireLevel("<modulo>", "total")`.
+- Sectores a cargo del usuario limitan dónde escribe en Guardias (ninguno = todos).
+
+Skill: `.claude/skills/usuarios/SKILL.md`
+
+-----|--------|
 | `superadmin` | Todo |
 | `responsable` | Escritura en sus sectores / módulos asignados |
 | `usuario` | Lectura limitada |

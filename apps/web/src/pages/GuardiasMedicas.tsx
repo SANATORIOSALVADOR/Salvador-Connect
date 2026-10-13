@@ -31,7 +31,6 @@ const MODALITIES = [
 ];
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const DOW_LABELS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const WRITE_ROLES = ["superadmin", "responsable", "nivel2", "nivel3"];
 const TAG_PRESETS = [
   { label: "GUARDIA EXTRA", color: "#c2410c" },
   { label: "COBERTURA", color: "#1d4ed8" },
@@ -62,6 +61,12 @@ type AuditEntry = {
   after: Partial<Guardia> | null;
   createdAt: string;
 };
+
+/** Nivel del usuario en un módulo según /auth/me: 0 sin acceso, 1 ver, 2 cargar y editar, 3 control total. */
+function levelRank(me: { role?: string; permissions?: Record<string, string> }, moduleKey: string): number {
+  if (me.role === "superadmin") return 3;
+  return ["ver", "editar", "total"].indexOf(me.permissions?.[moduleKey] ?? "") + 1;
+}
 
 function labelMod(v: string) {
   return MODALITIES.find((s) => s.value === v)?.label ?? v;
@@ -251,6 +256,8 @@ export default function GuardiasMedicas() {
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Guardia | null>(null);
   const [canWrite, setCanWrite] = useState(false);
+  /** Control total: eliminar guardias y configurar sectores / profesionales. */
+  const [canTotal, setCanTotal] = useState(false);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   /** null = puede escribir en todos los sectores; lista = solo en esos (responsable con sectores asignados). */
   const [writableSectorIds, setWritableSectorIds] = useState<number[] | null>(null);
@@ -275,13 +282,14 @@ export default function GuardiasMedicas() {
   const loadMeta = useCallback(async () => {
     try {
       const [me, secs, cfg, profs] = await Promise.all([
-        apiJson<{ role?: string; sectorIds?: number[] }>("/auth/me"),
+        apiJson<{ role?: string; sectorIds?: number[]; permissions?: Record<string, string> }>("/auth/me"),
         apiJson<Sector[]>("/sectors"),
         apiJson<SectorConfig[]>("/guardias/config"),
         apiJson<string[]>("/guardias/profesionales"),
       ]);
       const role = String(me.role || "");
-      setCanWrite(WRITE_ROLES.includes(role));
+      setCanWrite(levelRank(me, "guardias") >= 2);
+      setCanTotal(levelRank(me, "guardias") >= 3);
       setIsSuperadmin(role === "superadmin");
       const mine = Array.isArray(me.sectorIds) ? me.sectorIds : [];
       setWritableSectorIds(role === "superadmin" || mine.length === 0 ? null : mine);
@@ -382,6 +390,7 @@ export default function GuardiasMedicas() {
   );
   const canEditSector = useCallback((sectorId: number) => canWrite && (!writableSectorIds || writableSectorIds.includes(sectorId)), [canWrite, writableSectorIds]);
   const canEdit = (g: Guardia) => canEditSector(g.sectorId);
+  const canDelete = (g: Guardia) => canTotal && canEditSector(g.sectorId);
 
   /** Configs según el filtro de sector del calendario. */
   const expectedConfigs = useMemo(
@@ -749,7 +758,7 @@ export default function GuardiasMedicas() {
             ["carga", "Carga nueva"],
             ["registro", "Registro"],
             ["stats", "Estadísticas"],
-            ...(canWrite ? [["config", "Configuración"]] : []),
+            ...(canTotal ? [["config", "Configuración"]] : []),
           ] as [typeof tab, string][]).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} className={`gm-tab${tab === id ? " is-active" : ""}`} onClick={() => setTab(id)}>{label}</button>
           ))}
@@ -916,7 +925,7 @@ export default function GuardiasMedicas() {
                   {canEdit(g) && (
                     <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                       <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => openEdit(g)}>Editar</button>
-                      <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>
+                      {canDelete(g) && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>}
                     </div>
                   )}
                 </div>
@@ -995,7 +1004,7 @@ export default function GuardiasMedicas() {
                           {canEdit(g) && (
                             <>
                               <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => openEdit(g)}>Editar</button>
-                              <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>
+                              {canDelete(g) && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>}
                             </>
                           )}
                         </td>
@@ -1144,7 +1153,7 @@ export default function GuardiasMedicas() {
         </div>
       )}
 
-      {tab === "config" && canWrite && (
+      {tab === "config" && canTotal && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card" style={PANEL}>
             <div className="section-kicker">Sectores de guardia</div>
@@ -1263,7 +1272,7 @@ export default function GuardiasMedicas() {
             {editError && <div style={{ padding: 12, borderRadius: 10, background: "hsl(0 70% 95%)", color: "hsl(0 55% 32%)", fontSize: 13, fontWeight: 600 }}>{editError}</div>}
             {renderFormFields(editForm, setEditForm)}
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, paddingTop: 8, borderTop: "1px solid hsl(var(--border))" }}>
-              <button type="button" className="btn btn-quiet" onClick={() => void onDelete(editing.id)} disabled={editSaving}>Eliminar</button>
+              {canDelete(editing) ? <button type="button" className="btn btn-quiet" onClick={() => void onDelete(editing.id)} disabled={editSaving}>Eliminar</button> : <span />}
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" className="btn btn-quiet" onClick={closeEdit} disabled={editSaving}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={editSaving}>{editSaving ? "Guardando…" : "Guardar cambios"}</button>

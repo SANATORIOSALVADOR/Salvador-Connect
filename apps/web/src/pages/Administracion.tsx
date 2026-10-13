@@ -52,7 +52,11 @@ const STATUS_OPTIONS = [
   { value: "cumplido", label: "Cumplido" },
   { value: "cancelado", label: "Cancelado" },
 ];
-const WRITE_ROLES = ["superadmin", "responsable", "nivel2", "nivel3"];
+/** Nivel del usuario en un módulo según /auth/me: 0 sin acceso, 1 ver, 2 cargar y editar, 3 control total. */
+function levelRank(me: { role?: string; permissions?: Record<string, string> }, moduleKey: string): number {
+  if (me.role === "superadmin") return 3;
+  return ["ver", "editar", "total"].indexOf(me.permissions?.[moduleKey] ?? "") + 1;
+}
 const FISCAL_MARKER_RE = /\[FISCAL:[A-Z0-9_]+:\d{4}-\d{2}\]\s*/g;
 const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -133,6 +137,8 @@ export default function Administracion() {
   const [editError, setEditError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [canWrite, setCanWrite] = useState(false);
+  /** Control total: eliminar ítems y generar vencimientos fiscales. */
+  const [canTotal, setCanTotal] = useState(false);
 
   // Se trae todo y se filtra en cliente: así el calendario y los avisos no dependen del filtro del listado.
   const load = useCallback(async () => {
@@ -151,7 +157,8 @@ export default function Administracion() {
       setItems(Array.isArray(data) ? data : []);
       if (meRes.ok) {
         const me = await meRes.json();
-        setCanWrite(WRITE_ROLES.includes(String(me.role || "")));
+        setCanWrite(levelRank(me, "administracion") >= 2);
+        setCanTotal(levelRank(me, "administracion") >= 3);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -414,7 +421,7 @@ export default function Administracion() {
         </div>
       )}
 
-      {canWrite && (
+      {canTotal && (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <p className="page-subtitle" style={{ margin: 0, maxWidth: 520 }}>
             Genera los vencimientos del mes según el portal ARCA de este CUIT. Si la fecha cae en fin de semana o feriado, pasa al siguiente día hábil.
@@ -498,7 +505,7 @@ export default function Administracion() {
                                   <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void setStatus(it.id, "pendiente")}>Reabrir</button>
                                 )}
                                 <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => openEdit(it)}>Editar</button>
-                                <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(it.id)}>Eliminar</button>
+                                {canTotal && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(it.id)}>Eliminar</button>}
                               </div>
                             )}
                           </td>
@@ -630,7 +637,7 @@ export default function Administracion() {
             {editError && <div className="form-error">{editError}</div>}
             {renderFields(editForm, setEditForm)}
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" className="btn btn-quiet" onClick={() => void onDelete(editing.id)}>Eliminar</button>
+              {canTotal ? <button type="button" className="btn btn-quiet" onClick={() => void onDelete(editing.id)}>Eliminar</button> : <span />}
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" className="btn btn-quiet" onClick={() => setEditing(null)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={editSaving}>{editSaving ? "Guardando…" : "Guardar cambios"}</button>

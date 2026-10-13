@@ -1,41 +1,49 @@
 ---
 name: usuarios
-description: ABM de usuarios y permisos del Sanatorio del Salvador — crear, editar, módulos visibles, roles, sectores, reset de contraseña. Usar al tocar Usuarios.tsx o routes/users.ts.
+description: Configuración → Usuarios y Sectores del Sanatorio del Salvador — ABM de usuarios, permisos por módulo con niveles (Ver / Cargar y editar / Control total), sectores a cargo, reset de contraseña. Usar al tocar Configuracion.tsx, Usuarios.tsx, routes/users.ts o los controles de permisos de lib/auth.ts.
 ---
 
-# Skill — Usuarios y permisos
+# Skill — Usuarios, permisos y sectores (Configuración)
 
 ## Archivos
 
-- UI: `apps/web/src/pages/Usuarios.tsx`
-- API: `apps/api/src/routes/users.ts` (requiere `superadmin`)
-- Tablas: `users`, `user_modules`, `user_sectors`
+- UI: `apps/web/src/pages/Configuracion.tsx` (secciones **Usuarios** y **Sectores**).
+  `Usuarios.tsx` solo re-exporta Configuración (la ruta `/usuarios` sigue funcionando).
+- API: `apps/api/src/routes/users.ts` (todo requiere `superadmin`), `routes/sectores.ts`.
+- Permisos: `apps/api/src/lib/auth.ts` → `PERMISSION_MODULES`, `requireModuleAccess`, `requireLevel`, `hasLevel`.
+- Tablas: `users`, `user_modules (user_id, module_key, level)`, `user_sectors`.
 
-## Formulario crear / editar
+## Modelo
 
-Debe verse **ordenado**, con secciones separadas (no texto pegado):
+- Tipo de cuenta: `superadmin` (todo + administra usuarios y sectores) o `usuario`.
+- Usuario: un nivel por módulo. Sin fila = sin acceso.
 
-1. Nombre, usuario, contraseña, estado
-2. **Rol:** Usuario | Responsable de sector
-3. **Permisos rápidos** (presets opcionales)
-4. **Módulos que puede ver** — checkboxes/cards por módulo
-5. **Sectores asignados** — chips opcionales
+| Nivel | API | Ejemplos |
+|-------|-----|----------|
+| `ver` | GET | ver listados, calendario, estadísticas, exportar |
+| `editar` (Cargar y editar) | POST / PUT / PATCH | crear, modificar, marcar cumplido, copiar guardias |
+| `total` (Control total) | DELETE + acciones de configuración | eliminar, generar vencimientos fiscales, horarios de sectores y profesionales de Guardias |
 
-Mismos campos en **crear** y **editar**. Reset password es modal aparte (solo contraseña).
+- `dashboard` y `liquidacion` solo admiten `ver` (un nivel mayor se recorta).
+- Filas viejas sin `level`: rol `responsable`/`nivel2`/`nivel3` → `total`; resto → `ver`.
+- Sectores a cargo: en Guardias limitan dónde carga/modifica. Ninguno = todos.
+- Las descripciones de cada nivel por módulo están en `MODULES` de `Configuracion.tsx`;
+  si cambia un control en la API, actualizar ese texto.
 
-## Módulos del catálogo
+## Reglas de seguridad (API)
 
-`dashboard`, `administracion`, `guardias`, `inventario`, `instructivos`, `liquidacion`
+- No podés desactivarte, quitarte superadmin ni eliminarte.
+- No se puede dejar el sistema sin un superadmin activo.
+- Desactivar o resetear clave cierra las sesiones del usuario.
+- Eliminar un usuario con registros cargados devuelve 409: desactivarlo.
 
-El menú lateral filtra por `user.modules` (superadmin ve todo).
+## Menú
 
-## UI
-
-Preferir **estilos inline** en el modal para que no dependa del CSS del Docker build (evita textos superpuestos).
+`scripts/patch-shell.mjs`: el menú filtra por `user.modules`; "Usuarios" no aparece (vive en Configuración)
+y "Configuración" solo para superadmin.
 
 ## Checklist
 
-- [ ] Crear con módulos y sectores
-- [ ] Editar cambia módulos y se refleja en el menú al re-login o refresh de sesión
-- [ ] Superadmin no se edita/borra desde la grilla
-- [ ] Modal legible, sin labels pegados
+- [ ] Crear con permisos y sectores; copiar permisos de otro usuario
+- [ ] Cada nivel bloquea lo que corresponde (pruebas en `D:\dev\_pgtest\api-test.sh`)
+- [ ] El menú y los botones reflejan los permisos al volver a cargar la página

@@ -30,7 +30,8 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
       return next;
     });
   };
-  const visibleNavItems = navItems.filter((item) => user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1)));
+  // Usuarios vive dentro de Configuración (solo superadmin).
+  const visibleNavItems = navItems.filter((item) => item.href !== '/usuarios' && (user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1))));
   const nav = <nav style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
     {!collapsed && <div className="nav-label">Operación</div>}
     {visibleNavItems.map(({ href, label, icon: Icon }) => (
@@ -38,10 +39,10 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
         <Icon className="nav-icon" />{!collapsed && <span>{label}</span>}
       </Link>
     ))}
-    {!collapsed && <div className="nav-label">Espacio</div>}
-    <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={\`nav-item \${location === '/configuracion' ? 'active' : ''}\`} title="Configuración" data-testid="link-nav-configuracion">
+    {user?.role === 'superadmin' && !collapsed && <div className="nav-label">Espacio</div>}
+    {user?.role === 'superadmin' && <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={\`nav-item \${location === '/configuracion' || location === '/usuarios' ? 'active' : ''}\`} title="Configuración" data-testid="link-nav-configuracion">
       <Settings2 className="nav-icon" />{!collapsed && <span>Configuración</span>}
-    </Link>
+    </Link>}
   </nav>;
   const sideW = collapsed ? 72 : 248;
   return <div className={\`workspace-shell\${collapsed ? " is-collapsed" : ""}\`} style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
