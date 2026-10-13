@@ -48,7 +48,7 @@ function TooltipCaja({ active, payload, label, sufijo = "" }: { active?: boolean
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 10, padding: "8px 10px", fontSize: 12, boxShadow: "0 8px 24px rgba(15,23,42,.18)" }}>
-      <div style={{ fontWeight: 800, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
       {payload.map((p) => (
         <div key={p.name} style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color }} />

@@ -10,7 +10,7 @@ const MAX_LADO = 256; // px: el logo se achica para que cargue rápido
 
 const CARD: CSSProperties = { padding: 18, borderRadius: 14 };
 const MUTED: CSSProperties = { fontSize: 12, color: "hsl(var(--muted-foreground))" };
-const H3: CSSProperties = { margin: "0 0 10px", fontSize: 15, fontWeight: 800 };
+const H3: CSSProperties = { margin: "0 0 10px", fontSize: 15, fontWeight: 700 };
 
 /** Achica imágenes PNG/JPG/WEBP a 256 px como máximo; los SVG se usan tal cual. */
 async function leerLogo(file: File): Promise<string> {
@@ -200,13 +200,13 @@ export default function AparienciaConfig({ onNotice, onError }: { onNotice: (m: 
                 <div style={{ width: 28, height: 28, borderRadius: 8, background: form.logo ? "#fff" : "hsl(var(--sidebar-primary))", display: "grid", placeItems: "center", overflow: "hidden" }}>
                   {form.logo && <img src={form.logo} alt="" style={{ width: "90%", height: "90%", objectFit: "contain" }} />}
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.1 }}>{form.nombre}<div style={{ fontSize: 9, opacity: 0.6, fontWeight: 600 }}>{form.subtitulo}</div></div>
+                <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{form.nombre}<div style={{ fontSize: 9, opacity: 0.6, fontWeight: 600 }}>{form.subtitulo}</div></div>
               </div>
-              <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2, marginTop: "auto" }}>{form.tituloLogin}</div>
+              <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2, marginTop: "auto" }}>{form.tituloLogin}</div>
               {form.mensajeLogin && <div style={{ fontSize: 11, opacity: 0.75 }}>{form.mensajeLogin}</div>}
             </div>
             <div style={{ background: "hsl(var(--background))", padding: 16, display: "flex", flexDirection: "column", gap: 8, justifyContent: "center" }}>
-              <div style={{ fontSize: 14, fontWeight: 800 }}>Iniciar sesión.</div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Iniciar sesión.</div>
               <div style={{ height: 26, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }} />
               <div style={{ height: 26, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }} />
               <div style={{ height: 28, borderRadius: 8, background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontSize: 12, fontWeight: 700, display: "grid", placeItems: "center" }}>Ingresar</div>

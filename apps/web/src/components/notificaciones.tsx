@@ -104,7 +104,7 @@ export function Notificaciones({ usuario }: { usuario?: string }) {
       >
         <Bell size={16} />
         {noLeidas.length > 0 && (
-          <span style={{ position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, fontSize: 10, fontWeight: 800, lineHeight: "18px", textAlign: "center", color: "#fff", background: urgentes ? "#d03b3b" : "#2a78d6" }}>
+          <span style={{ position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, fontSize: 10, fontWeight: 700, lineHeight: "18px", textAlign: "center", color: "#fff", background: urgentes ? "#d03b3b" : "#2a78d6" }}>
             {noLeidas.length > 99 ? "99+" : noLeidas.length}
           </span>
         )}
@@ -140,7 +140,7 @@ export function Notificaciones({ usuario }: { usuario?: string }) {
                   <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, marginTop: 6, flex: "0 0 auto", background: leida ? "transparent" : nv.color, border: `2px solid ${nv.color}` }} />
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ display: "flex", gap: 6, alignItems: "baseline", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: "hsl(var(--muted-foreground))" }}>{nv.etiqueta} · {MODULO[n.modulo]}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "hsl(var(--muted-foreground))" }}>{nv.etiqueta} · {MODULO[n.modulo]}</span>
                     </span>
                     <span style={{ display: "block", fontSize: 13, fontWeight: leida ? 600 : 800, marginTop: 2 }}>{n.titulo}</span>
                     <span style={{ display: "block", fontSize: 12, color: "hsl(var(--muted-foreground))", marginTop: 2 }}>{n.detalle}</span>

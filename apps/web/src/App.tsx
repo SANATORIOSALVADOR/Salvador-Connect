@@ -195,7 +195,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
     <div className="main-column" style={{ marginLeft: sideW, paddingLeft: 8, width: `calc(100% - ${sideW}px)`, maxWidth: `calc(100% - ${sideW}px)`, minWidth: 0, display: 'flex', flexDirection: 'column', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <header className="topbar" style={{ paddingLeft: 20, paddingRight: 20 }}>
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menú" data-testid="button-open-menu"><Menu size={18} /></button>
-        <div className="topbar-meta"><span className="font-mono">{apariencia.nombre.toUpperCase()}</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
+        <div className="topbar-meta"><span style={{ fontWeight: 600 }}>{apariencia.nombre}</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/perfil" title="Mi perfil" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }} data-testid="link-perfil">
             <div style={{ textAlign: 'right' }}>
@@ -244,7 +244,7 @@ function Dashboard({ user }: { user?: { name?: string; email?: string | null; ro
       <div className="dashboard-grid">
         <div className="card section-card">
           <div className="section-head"><div><div className="section-title">Próximo en agenda</div><div className="section-kicker">La prioridad más cercana de tu operación</div></div><Link href="/administracion" className="btn btn-quiet" style={{ padding: '8px 11px' }} data-testid="link-view-agenda">Ver agenda <ArrowUpRight size={14} /></Link></div>
-          <div className="reminder-highlight"><div><div className="eyebrow">Siguiente vencimiento pendiente</div><div style={{ fontFamily: 'var(--app-font-display)', fontWeight: 800, fontSize: 19, marginTop: 7 }}>{data?.nextReminder || 'No hay vencimientos pendientes'}</div></div><div className="reminder-date">{formatDate(data?.nextReminderDate)}</div></div>
+          <div className="reminder-highlight"><div><div className="eyebrow">Siguiente vencimiento pendiente</div><div style={{ fontFamily: 'var(--app-font-display)', fontWeight: 700, fontSize: 19, marginTop: 7 }}>{data?.nextReminder || 'No hay vencimientos pendientes'}</div></div><div className="reminder-date">{formatDate(data?.nextReminderDate)}</div></div>
           <div className="section-head" style={{ marginTop: 21, marginBottom: 7 }}><div><div className="section-title">Accesos directos</div><div className="section-kicker">Atajos para las tareas más frecuentes</div></div></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><QuickAction icon={<ClipboardList size={16} />} title="Revisar agenda" note="Fechas y responsables" href="/administracion" /><QuickAction icon={<Users size={16} />} title="Ver sectores" note={`${sectors.data?.length ?? 0} sectores activos`} href="/configuracion" /></div>
         </div>

@@ -466,7 +466,7 @@ export default function ConfiguracionPage() {
           <form className="card" style={{ width: "min(760px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 16 }} onClick={(e) => e.stopPropagation()} onSubmit={saveUser}>
             <div>
               <div className="eyebrow">{editor.mode === "create" ? "Nuevo acceso" : "Editar usuario"}</div>
-              <h2 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 800 }}>{editor.mode === "create" ? "Crear usuario" : editor.user?.name}</h2>
+              <h2 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 700 }}>{editor.mode === "create" ? "Crear usuario" : editor.user?.name}</h2>
               {editor.user?.legacyRole && <div style={{ ...MUTED, marginTop: 4 }}>Tenía el rol anterior "{editor.user.legacyRole}"; al guardar se convierte a permisos por módulo.</div>}
             </div>
             {uerror && <div className="form-error">{uerror}</div>}
@@ -629,7 +629,7 @@ export default function ConfiguracionPage() {
           <form className="card" style={{ width: "min(420px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={doReset}>
             <div>
               <div className="eyebrow">Seguridad</div>
-              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800 }}>Restablecer contraseña · @{resetUser.username}</h2>
+              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 700 }}>Restablecer contraseña · @{resetUser.username}</h2>
               <p className="page-subtitle" style={{ marginTop: 6 }}>Se cierran sus sesiones abiertas y deberá cambiarla al ingresar.</p>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -647,7 +647,7 @@ export default function ConfiguracionPage() {
       {sectorEditor && (
         <div style={OVERLAY} onClick={() => setSectorEditor(null)}>
           <form className="card" style={{ width: "min(420px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={saveSector}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{sectorEditor.mode === "create" ? "Nuevo sector" : `Editar ${sectorEditor.sector?.name}`}</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{sectorEditor.mode === "create" ? "Nuevo sector" : `Editar ${sectorEditor.sector?.name}`}</h2>
             <label className="field"><span className="field-label">Nombre</span><input className="input" required value={sform.name} onChange={(e) => setSform({ ...sform, name: e.target.value })} /></label>
             <label className="field"><span className="field-label">Abreviatura</span><input className="input" maxLength={8} value={sform.shortName} placeholder="Opcional (ej. UTI)" onChange={(e) => setSform({ ...sform, shortName: e.target.value })} /></label>
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 600 }}>

@@ -248,7 +248,7 @@ export default function InventarioPage() {
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", zIndex: 80, padding: 16 }} onClick={() => setModal(null)}>
           <form className="card" style={{ width: "min(520px, 100%)", padding: 20, display: "grid", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={onSave}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{modal === "create" ? "Nuevo activo" : "Editar activo"}</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{modal === "create" ? "Nuevo activo" : "Editar activo"}</h2>
             <label className="field"><span className="field-label">Nombre</span>
               <input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </label>

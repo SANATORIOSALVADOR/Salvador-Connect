@@ -80,7 +80,7 @@ export function FeedbackHost() {
           style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", padding: 16 }}
         >
           <div role="alertdialog" aria-modal="true" aria-labelledby="sc-confirm-titulo" aria-describedby="sc-confirm-msg" className="card" style={{ width: "min(420px, 100%)", padding: 22, borderRadius: 16, boxShadow: "0 24px 60px rgba(15,23,42,.3)" }}>
-            <h2 id="sc-confirm-titulo" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{pedido.opts.titulo}</h2>
+            <h2 id="sc-confirm-titulo" style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{pedido.opts.titulo}</h2>
             {pedido.opts.mensaje && <p id="sc-confirm-msg" className="page-subtitle" style={{ marginTop: 8 }}>{pedido.opts.mensaje}</p>}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
               <button type="button" className="btn btn-quiet" onClick={() => cerrar(false)}>Cancelar</button>

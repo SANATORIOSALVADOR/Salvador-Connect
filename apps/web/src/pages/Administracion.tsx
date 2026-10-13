@@ -530,7 +530,7 @@ export default function Administracion() {
             <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button type="button" className="btn btn-quiet" aria-label="Mes anterior" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</button>
-                <span style={{ fontWeight: 800, textTransform: "capitalize", minWidth: 140, textAlign: "center" }}>{monthLabel}</span>
+                <span style={{ fontWeight: 700, textTransform: "capitalize", minWidth: 140, textAlign: "center" }}>{monthLabel}</span>
                 <button type="button" className="btn btn-quiet" aria-label="Mes siguiente" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</button>
               </div>
               <span className="page-subtitle" style={{ margin: 0 }}>Número = pendientes · rojo = vencido</span>
@@ -571,11 +571,11 @@ export default function Administracion() {
                       boxSizing: "border-box",
                     }}
                   >
-                    <span style={{ fontSize: 12, fontWeight: 800, color: "hsl(var(--muted-foreground))" }}>{cell.day}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>{cell.day}</span>
                     {pending.length > 0 && (
                       <span style={{
                         alignSelf: "flex-end", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999,
-                        fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center",
                         background: overdue ? "hsl(0 72% 45%)" : "hsl(var(--primary))", color: overdue ? "#fff" : "hsl(var(--primary-foreground))",
                       }}>{pending.length}</span>
                     )}
@@ -588,12 +588,12 @@ export default function Administracion() {
           <div className="card" style={{ padding: 18, minHeight: 280 }}>
             {!selectedDay ? (
               <div>
-                <div style={{ fontWeight: 800, marginBottom: 6 }}>Detalle del día</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Detalle del día</div>
                 <p className="page-subtitle" style={{ margin: 0 }}>Hacé clic en un día del calendario para ver vencimientos y recordatorios.</p>
               </div>
             ) : (
               <div>
-                <div style={{ fontWeight: 800, marginBottom: 12, textTransform: "capitalize" }}>
+                <div style={{ fontWeight: 700, marginBottom: 12, textTransform: "capitalize" }}>
                   {new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
                 </div>
                 {(byDate.get(selectedDay) || []).length === 0 && (
@@ -628,7 +628,7 @@ export default function Administracion() {
 
       {tab === "nuevo" && canWrite && (
         <form className="card" style={{ padding: 18, maxWidth: 560, display: "grid", gap: 12 }} onSubmit={onSave}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Nuevo ítem</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Nuevo ítem</h2>
           {renderFields(form, setForm)}
           <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button>
         </form>
@@ -637,7 +637,7 @@ export default function Administracion() {
       {editing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", zIndex: 80, padding: 16 }} onClick={() => setEditing(null)}>
           <form className="card" style={{ width: "min(560px, 100%)", maxHeight: "90vh", overflowY: "auto", padding: 20, display: "grid", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={onSaveEdit}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Editar ítem{editing.source === "fiscal" ? " · Fiscal" : ""}</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Editar ítem{editing.source === "fiscal" ? " · Fiscal" : ""}</h2>
             {editError && <div className="form-error">{editError}</div>}
             {renderFields(editForm, setEditForm)}
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
@@ -654,7 +654,7 @@ export default function Administracion() {
       {fiscalPicker && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", zIndex: 80, padding: 16 }} onClick={() => setFiscalPicker(false)}>
           <div className="card" style={{ width: "min(400px, 100%)", padding: 20 }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 800 }}>Generar vencimientos</h2>
+            <h2 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700 }}>Generar vencimientos</h2>
             <p className="page-subtitle">Elegí el mes a generar según el calendario del portal ARCA.</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
               <label className="field"><span className="field-label">Mes</span>

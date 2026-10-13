@@ -19,7 +19,7 @@ type Me = {
 type Sector = { id: number; name: string };
 
 const CARD: CSSProperties = { padding: 18, borderRadius: 14 };
-const H2: CSSProperties = { margin: "0 0 12px", fontSize: 16, fontWeight: 800 };
+const H2: CSSProperties = { margin: "0 0 12px", fontSize: 16, fontWeight: 700 };
 const MUTED: CSSProperties = { fontSize: 12, color: "hsl(var(--muted-foreground))" };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {

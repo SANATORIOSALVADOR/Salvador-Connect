@@ -197,7 +197,7 @@ export default function InstructivosPage() {
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", zIndex: 80, padding: 16 }} onClick={() => setModal(null)}>
           <form className="card" style={{ width: "min(520px, 100%)", padding: 20, display: "grid", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={onSave}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{modal === "create" ? "Nuevo instructivo" : "Editar instructivo"}</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{modal === "create" ? "Nuevo instructivo" : "Editar instructivo"}</h2>
             <label className="field"><span className="field-label">Título</span>
               <input className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </label>

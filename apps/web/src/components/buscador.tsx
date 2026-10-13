@@ -149,7 +149,7 @@ export function Buscador({ pantallas, esSuperadmin }: { pantallas: { href: strin
                 items.map((it, i) => (
                   <div key={it.clave}>
                     {(i === 0 || items[i - 1].grupo !== it.grupo) && (
-                      <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "hsl(var(--muted-foreground))" }}>{it.grupo}</div>
+                      <div style={{ padding: "8px 10px 4px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "hsl(var(--muted-foreground))" }}>{it.grupo}</div>
                     )}
                     <div
                       id={`buscador-${i}`}

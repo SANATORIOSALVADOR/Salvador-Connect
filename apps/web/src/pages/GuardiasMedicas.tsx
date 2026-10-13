@@ -70,7 +70,7 @@ const PANEL: CSSProperties = { padding: 16, borderRadius: 14 };
 const STICKY_TH: CSSProperties = { position: "sticky", top: 0, zIndex: 1, background: "hsl(var(--card))" };
 const KPI: CSSProperties = { padding: 14, borderRadius: 12, background: "hsl(var(--muted) / .45)" };
 const KPI_LABEL: CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "hsl(var(--muted-foreground))" };
-const KPI_VALUE: CSSProperties = { fontSize: 24, fontWeight: 800, marginTop: 4 };
+const KPI_VALUE: CSSProperties = { fontSize: 24, fontWeight: 700, marginTop: 4 };
 const DOT = (bg: string): CSSProperties => ({ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: bg, marginRight: 6, verticalAlign: "middle" });
 const DETAIL_CARD: CSSProperties = { padding: "10px 12px", borderRadius: 10, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", marginTop: 8 };
 
@@ -900,7 +900,7 @@ export default function GuardiasMedicas() {
                     if (!n && cov?.status !== "sin" && cov?.status !== "baja") return null;
                     return (
                       <button key={c.iso} type="button" onClick={() => setSelectedDay(c.iso)} style={{ textAlign: "left", padding: "8px 10px", borderRadius: 10, border: `1px solid ${c.iso === selectedDay ? "hsl(var(--primary))" : "hsl(var(--border))"}`, background: "hsl(var(--card))", font: "inherit", color: "inherit", cursor: "pointer", ...(cov ? COVERAGE_STYLE[cov.status] : {}) }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, textTransform: "capitalize" }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, textTransform: "capitalize" }}>
                           {new Date(c.iso! + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric" })}
                           <span style={{ fontWeight: 600, color: "hsl(var(--muted-foreground))" }}> · {n} guardia{n === 1 ? "" : "s"}</span>
                         </div>
@@ -966,7 +966,7 @@ export default function GuardiasMedicas() {
                   {ahora.length === 0 && <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>No hay sectores de guardia configurados.</div>}
                   {ahora.map(({ cfg, list, uncovered }) => (
                     <div key={cfg.sectorId} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "4px 8px", borderRadius: 8, fontSize: 12, background: uncovered ? "#fee2e2" : "transparent", color: uncovered ? "#7f1d1d" : undefined }}>
-                      <span style={{ minWidth: 0, flex: "0 0 auto", fontWeight: 800 }} title={cfg.name}><i style={DOT(colorOf(cfg.sectorId).solid)} />{shortOf(cfg.sectorId, cfg.name)}</span>
+                      <span style={{ minWidth: 0, flex: "0 0 auto", fontWeight: 700 }} title={cfg.name}><i style={DOT(colorOf(cfg.sectorId).solid)} />{shortOf(cfg.sectorId, cfg.name)}</span>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         {list.length === 0 ? (
                           <span style={{ color: uncovered ? "#991b1b" : "hsl(var(--muted-foreground))", fontWeight: uncovered ? 700 : 400 }}>{uncovered ? "Nadie de guardia" : "—"}</span>
@@ -1015,7 +1015,7 @@ export default function GuardiasMedicas() {
                     <span className="badge">{g.startTime} – {g.endTime}</span>
                     <TagBadge label={g.tagLabel} color={g.tagColor} />
                   </div>
-                  <div style={{ fontWeight: 800, marginTop: 8 }}>{g.professionalName}</div>
+                  <div style={{ fontWeight: 700, marginTop: 8 }}>{g.professionalName}</div>
                   <div className="page-subtitle" style={{ marginTop: 4 }}>
                     {g.sectorName || "Sector"} · {formatDateAR(g.date)}
                     {g.endDate && g.endDate !== g.date ? ` → ${formatDateAR(g.endDate)}` : ""}
@@ -1093,7 +1093,7 @@ export default function GuardiasMedicas() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 6, marginTop: 6 }}>
                     {ordenadas.map((g) => (
                       <div key={g.id} style={{ padding: "6px 10px", borderRadius: 8, fontSize: 12, border: "1px solid hsl(var(--border))", borderLeft: `4px solid ${colorOf(g.sectorId).solid}`, opacity: sid && g.sectorId !== sid ? 0.65 : 1 }}>
-                        <div style={{ fontWeight: 800 }}>{g.professionalName}</div>
+                        <div style={{ fontWeight: 700 }}>{g.professionalName}</div>
                         <div style={{ color: "hsl(var(--muted-foreground))" }}>
                           {shortOf(g.sectorId, g.sectorName)} · {g.startTime}–{g.endTime}{(g.endDate || g.date) > g.date ? " (+1)" : ""} · {labelMod(g.modality)}
                         </div>
@@ -1330,7 +1330,7 @@ export default function GuardiasMedicas() {
                 return (
                   <div key={c.sectorId} style={{ border: "1px solid hsl(var(--border))", borderRadius: 12, padding: 12, opacity: val.active ? 1 : 0.75 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
                         <input type="checkbox" checked={val.active} disabled={!editable} onChange={(e) => set({ active: e.target.checked })} />
                         {c.name}
                       </label>
@@ -1401,7 +1401,7 @@ export default function GuardiasMedicas() {
           <form className="card" style={{ width: "min(460px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={onCopy}>
             <div>
               <div style={KPI_LABEL}>Copiar guardias</div>
-              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800 }}>Repetir un período</h2>
+              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 700 }}>Repetir un período</h2>
               <p className="page-subtitle" style={{ marginTop: 6 }}>Copia las guardias que empiezan entre las fechas de origen, corridas a la fecha de destino. Las que se solapan con algo ya cargado se omiten.</p>
             </div>
             <div className="form-grid">
@@ -1429,7 +1429,7 @@ export default function GuardiasMedicas() {
           <form className="card" style={{ width: "min(460px, 100%)", maxHeight: "92vh", overflowY: "auto", padding: 22, display: "flex", flexDirection: "column", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={onSaveEdit}>
             <div>
               <div style={KPI_LABEL}>Modificar guardia</div>
-              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800 }}>{editing.professionalName}</h2>
+              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 700 }}>{editing.professionalName}</h2>
             </div>
             {editError && <div style={{ padding: 12, borderRadius: 10, background: "hsl(0 70% 95%)", color: "hsl(0 55% 32%)", fontSize: 13, fontWeight: 600 }}>{editError}</div>}
             {renderFormFields(editForm, setEditForm)}
