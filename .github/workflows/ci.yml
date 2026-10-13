@@ -17,9 +17,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # Toma la versión de "packageManager" en package.json (indicarla también acá hace fallar la acción).
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -62,9 +61,8 @@ jobs:
       API_URL: http://127.0.0.1:5000/api
     steps:
       - uses: actions/checkout@v4
+      # Toma la versión de "packageManager" en package.json (indicarla también acá hace fallar la acción).
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
