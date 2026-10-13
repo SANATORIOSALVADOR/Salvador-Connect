@@ -35,6 +35,14 @@ Grilla del mes: 7 columnas (inline styles preferidos).
 ## Permisos
 
 - Carga/edición: `superadmin` o `responsable`
+- Responsable con sectores asignados: solo carga/edita/borra en esos sectores (sin sectores asignados = todos)
+
+## Reglas de datos
+
+- Si la hora de fin es menor o igual a la de inicio con la misma fecha, la guardia termina el día siguiente (API y UI lo ajustan solos).
+- Profesionales se comparan sin tildes ni mayúsculas; al guardar se reutiliza la grafía ya cargada.
+- Estadísticas del mes cuentan solo las horas dentro del mes.
+- Cobertura del calendario: rojo si algún sector de guardia no tiene a nadie ese día.
 
 ## Checklist
 

@@ -66,6 +66,28 @@ function modalityClass(m: string) {
   return m === "pasiva" ? "gm-chip gm-chip-pasiva" : "gm-chip gm-chip-activa";
 }
 
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Si termina a la misma hora o antes de empezar en el mismo día, termina al día siguiente (nocturna / 24h). */
+function crossesMidnight(f: { date: string; endDate?: string | null; startTime: string; endTime: string }): boolean {
+  const end = f.endDate || f.date;
+  return end === f.date && parseHM(f.endTime) <= parseHM(f.startTime);
+}
+
+/** Corrige guardias viejas cargadas como 20:00–08:00 con la misma fecha de inicio y fin. */
+function normalizeGuardia(g: Guardia): Guardia {
+  return crossesMidnight(g) ? { ...g, endDate: addDaysIso(g.date, 1) } : { ...g, endDate: g.endDate || g.date };
+}
+
+/** Nombre comparable: sin tildes, minúsculas, espacios simples. */
+function personKey(name: string): string {
+  return (name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 function parseHM(t: string): number {
   const [h, m] = (t || "00:00").slice(0, 5).split(":").map((x) => Number(x) || 0);
   return h * 60 + m;
@@ -120,6 +142,16 @@ function shortSector(name?: string | null): string {
   return name.slice(0, 12) + "…";
 }
 
+/** Horas de la guardia que caen dentro de [from, to] (para que el cambio de mes no duplique horas). */
+function hoursInRange(g: Guardia, from: string, to: string): number {
+  const start = g.date < from ? from : g.date;
+  const endDate = g.endDate || g.date;
+  const end = endDate > to ? to : endDate;
+  let total = 0;
+  for (let day = start, n = 0; day <= end && n < 62; day = addDaysIso(day, 1), n++) total += hoursOnDay(g, day);
+  return Math.round(total * 10) / 10;
+}
+
 type SectorDayAgg = { sectorId: number; sectorName: string; people: number; hours: number; names: string[] };
 
 function aggregateDayBySector(items: Guardia[], dayIso: string): SectorDayAgg[] {
@@ -132,8 +164,8 @@ function aggregateDayBySector(items: Guardia[], dayIso: string): SectorDayAgg[] 
       names: new Set<string>(),
       hours: 0,
     };
-    const n = (g.professionalName || "").trim();
-    if (n) cur.names.add(n.toLowerCase());
+    const n = personKey(g.professionalName);
+    if (n) cur.names.add(n);
     cur.hours += hoursOnDay(g, dayIso);
     map.set(key, cur);
   }
@@ -148,14 +180,16 @@ function aggregateDayBySector(items: Guardia[], dayIso: string): SectorDayAgg[] 
     .sort((a, b) => a.sectorName.localeCompare(b.sectorName, "es"));
 }
 
-/** Cobertura del día: ok / baja / sin (mínimo 1 persona por sector visible). */
-function dayCoverageStatus(aggs: SectorDayAgg[], expectedSectors: number): "ok" | "baja" | "sin" | "vacio" {
-  if (aggs.length === 0) return "vacio";
-  const totalPeople = aggs.reduce((a, x) => a + x.people, 0);
-  if (totalPeople === 0) return "sin";
-  if (expectedSectors > 0 && aggs.length < Math.min(expectedSectors, 3) && totalPeople < 2) return "baja";
-  if (totalPeople < 1) return "sin";
-  return "ok";
+type Coverage = { status: "ok" | "baja" | "sin" | "vacio"; missing: string[] };
+
+/** Cobertura del día: "ok" si cada sector esperado tiene al menos una persona, "baja" si falta alguno, "sin" si no hay nadie. */
+function dayCoverage(aggs: SectorDayAgg[], expected: Sector[]): Coverage {
+  if (expected.length === 0) return { status: aggs.length ? "ok" : "vacio", missing: [] };
+  const covered = new Set(aggs.filter((a) => a.people > 0).map((a) => a.sectorId));
+  const missing = expected.filter((s) => !covered.has(s.id)).map((s) => s.name);
+  if (missing.length === expected.length) return { status: "sin", missing };
+  if (missing.length > 0) return { status: "baja", missing };
+  return { status: "ok", missing };
 }
 
 function TagBadge({ label, color }: { label?: string | null; color?: string | null }) {
@@ -294,6 +328,8 @@ export default function GuardiasMedicas() {
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Guardia | null>(null);
   const [canWrite, setCanWrite] = useState(false);
+  /** null = puede cargar en todos los sectores; lista = solo en esos (responsable con sectores asignados). */
+  const [writableSectorIds, setWritableSectorIds] = useState<number[] | null>(null);
   const [profesionales, setProfesionales] = useState<string[]>([]);
   const [allowOverlap, setAllowOverlap] = useState(false);
 
@@ -336,7 +372,7 @@ export default function GuardiasMedicas() {
         throw new Error((body as { message?: string }).message || "No se pudieron cargar las guardias");
       }
       const gData = await gRes.json();
-      setItems(Array.isArray(gData) ? gData : []);
+      setItems(Array.isArray(gData) ? (gData as Guardia[]).map(normalizeGuardia) : []);
       if (sRes.ok) {
         const sData = await sRes.json();
         setSectors(Array.isArray(sData) ? sData : []);
@@ -345,6 +381,8 @@ export default function GuardiasMedicas() {
         const me = await meRes.json();
         const role = String(me.role || "");
         setCanWrite(["superadmin", "responsable", "nivel2", "nivel3"].includes(role));
+        const mine = Array.isArray(me.sectorIds) ? (me.sectorIds as number[]) : [];
+        setWritableSectorIds(role === "superadmin" || mine.length === 0 ? null : mine);
       }
       if (pRes.ok) {
         const names = await pRes.json();
@@ -389,6 +427,21 @@ export default function GuardiasMedicas() {
   }, [items]);
 
   /** Items visibles en calendario/historial según filtro de sector (no afecta stats base). */
+  const formSectors = useMemo(
+    () => (writableSectorIds ? guardiaSectors.filter((s) => writableSectorIds.includes(s.id)) : guardiaSectors),
+    [guardiaSectors, writableSectorIds],
+  );
+
+  function canEdit(g: Guardia) {
+    return canWrite && (!writableSectorIds || writableSectorIds.includes(g.sectorId));
+  }
+
+  /** Sectores que deberían tener guardia cada día (según el filtro de sector del calendario). */
+  const expectedSectors = useMemo(() => {
+    if (!filterSector) return guardiaSectors;
+    return guardiaSectors.filter((s) => s.id === Number(filterSector));
+  }, [guardiaSectors, filterSector]);
+
   const calendarItems = useMemo(() => {
     if (!filterSector) return items;
     const sid = Number(filterSector);
@@ -460,36 +513,31 @@ export default function GuardiasMedicas() {
       list = list.filter((g) => g.sectorId === sid);
     }
     if (statsFilterPerson.trim()) {
-      const q = statsFilterPerson.trim().toLowerCase();
-      list = list.filter((g) => (g.professionalName || "").toLowerCase().includes(q));
+      const q = personKey(statsFilterPerson);
+      list = list.filter((g) => personKey(g.professionalName).includes(q));
     }
     const bySector = new Map<string, { name: string; guardias: number; people: Set<string>; hours: number }>();
     const byPerson = new Map<string, { name: string; days: Set<string>; guardias: number; hours: number }>();
     for (const g of list) {
+      // Solo las horas dentro del mes visible (una guardia 31→1 no se cuenta dos veces).
+      const h = hoursInRange(g, range.from, range.to);
       const sName = g.sectorName || `Sector ${g.sectorId}`;
       const s = bySector.get(sName) || { name: sName, guardias: 0, people: new Set<string>(), hours: 0 };
       s.guardias += 1;
-      s.people.add(g.professionalName);
-      s.hours += hoursOfGuardia(g);
+      s.people.add(personKey(g.professionalName));
+      s.hours += h;
       bySector.set(sName, s);
-      const pName = g.professionalName || "Sin nombre";
-      const p = byPerson.get(pName) || { name: pName, days: new Set<string>(), guardias: 0, hours: 0 };
+      const pKey = personKey(g.professionalName) || "sin nombre";
+      const p = byPerson.get(pKey) || { name: g.professionalName || "Sin nombre", days: new Set<string>(), guardias: 0, hours: 0 };
       p.guardias += 1;
-      p.hours += hoursOfGuardia(g);
-      const start = g.date;
-      const end = g.endDate || g.date;
-      if (start) {
-        const cur = new Date(start + "T12:00:00");
-        const last = new Date((end || start) + "T12:00:00");
-        let n = 0;
-        while (cur <= last && n < 60) {
-          const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
-          p.days.add(iso);
-          cur.setDate(cur.getDate() + 1);
-          n++;
-        }
+      p.hours += h;
+      const start = g.date < range.from ? range.from : g.date;
+      const endDate = g.endDate || g.date;
+      const end = endDate > range.to ? range.to : endDate;
+      for (let day = start, n = 0; day <= end && n < 62; day = addDaysIso(day, 1), n++) {
+        if (hoursOnDay(g, day) > 0) p.days.add(day);
       }
-      byPerson.set(pName, p);
+      byPerson.set(pKey, p);
     }
     const sectorsStats = Array.from(bySector.values())
       .map((s) => ({ name: s.name, guardias: s.guardias, people: s.people.size, hours: Math.round(s.hours * 10) / 10 }))
@@ -497,15 +545,15 @@ export default function GuardiasMedicas() {
     const peopleStats = Array.from(byPerson.values())
       .map((p) => ({ name: p.name, days: p.days.size, guardias: p.guardias, hours: Math.round(p.hours * 10) / 10 }))
       .sort((a, b) => b.hours - a.hours);
-    const totalHours = Math.round(list.reduce((acc, g) => acc + hoursOfGuardia(g), 0) * 10) / 10;
+    const totalHours = Math.round(list.reduce((acc, g) => acc + hoursInRange(g, range.from, range.to), 0) * 10) / 10;
     return { sectors: sectorsStats, people: peopleStats, totalHours, totalGuardias: list.length };
-  }, [items, statsFilterSector, statsFilterPerson]);
+  }, [items, statsFilterSector, statsFilterPerson, range.from, range.to]);
 
   function payloadFrom(f: FormState) {
     return {
       sectorId: Number(f.sectorId),
       date: f.date,
-      endDate: f.endDate || f.date,
+      endDate: crossesMidnight(f) ? addDaysIso(f.date, 1) : f.endDate || f.date,
       startTime: f.startTime,
       endTime: f.endTime,
       modality: f.modality,
@@ -549,6 +597,7 @@ export default function GuardiasMedicas() {
   function openEdit(g: Guardia) {
     setEditing(g);
     setEditError(null);
+    setAllowOverlap(false);
     setEditForm({
       sectorId: String(g.sectorId),
       date: g.date,
@@ -567,6 +616,7 @@ export default function GuardiasMedicas() {
   function closeEdit() {
     setEditing(null);
     setEditError(null);
+    setAllowOverlap(false);
   }
 
   async function onCreate(e: FormEvent) {
@@ -585,6 +635,7 @@ export default function GuardiasMedicas() {
         throw new Error((body as { message?: string }).message || "No se pudo guardar");
       }
       setForm(emptyForm(form.date));
+      setAllowOverlap(false);
       await load();
       setTab("registro");
     } catch (err) {
@@ -638,7 +689,7 @@ export default function GuardiasMedicas() {
           <span className="field-label">Sector</span>
           <select className="select" required value={f.sectorId} onChange={(e) => setF({ ...f, sectorId: e.target.value })}>
             <option value="">Seleccionar…</option>
-            {guardiaSectors.map((s) => (
+            {formSectors.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
@@ -666,6 +717,11 @@ export default function GuardiasMedicas() {
             <input className="input" type="time" required value={f.endTime} onChange={(e) => setF({ ...f, endTime: e.target.value })} />
           </label>
         </div>
+        {crossesMidnight(f) && (
+          <div style={{ fontSize: 12, fontWeight: 600, color: "hsl(var(--muted-foreground))" }}>
+            Termina el día siguiente ({formatDateAR(addDaysIso(f.date, 1))} a las {f.endTime}) · {hoursOfGuardia({ ...f, endDate: addDaysIso(f.date, 1) })} h
+          </div>
+        )}
         <label className="field">
           <span className="field-label">Modalidad</span>
           <select className="select" value={f.modality} onChange={(e) => setF({ ...f, modality: e.target.value })}>
@@ -755,16 +811,16 @@ export default function GuardiasMedicas() {
                     const aggs = aggregateDayBySector(dayItems, cell.iso!);
                     const totalH = Math.round(aggs.reduce((a, x) => a + x.hours, 0) * 10) / 10;
                     const totalP = aggs.reduce((a, x) => a + x.people, 0);
-                    const cov = dayCoverageStatus(aggs, guardiaSectors.length);
+                    const cov = dayCoverage(aggs, expectedSectors);
                     const covClass =
-                      cov === "sin" ? " gm-cell-sin" : cov === "baja" ? " gm-cell-baja" : dayItems.length ? " has-items" : "";
+                      cov.status === "sin" ? " gm-cell-sin" : cov.status === "baja" ? " gm-cell-baja" : dayItems.length ? " has-items" : "";
                     return (
                       <button
                         type="button"
                         key={cell.iso}
                         className={`gm-cell${cell.iso === todayIso ? " is-today" : ""}${cell.iso === selectedDay ? " is-selected" : ""}${covClass}`}
                         onClick={() => setSelectedDay(cell.iso)}
-                        title={cov === "sin" ? "Sin cobertura" : cov === "baja" ? "Cobertura baja" : undefined}
+                        title={cov.status === "sin" ? "Sin cobertura" : cov.status === "baja" ? `Sin cobertura en: ${cov.missing.join(", ")}` : undefined}
                       >
                         <span className="gm-day-num">{cell.day}</span>
                         <div className="gm-day-chips">
@@ -791,7 +847,7 @@ export default function GuardiasMedicas() {
                 <div className="gm-legend">
                   <span><i className="gm-dot gm-chip-activa" /> Sector = personas únicas</span>
                   <span><i className="gm-dot gm-chip-pasiva" /> Total (p · h)</span>
-                  <span style={{ color: "#b91c1c", fontWeight: 700 }}>● Sin / baja cobertura</span>
+                  <span style={{ color: "#b91c1c", fontWeight: 700 }}>● Algún sector sin guardia ese día</span>
                 </div>
               </>
             )}
@@ -802,6 +858,12 @@ export default function GuardiasMedicas() {
               {selectedDay ? new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Seleccioná un día"}
             </h2>
             {!selectedDay && <p className="page-subtitle" style={{ marginTop: 12 }}>Tocá un día del calendario para ver quién está de guardia.</p>}
+            {selectedDay && (() => {
+              const missing = dayCoverage(aggregateDayBySector(dayDetail, selectedDay), expectedSectors).missing;
+              return missing.length > 0 && dayDetail.length > 0 ? (
+                <div style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>Sin guardia: {missing.join(", ")}</div>
+              ) : null;
+            })()}
             {selectedDay && dayDetail.length > 0 && (
               <div style={{ marginTop: 12, marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                 {aggregateDayBySector(dayDetail, selectedDay).map((a) => (
@@ -833,7 +895,7 @@ export default function GuardiasMedicas() {
                   {(g.endDate && g.endDate !== g.date) ? ` → ${formatDateAR(g.endDate)}` : ""}
                 </div>
                 {g.observations && <div style={{ marginTop: 6, fontSize: 13 }}>{g.observations}</div>}
-                {canWrite && (
+                {canEdit(g) && (
                   <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                     <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => openEdit(g)}>Editar</button>
                     <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>
@@ -913,7 +975,7 @@ export default function GuardiasMedicas() {
                       <td><span className={modalityClass(g.modality)}>{labelMod(g.modality)}</span></td>
                       <td><TagBadge label={g.tagLabel} color={g.tagColor} /></td>
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        {canWrite && (
+                        {canEdit(g) && (
                           <>
                             <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => openEdit(g)}>Editar</button>
                             <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>

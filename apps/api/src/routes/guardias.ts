@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq, lte, ne, sql } from "drizzle-orm";
+import type { AuthUser } from "../lib/auth";
 import { db, guardiasTable, sectorsTable } from "@salvador/db";
 import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
 
@@ -10,12 +11,39 @@ const MODALITIES = ["activa", "pasiva"] as const;
 const TIME_RE = /^\d{2}:\d{2}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Nombre comparable: sin tildes, minúsculas, espacios simples ("Pérez  Juan" = "perez juan"). */
+function personKey(name: string): string {
+  return (name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Responsable con sectores asignados: solo escribe en esos. Sin sectores asignados: en todos. */
+function canWriteSector(user: AuthUser | undefined, sectorId: number): boolean {
+  if (!user) return false;
+  if (user.role === "superadmin" || user.sectorIds.length === 0) return true;
+  return user.sectorIds.includes(sectorId);
+}
+
+/** Usa la grafía ya cargada si existe el mismo profesional escrito distinto. */
+async function canonicalProfessionalName(name: string): Promise<string> {
+  const key = personKey(name);
+  const rows = await db.selectDistinct({ name: guardiasTable.professionalName }).from(guardiasTable);
+  return rows.find((r) => personKey(r.name) === key)?.name ?? name;
+}
+
 function mapRow(
   row: typeof guardiasTable.$inferSelect,
   sectorName?: string | null,
   sectorShort?: string | null,
 ) {
-  const endDate = row.endDate || row.date;
+  // Guardias viejas cargadas como 20:00–08:00 con la misma fecha: terminan al día siguiente.
+  let endDate = row.endDate || row.date;
+  if (endDate === row.date && parseHM(row.endTime) <= parseHM(row.startTime)) endDate = addDaysIso(row.date, 1);
   return {
     id: row.id,
     sectorId: row.sectorId,
@@ -76,7 +104,7 @@ function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuard
   const startTime = String(body.startTime ?? "").slice(0, 5);
   const endTime = String(body.endTime ?? "").slice(0, 5);
   const modality = String(body.modality ?? "activa").toLowerCase();
-  const professionalName = String(body.professionalName ?? "").trim();
+  const professionalName = String(body.professionalName ?? "").replace(/\s+/g, " ").trim();
   const observations = String(body.observations ?? "").trim();
   const tagLabel = String(body.tagLabel ?? "").trim().slice(0, 40);
   let tagColor = String(body.tagColor ?? "").trim().slice(0, 20);
@@ -88,6 +116,8 @@ function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuard
   if (!DATE_RE.test(endDate)) return { ok: false, message: "Fecha de fin inválida." };
   if (endDate < date) return { ok: false, message: "La fecha de fin no puede ser anterior al inicio." };
   if (!TIME_RE.test(startTime) || !TIME_RE.test(endTime)) return { ok: false, message: "Horario inválido." };
+  // Nocturna o de 24 h cargada con la misma fecha: termina al día siguiente.
+  if (endDate === date && parseHM(endTime) <= parseHM(startTime)) endDate = addDaysIso(date, 1);
   if (!MODALITIES.includes(modality as (typeof MODALITIES)[number])) {
     return { ok: false, message: "Modalidad inválida (activa o pasiva)." };
   }
@@ -111,18 +141,19 @@ async function findOverlap(
   endTime: string,
   excludeId?: number,
 ): Promise<{ id: number; sectorId: number; date: string; startTime: string; endTime: string } | null> {
-  const name = professionalName.trim().toLowerCase();
-  const candidates = await db
+  const key = personKey(professionalName);
+  // Un día antes por guardias viejas nocturnas guardadas con end_date = date.
+  const rows = await db
     .select()
     .from(guardiasTable)
     .where(
       and(
-        sql`lower(${guardiasTable.professionalName}) = ${name}`,
         lte(guardiasTable.date, endDate),
-        sql`coalesce(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${date}`,
+        sql`coalesce(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${addDaysIso(date, -1)}`,
         excludeId ? ne(guardiasTable.id, excludeId) : sql`true`,
       ),
     );
+  const candidates = rows.filter((c) => personKey(c.professionalName) === key);
 
   const target = rangeToMinutes(date, endDate, startTime, endTime);
   for (const c of candidates) {
@@ -143,7 +174,7 @@ router.get("/guardias/profesionales", async (_req, res): Promise<void> => {
     const names = rows
       .map((r) => (r.name || "").trim())
       .filter(Boolean)
-      .filter((n, i, arr) => arr.findIndex((x) => x.toLowerCase() === n.toLowerCase()) === i);
+      .filter((n, i, arr) => arr.findIndex((x) => personKey(x) === personKey(n)) === i);
     res.json(names);
   } catch (err) {
     console.error("[guardias.profesionales]", err);
@@ -160,7 +191,7 @@ router.get("/guardias", async (req, res): Promise<void> => {
     const conditions = [];
     if (from && DATE_RE.test(from) && to && DATE_RE.test(to)) {
       conditions.push(lte(guardiasTable.date, to));
-      conditions.push(sql`coalesce(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${from}`);
+      conditions.push(sql`coalesce(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${addDaysIso(from, -1)}`);
     }
     if (sectorId && !Number.isNaN(sectorId)) {
       conditions.push(eq(guardiasTable.sectorId, sectorId));
@@ -199,6 +230,11 @@ router.post("/guardias", async (req, res): Promise<void> => {
       res.status(400).json({ message: "Sector no encontrado." });
       return;
     }
+    if (!canWriteSector(req.authUser, data.sectorId)) {
+      res.status(403).json({ message: "Solo podés cargar guardias en los sectores que tenés asignados." });
+      return;
+    }
+    data.professionalName = await canonicalProfessionalName(data.professionalName);
 
     if (!allowOverlap) {
       const overlap = await findOverlap(data.professionalName, data.date, data.endDate, data.startTime, data.endTime);
@@ -259,6 +295,16 @@ router.patch("/guardias/:id", async (req, res): Promise<void> => {
       res.status(400).json({ message: "Sector no encontrado." });
       return;
     }
+    const [existing] = await db.select().from(guardiasTable).where(eq(guardiasTable.id, id)).limit(1);
+    if (!existing) {
+      res.status(404).json({ message: "Guardia no encontrada." });
+      return;
+    }
+    if (!canWriteSector(req.authUser, existing.sectorId) || !canWriteSector(req.authUser, data.sectorId)) {
+      res.status(403).json({ message: "Solo podés modificar guardias de los sectores que tenés asignados." });
+      return;
+    }
+    data.professionalName = await canonicalProfessionalName(data.professionalName);
 
     if (!allowOverlap) {
       const overlap = await findOverlap(data.professionalName, data.date, data.endDate, data.startTime, data.endTime, id);
@@ -311,6 +357,10 @@ router.delete("/guardias/:id", async (req, res): Promise<void> => {
     const [existing] = await db.select().from(guardiasTable).where(eq(guardiasTable.id, id)).limit(1);
     if (!existing) {
       res.status(404).json({ message: "Guardia no encontrada." });
+      return;
+    }
+    if (!canWriteSector(req.authUser, existing.sectorId)) {
+      res.status(403).json({ message: "Solo podés eliminar guardias de los sectores que tenés asignados." });
       return;
     }
     console.info("[guardias.delete]", {
