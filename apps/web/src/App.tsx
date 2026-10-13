@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { PrintHeader } from "@/components/print-header";
 import { Buscador } from "@/components/buscador";
 import { Notificaciones } from "@/components/notificaciones";
 import { PasswordInput } from "@/components/password-input";
@@ -116,7 +117,13 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
   const logout = useLogout();
   const { oscuro, apariencia } = useApariencia();
   // Sale siempre: aunque la sesión ya no exista en el servidor (vencida o cerrada), limpia y vuelve al login.
-  const doLogout = () => logout.mutate(undefined, { onSettled: () => { queryClient.clear(); setMobileOpen(false); setLocation('/'); } });
+  const doLogout = () => logout.mutate(undefined, { onSettled: () => {
+    queryClient.clear();
+    // La app instalable borra las copias de datos guardadas (equipos compartidos).
+    navigator.serviceWorker?.controller?.postMessage('logout');
+    setMobileOpen(false);
+    setLocation('/');
+  } });
   const toggleCollapsed = () => {
     setCollapsed((v) => {
       const next = !v;
@@ -204,6 +211,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
         </div>
       </header>
       <div id="contenido" tabIndex={-1} style={{ outline: 'none' }} />
+      <PrintHeader usuario={user?.name} />
       {/* Mientras se descarga un módulo se muestra un esqueleto en lugar de una pantalla en blanco. */}
       <Suspense fallback={<main className="content-wrap" aria-busy="true"><div className="skeleton" style={{ height: 34, width: 260, marginBottom: 16 }} /><div className="skeleton" style={{ height: 320 }} /></main>}>{children}</Suspense>
     </div>

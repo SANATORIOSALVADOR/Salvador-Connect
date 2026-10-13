@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { imprimir } from "@/components/print-header";
 import { confirmar } from "@/components/feedback";
 
 type Item = {
@@ -462,6 +463,7 @@ export default function Administracion() {
               {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <button type="button" className="btn btn-quiet" onClick={() => void load()}>Actualizar</button>
+            <button type="button" className="btn btn-quiet" onClick={imprimir}>Imprimir</button>
           </div>
           {loading ? (
             <div className="skeleton" style={{ height: 180 }} />

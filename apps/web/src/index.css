@@ -476,3 +476,28 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
 
 /* En pantallas chicas el botón de búsqueda muestra solo el ícono y el atajo. */
 @media (max-width: 720px) { .buscar-texto { display: none; } }
+
+/* ---------- Impresión ---------- */
+.print-only { display: none; }
+@media print {
+  @page { margin: 14mm 12mm 16mm; }
+  html, body { background: #fff !important; color: #000 !important; zoom: 1 !important; }
+  .print-only { display: flex !important; }
+  /* Fuera de la hoja: menú, barra superior, botones, filtros y avisos. */
+  .sidebar, .topbar, .skip-link, .mobile-menu, .no-print, button, select, input[type="date"], [role="status"], [role="alert"] { display: none !important; }
+  .main-column, .workspace-shell > .main-column { margin: 0 !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
+  .content-wrap, .adm-page, .gm-page, .usr-page { padding: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+  .agenda-table-wrap { max-height: none !important; overflow: visible !important; }
+  thead { display: table-header-group; } /* repite los títulos de la tabla en cada hoja */
+  tr { break-inside: avoid; }
+  .gm-calendar-layout { grid-template-columns: 1fr !important; }
+  .gm-calendar-layout > aside { display: none !important; }
+  .gm-cell { min-height: 70px !important; }
+  .print-header { align-items: center; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
+  .print-header img { height: 42px; width: auto; }
+  .print-nombre { font-size: 16pt; font-weight: 800; }
+  .print-sub { font-size: 10pt; color: #444; }
+  .print-meta { margin-left: auto; text-align: right; font-size: 9pt; color: #444; }
+  .print-footer { position: fixed; bottom: 0; left: 0; right: 0; justify-content: center; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 4px; }
+}

@@ -365,9 +365,11 @@ export function computeStats(list: Guardia[], from: string, to: string, configs:
 
 // ---------- CSV ----------
 
-export function downloadCsv(filename: string, rows: (string | number)[][]) {
+/** CSV para Excel (separador ;). Con `titulo`, las primeras filas identifican el archivo (sanatorio, qué y cuándo). */
+export function downloadCsv(filename: string, rows: (string | number)[][], titulo?: string) {
   const esc = (v: string | number) => String(v ?? "").replace(/;/g, ",").replace(/\r?\n/g, " ");
-  const text = rows.map((r) => r.map(esc).join(";")).join("\n");
+  const encabezado = titulo ? [[titulo], [`Exportado el ${new Date().toLocaleString("es-AR")}`], []] : [];
+  const text = [...encabezado, ...rows].map((r) => r.map(esc).join(";")).join("\n");
   const blob = new Blob(["﻿" + text], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

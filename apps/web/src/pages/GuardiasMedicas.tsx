@@ -1,5 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { confirmar } from "@/components/feedback";
+import { imprimir } from "@/components/print-header";
+import { useApariencia } from "./shared/apariencia";
 import {
   addDaysIso,
   computeStats,
@@ -289,6 +291,7 @@ export default function GuardiasMedicas() {
   const [cfgDrafts, setCfgDrafts] = useState<Record<number, { active: boolean; cobertura: Franja[] }>>({});
   const [profDrafts, setProfDrafts] = useState<Record<number, Partial<Profesional>>>({});
   const isNarrow = useIsNarrow();
+  const { apariencia } = useApariencia();
   /** Por debajo de 980 px el calendario y la columna derecha van uno debajo del otro (CSS del build). */
   const isStacked = useIsNarrow(980);
 
@@ -566,7 +569,7 @@ export default function GuardiasMedicas() {
     for (const g of historialItems) {
       rows.push([formatDateAR(g.date), formatDateAR(g.endDate || g.date), g.sectorName || "", g.startTime, g.endTime, g.professionalName, labelMod(g.modality), g.tagLabel || "", g.observations || "", hoursOfGuardia(g), hoursInRange(g, range.from, range.to)]);
     }
-    downloadCsv(`guardias-${range.from}_${range.to}.csv`, rows);
+    downloadCsv(`guardias-${range.from}_${range.to}.csv`, rows, `${apariencia.nombre} — Guardias de ${monthLabel}`);
   }
 
   function exportStatsCsv() {
@@ -575,7 +578,7 @@ export default function GuardiasMedicas() {
     rows.push([]);
     rows.push(["Sector", "Guardias", "Personas", "Horas activas", "Horas pasivas", "Horas totales", "Horas requeridas", "Horas cubiertas", "% cobertura"]);
     for (const s of stats.sectors) rows.push([s.name, s.guardias, s.people, s.horasActivas, s.horasPasivas, s.horas, s.requeridas || "", s.cubiertas || "", s.cobertura ?? ""]);
-    downloadCsv(`productividad-guardias-${range.from}_${range.to}.csv`, rows);
+    downloadCsv(`productividad-guardias-${range.from}_${range.to}.csv`, rows, `${apariencia.nombre} — Productividad de guardias, ${monthLabel}`);
   }
 
   function openEdit(g: Guardia) {
@@ -862,6 +865,7 @@ export default function GuardiasMedicas() {
                   <span className="gm-cal-month">{monthLabel}</span>
                   <button type="button" className="btn btn-quiet" aria-label="Mes siguiente" onClick={nextMonth}>→</button>
                   <button type="button" className="btn btn-quiet" onClick={() => { setCursor(new Date()); setSelectedDay(todayIso); }}>Hoy</button>
+                  <button type="button" className="btn btn-quiet" onClick={imprimir} title="Imprimir la grilla del mes">Imprimir</button>
                 </div>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 600 }}>
                   <span>Sector</span>
@@ -1126,6 +1130,7 @@ export default function GuardiasMedicas() {
                 <button type="button" className="btn btn-quiet" onClick={prevMonth}>← Mes</button>
                 <button type="button" className="btn btn-quiet" onClick={nextMonth}>Mes →</button>
                 <button type="button" className="btn btn-quiet" onClick={exportGuardiasCsv}>Exportar CSV</button>
+                <button type="button" className="btn btn-quiet" onClick={imprimir}>Imprimir</button>
                 {canWrite && (
                   <>
                     <button type="button" className="btn btn-quiet" onClick={() => openCopy("semana")}>Copiar semana anterior</button>
@@ -1224,6 +1229,7 @@ export default function GuardiasMedicas() {
                   <input className="input" placeholder="Buscar nombre…" value={statsFilterPerson} onChange={(e) => setStatsFilterPerson(e.target.value)} style={{ minWidth: 160 }} />
                 </label>
                 <button type="button" className="btn btn-quiet" onClick={exportStatsCsv}>Exportar productividad CSV</button>
+                <button type="button" className="btn btn-quiet" onClick={imprimir}>Imprimir</button>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginTop: 16 }}>
