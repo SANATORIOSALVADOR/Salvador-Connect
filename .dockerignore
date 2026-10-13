@@ -1,0 +1,8 @@
+# Lo que no entra en la imagen de Docker
+.git
+**/node_modules
+**/dist
+.env
+.env.*
+!.env.example
+*.log

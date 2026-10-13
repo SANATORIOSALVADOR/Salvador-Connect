@@ -36,26 +36,25 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 
 ```text
 apps/api/                 → Express, rutas, auth cookie
-apps/web/src/pages/       → Páginas canónicas de módulos (overlay en Docker build)
+apps/web/                 → React + Vite: proyecto normal (fuente única de la web)
+apps/web/src/App.tsx      → Rutas, shell (menú lateral, barra superior), login
+apps/web/src/pages/       → Páginas de módulos (+ subcarpetas guardias/, shared/)
 packages/db/              → Drizzle schema + push
-scripts/patch-shell.mjs   → Shell, sidebar fixed, offset CSS
-artifacts/sanatorio-salvador/ → Snapshot UI Replit (NO editar a diario)
-Dockerfile                → Multi-stage: copia artifacts → overlay pages → patch-shell
+packages/api-client-react → Cliente React Query de la API
+Dockerfile                → Multi-stage: api (esbuild) y web (vite build) → nginx
 docker-compose.yml
 docs/
 .claude/skills/           → Skills por dominio para Claude Code
 ```
 
-### Build web (crítico)
+### Build web
 
-El Dockerfile:
+`apps/web` es un proyecto Vite normal: lo que está en el repo es exactamente lo que se publica.
+`pnpm dev:web` levanta la web en :5173 con `/api` apuntando a la API local (`API_URL` para otra).
+El Docker solo hace `pnpm --filter @salvador/web run build` y sirve `dist/` con nginx.
 
-1. Copia `artifacts/sanatorio-salvador` → `apps/web`
-2. Overlay de `apps/web/src/pages/{GuardiasMedicas,Administracion,Usuarios,Inventario,Instructivos,Configuracion}.tsx`
-3. Ejecuta `scripts/patch-shell.mjs` (sidebar fixed + margin-left del main-column)
-
-**Archivo a editar para un módulo:** `apps/web/src/pages/<Modulo>.tsx`  
-Si agregás página nueva: sumarla al `for` del Dockerfile y al wiring de `App.tsx`.
+(Oct-2026: se eliminó el armado viejo — snapshot de Replit en `artifacts/`, overlay de páginas y
+`scripts/patch-shell.mjs`. Quedan en el historial de git.)
 
 ---
 
@@ -119,7 +118,7 @@ Rutas principales:
 ## UI / layout (reglas duras)
 
 1. Sidebar **fixed**, anchos **248px** abierto / **72px** colapsado.
-2. `.main-column` debe tener `margin-left` igual al ancho del sidebar (CSS `!important` + inline en patch-shell).
+2. `.main-column` debe tener `margin-left` igual al ancho del sidebar (inline en `App.tsx` + CSS en `index.css`).
 3. Calendarios: grilla **7 columnas** (preferir **inline styles** `display:grid; gridTemplateColumns: repeat(7, ...)` para no depender solo del CSS del build).
 4. No reintroducir Clerk, Replit auth, ni dependencias del snapshot viejas.
 5. Textos de página no deben quedar debajo del sidebar.

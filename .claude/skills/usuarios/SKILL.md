@@ -39,7 +39,7 @@ description: Configuración → Usuarios y Sectores del Sanatorio del Salvador �
 
 ## Menú
 
-`scripts/patch-shell.mjs`: el menú filtra por `user.modules`; "Usuarios" no aparece (vive en Configuración)
+`apps/web/src/App.tsx` (Shell): el menú filtra por `user.modules`; "Usuarios" no aparece (vive en Configuración)
 y "Configuración" solo para superadmin.
 
 ## Checklist

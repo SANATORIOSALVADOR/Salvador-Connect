@@ -13,7 +13,6 @@ Ver quién está de guardia por día/sector y cargar registros con horario.
 
 - UI: `apps/web/src/pages/GuardiasMedicas.tsx`
 - Lógica pura (fechas, cobertura, estadísticas): `apps/web/src/pages/guardias/logic.ts`
-  (el Dockerfile copia la carpeta `pages/guardias/` en el overlay)
 - API: `apps/api/src/routes/guardias.ts`
 - Schema: `guardias`, `profesionales`, `guardia_sectores`, `guardias_auditoria` en `packages/db`
 

@@ -12,7 +12,7 @@ Sistema interno **Sanatorio del Salvador**. Monorepo pnpm.
 
 ## Stack
 
-- `apps/web` — React + Vite (UI base desde `artifacts/sanatorio-salvador` + overlay de pages)
+- `apps/web` — React + Vite (proyecto normal; `pnpm dev:web`)
 - `apps/api` — Express + cookie auth
 - `packages/db` — Drizzle + PostgreSQL
 - Docker Compose: `db`, `api`, `web`
@@ -28,4 +28,4 @@ Sistema interno **Sanatorio del Salvador**. Monorepo pnpm.
 
 ## Build web
 
-Editar `apps/web/src/pages/<Modulo>.tsx`. El Dockerfile aplica overlay + `scripts/patch-shell.mjs`.
+Editar `apps/web/src/pages/<Modulo>.tsx` (shell y rutas en `apps/web/src/App.tsx`). El Dockerfile solo compila.

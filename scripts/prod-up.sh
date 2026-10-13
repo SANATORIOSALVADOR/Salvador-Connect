@@ -23,19 +23,6 @@ set -a
 source .env
 set +a
 
-# Recuperar frontend Replit si hace falta (antes del build)
-if [ ! -f apps/web/src/components/ui/button.tsx ] && [ -d artifacts/sanatorio-salvador/src ]; then
-  echo "Restaurando frontend desde artifacts..."
-  bash scripts/restore-frontend.sh || true
-elif [ ! -f apps/web/src/components/ui/button.tsx ]; then
-  echo "Recuperando artifacts desde origin..."
-  git fetch origin 2>/dev/null || true
-  git checkout origin/main -- artifacts/sanatorio-salvador 2>/dev/null || true
-  if [ -d artifacts/sanatorio-salvador/src ]; then
-    bash scripts/restore-frontend.sh || true
-  fi
-fi
-
 echo "Build + up..."
 docker compose down --remove-orphans 2>/dev/null || true
 docker compose up -d --build
