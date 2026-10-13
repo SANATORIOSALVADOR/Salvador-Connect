@@ -115,8 +115,9 @@ export default function Administracion() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("pendiente");
+  const [search, setSearch] = useState(() => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("buscar") ?? "" : ""));
+  // Si se llega desde el buscador se muestran todos los estados, para encontrar también los cumplidos.
+  const [filterStatus, setFilterStatus] = useState(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("buscar") ? "todos" : "pendiente"));
   const [filterType, setFilterType] = useState("todos");
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);

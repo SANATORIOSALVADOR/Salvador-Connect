@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Buscador } from "@/components/buscador";
 import { Notificaciones } from "@/components/notificaciones";
 import { PasswordInput } from "@/components/password-input";
 import { FeedbackHost } from "@/components/feedback";
@@ -196,6 +197,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
             </div>
             <div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div>
           </Link>
+          <Buscador pantallas={visibleNavItems.map(({ href, label }) => ({ href, label }))} esSuperadmin={user?.role === 'superadmin'} />
           <Notificaciones usuario={user?.username} />
           <button className="btn btn-quiet btn-icon" onClick={() => guardarTema(oscuro ? 'claro' : 'oscuro')} title={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} aria-label={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} data-testid="button-theme" style={{ fontSize: 15, width: 34, height: 34 }}>{oscuro ? '☀' : '☾'}</button>
           <button className="btn btn-quiet" style={{ fontSize: 12, padding: '6px 10px' }} onClick={doLogout} disabled={logout.isPending} title="Cerrar sesión" data-testid="button-logout-top">Salir</button>

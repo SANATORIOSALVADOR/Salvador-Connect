@@ -252,10 +252,11 @@ function franjasResumen(c: Franja[]): string {
 }
 
 export default function GuardiasMedicas() {
-  const [tab, setTab] = useState<"calendario" | "carga" | "registro" | "stats" | "config">("calendario");
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const [tab, setTab] = useState<"calendario" | "carga" | "registro" | "stats" | "config">(() => (params?.get("buscar") ? "registro" : params?.get("nueva") ? "carga" : "calendario"));
   const [statsFilterSector, setStatsFilterSector] = useState("");
   const [statsFilterPerson, setStatsFilterPerson] = useState("");
-  const [historialSearch, setHistorialSearch] = useState("");
+  const [historialSearch, setHistorialSearch] = useState(() => params?.get("buscar") ?? "");
   const [cursor, setCursor] = useState(() => new Date());
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [configs, setConfigs] = useState<SectorConfig[]>([]);
@@ -265,7 +266,7 @@ export default function GuardiasMedicas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [filterSector, setFilterSector] = useState("");
+  const [filterSector, setFilterSector] = useState(() => params?.get("sector") ?? "");
   const [filterTag, setFilterTag] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(() => isoOf(new Date()));
   const [saving, setSaving] = useState(false);
