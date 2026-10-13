@@ -10,6 +10,7 @@ import {
   hoursInRange,
   hoursOfGuardia,
   hoursOnDay,
+  intervalOnDay,
   isActiveAt,
   isoOf,
   monthRange,
@@ -62,6 +63,8 @@ type SectorColor = (typeof SECTOR_PALETTE)[number];
 const NO_TAG = "__sin_etiqueta__";
 
 const PANEL: CSSProperties = { padding: 16, borderRadius: 14 };
+/** Encabezado de tabla fijo al hacer scroll dentro del contenedor. */
+const STICKY_TH: CSSProperties = { position: "sticky", top: 0, zIndex: 1, background: "hsl(var(--card))" };
 const KPI: CSSProperties = { padding: 14, borderRadius: 12, background: "hsl(var(--muted) / .45)" };
 const KPI_LABEL: CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "hsl(var(--muted-foreground))" };
 const KPI_VALUE: CSSProperties = { fontSize: 24, fontWeight: 800, marginTop: 4 };
@@ -91,11 +94,6 @@ function labelMod(v: string) {
 
 function modalityClass(m: string) {
   return m === "pasiva" ? "gm-chip gm-chip-pasiva" : "gm-chip gm-chip-activa";
-}
-
-function shortSector(name?: string | null): string {
-  if (!name) return "Sector";
-  return name.length <= 14 ? name : name.slice(0, 12) + "…";
 }
 
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -268,7 +266,7 @@ export default function GuardiasMedicas() {
   const [notice, setNotice] = useState<string | null>(null);
   const [filterSector, setFilterSector] = useState("");
   const [filterTag, setFilterTag] = useState("");
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(() => isoOf(new Date()));
   const [saving, setSaving] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -289,6 +287,8 @@ export default function GuardiasMedicas() {
   const [cfgDrafts, setCfgDrafts] = useState<Record<number, { active: boolean; cobertura: Franja[] }>>({});
   const [profDrafts, setProfDrafts] = useState<Record<number, Partial<Profesional>>>({});
   const isNarrow = useIsNarrow();
+  /** Por debajo de 980 px el calendario y la columna derecha van uno debajo del otro (CSS del build). */
+  const isStacked = useIsNarrow(980);
 
   const todayIso = isoOf(now);
   const [form, setForm] = useState<FormState>(() => emptyForm(isoOf(new Date())));
@@ -379,6 +379,19 @@ export default function GuardiasMedicas() {
     if (tab === "config") void loadProfList();
   }, [canWrite, tab, loadAudit, loadProfList]);
 
+  // Guardias ya cargadas el día que se está cargando (panel lateral de "Carga nueva").
+  const [cargaDia, setCargaDia] = useState<Guardia[]>([]);
+  useEffect(() => {
+    if (tab !== "carga" || !form.date) return;
+    let alive = true;
+    apiJson<Guardia[]>(`/guardias?${new URLSearchParams({ from: form.date, to: form.date })}`)
+      .then((d) => alive && setCargaDia(Array.isArray(d) ? d.map(normalizeGuardia).filter((g) => intervalOnDay(g, form.date)) : []))
+      .catch(() => alive && setCargaDia([]));
+    return () => {
+      alive = false;
+    };
+  }, [tab, form.date, items]);
+
   // Reloj del panel "De guardia ahora": refresca cada minuto y recarga datos cada 5.
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
@@ -417,6 +430,17 @@ export default function GuardiasMedicas() {
     return map;
   }, [configs, sectors]);
   const colorOf = useCallback((sectorId: number): SectorColor => sectorColor.get(sectorId) ?? SECTOR_PALETTE[SECTOR_PALETTE.length - 1], [sectorColor]);
+
+  /** Abreviatura del sector (la configurada, o iniciales del nombre). */
+  const shortOf = useCallback(
+    (sectorId: number, name?: string | null) => {
+      const short = configs.find((c) => c.sectorId === sectorId)?.shortName || sectors.find((x) => x.id === sectorId)?.shortName;
+      if (short) return short;
+      const words = (name || "").split(/\s+/).filter((w) => w.length > 2);
+      return (words.map((w) => w[0]).join("") || (name || "?").slice(0, 3)).toUpperCase().slice(0, 4);
+    },
+    [configs, sectors],
+  );
 
   /** Etiquetas usadas en el mes (agrupadas sin tildes ni mayúsculas), con su color y cantidad. */
   const tagOptions = useMemo(() => {
@@ -767,15 +791,14 @@ export default function GuardiasMedicas() {
     const aggs = Array.from(bySector.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name, "es"));
     const missing = (cov?.sectors || []).filter((s) => s.gaps.length > 0);
     return (
-      <div className="gm-day-chips">
-        {aggs.slice(0, 3).map(([id, a]) => (
-          <span key={id} className="gm-chip" style={{ background: colorOf(id).bg, color: colorOf(id).fg, borderLeft: `3px solid ${colorOf(id).solid}` }} title={`${a.name}: ${a.people.size} persona(s) · ${Math.round(a.hours * 10) / 10} h`}>
-            {shortSector(a.name)} = {a.people.size}
+      <div className="gm-day-chips" style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 3 }}>
+        {aggs.map(([id, a]) => (
+          <span key={id} className="gm-chip" style={{ background: colorOf(id).bg, color: colorOf(id).fg, borderLeft: `3px solid ${colorOf(id).solid}`, maxWidth: "none" }} title={`${a.name}: ${a.people.size} persona(s) · ${Math.round(a.hours * 10) / 10} h`}>
+            {shortOf(id, a.name)} {a.people.size}
           </span>
         ))}
-        {aggs.length > 3 && <span className="gm-chip gm-chip-more">+{aggs.length - 3} sect.</span>}
         {cov && (cov.status === "baja" || cov.status === "sin") && missing.length > 0 && (
-          <span className="gm-chip" style={{ background: "rgba(185,28,28,.12)", color: "#991b1b" }}>Falta: {missing.length} sect.</span>
+          <span className="gm-chip" style={{ background: "rgba(185,28,28,.12)", color: "#991b1b", maxWidth: "none" }} title={missing.map((m) => `${m.name}: ${describeGaps(m)}`).join("\n")}>⚠ {missing.length}</span>
         )}
       </div>
     );
@@ -796,11 +819,11 @@ export default function GuardiasMedicas() {
 
   return (
     <div className="gm-page">
-      <div className="gm-header" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
+      <div className="gm-header" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 12 }}>
         <div>
           <div className="eyebrow">Operación / Cobertura</div>
           <h1 className="page-title">Guardias Médicas</h1>
-          <p className="page-subtitle">Quién está de guardia por sector, cobertura del horario requerido y productividad.</p>
+          <p className="page-subtitle">Cobertura por sector, carga y productividad.</p>
         </div>
         <div className="gm-tabs" role="tablist" style={{ flexWrap: "wrap" }}>
           {([
@@ -829,42 +852,7 @@ export default function GuardiasMedicas() {
 
       {tab === "calendario" && (
         <>
-          <div className="card" style={{ ...PANEL, marginBottom: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <div className="section-kicker">De guardia ahora</div>
-                <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>
-                  {now.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })} · {now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-                </div>
-              </div>
-              {ahora.some((a) => a.uncovered) && (
-                <span style={{ fontSize: 12, fontWeight: 800, color: "#b91c1c" }}>
-                  ● Sin cubrir ahora: {ahora.filter((a) => a.uncovered).map((a) => a.cfg.name).join(", ")}
-                </span>
-              )}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, marginTop: 12 }}>
-              {ahora.length === 0 && <div style={{ fontSize: 13, color: "hsl(var(--muted-foreground))" }}>No hay sectores de guardia configurados.</div>}
-              {ahora.map(({ cfg, list, uncovered }) => (
-                <div key={cfg.sectorId} style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${uncovered ? "rgba(185,28,28,.45)" : "hsl(var(--border))"}`, background: uncovered ? "rgba(254,226,226,.45)" : "hsl(var(--card))" }}>
-                  <div style={{ fontSize: 12, fontWeight: 800 }}><i style={DOT(colorOf(cfg.sectorId).solid)} />{cfg.name}</div>
-                  {list.length === 0 ? (
-                    <div style={{ fontSize: 12, marginTop: 4, color: uncovered ? "#991b1b" : "hsl(var(--muted-foreground))" }}>{uncovered ? "Nadie de guardia" : "Sin guardia (no requerida ahora)"}</div>
-                  ) : (
-                    list.map((g) => (
-                      <div key={g.id} style={{ fontSize: 13, marginTop: 4, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                        <span className={modalityClass(g.modality)} style={{ display: "inline-block" }}>{labelMod(g.modality)}</span>
-                        <strong>{g.professionalName}</strong>
-                        <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>hasta {g.endTime}{(g.endDate || g.date) > todayIso ? " (mañana)" : ""}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="gm-calendar-layout">
+          <div className="gm-calendar-layout" style={{ alignItems: "start" }}>
             <div className="card gm-calendar-panel">
               <div className="gm-cal-toolbar">
                 <div className="gm-cal-nav">
@@ -962,7 +950,35 @@ export default function GuardiasMedicas() {
               </div>
             </div>
 
-            <aside className="card gm-day-panel">
+            <aside style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, ...(isStacked ? { order: -1 } : { position: "sticky", top: 12, maxHeight: "calc(100vh - 24px)", overflowY: "auto" }) }}>
+              <div className="card" style={{ padding: 12, borderRadius: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <div className="section-kicker">De guardia ahora</div>
+                  <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+                  {ahora.length === 0 && <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>No hay sectores de guardia configurados.</div>}
+                  {ahora.map(({ cfg, list, uncovered }) => (
+                    <div key={cfg.sectorId} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "4px 8px", borderRadius: 8, fontSize: 12, background: uncovered ? "rgba(254,226,226,.6)" : "transparent" }}>
+                      <span style={{ minWidth: 0, flex: "0 0 auto", fontWeight: 800, color: colorOf(cfg.sectorId).fg }} title={cfg.name}><i style={DOT(colorOf(cfg.sectorId).solid)} />{shortOf(cfg.sectorId, cfg.name)}</span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        {list.length === 0 ? (
+                          <span style={{ color: uncovered ? "#991b1b" : "hsl(var(--muted-foreground))", fontWeight: uncovered ? 700 : 400 }}>{uncovered ? "Nadie de guardia" : "—"}</span>
+                        ) : (
+                          list.map((g, k) => (
+                            <span key={g.id}>
+                              {k > 0 && " · "}
+                              <strong>{g.professionalName}</strong>{" "}
+                              <span style={{ color: "hsl(var(--muted-foreground))" }}>({g.modality === "pasiva" ? "P" : "A"}, hasta {g.endTime}{(g.endDate || g.date) > todayIso ? " mañ." : ""})</span>
+                            </span>
+                          ))
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card gm-day-panel">
               <div className="section-kicker">Detalle del día</div>
               <h2 className="section-title" style={{ marginTop: 6, textTransform: "capitalize" }}>
                 {selectedDay ? new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Seleccioná un día"}
@@ -1007,13 +1023,14 @@ export default function GuardiasMedicas() {
                   )}
                 </div>
               ))}
+              </div>
             </aside>
           </div>
         </>
       )}
 
       {tab === "carga" && (
-        <div style={{ maxWidth: 460 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isNarrow ? "1fr" : "minmax(320px, 480px) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
           {!canWrite ? (
             <div className="card" style={{ padding: 20 }}>
               <div className="section-kicker">Carga nueva</div>
@@ -1030,6 +1047,57 @@ export default function GuardiasMedicas() {
               </button>
             </form>
           )}
+          {canWrite && (() => {
+            const sid = Number(form.sectorId) || null;
+            const cfg = sid ? configs.find((c) => c.sectorId === sid) : undefined;
+            const delSector = sid ? cargaDia.filter((g) => g.sectorId === sid) : [];
+            const cov = cfg ? dayCoverage(delSector, form.date, [cfg], "9999-12-31").sectors[0] : undefined;
+            const yo = personKey(form.professionalName);
+            const propio = normalizeGuardia({ id: 0, sectorId: sid || 0, date: form.date, endDate: crossesMidnight(form) ? addDaysIso(form.date, 1) : form.endDate || form.date, startTime: form.startTime, endTime: form.endTime, modality: form.modality, professionalName: form.professionalName, observations: "" });
+            const mio = intervalOnDay(propio, form.date);
+            const choque = yo
+              ? cargaDia.filter((g) => {
+                  if (personKey(g.professionalName) !== yo) return false;
+                  const iv = intervalOnDay(g, form.date);
+                  return !!(iv && mio && iv[0] < mio[1] && mio[0] < iv[1]);
+                })
+              : [];
+            const ordenadas = [...cargaDia].sort((a, b) => (a.sectorId === sid ? -1 : 0) - (b.sectorId === sid ? -1 : 0) || (a.sectorName || "").localeCompare(b.sectorName || "", "es") || a.startTime.localeCompare(b.startTime));
+            return (
+              <div className="card" style={{ ...PANEL, position: isNarrow ? "static" : "sticky", top: 12 }}>
+                <div className="section-kicker">Ese día</div>
+                <h3 className="section-title" style={{ marginTop: 4, fontSize: 16, textTransform: "capitalize" }}>
+                  {form.date ? new Date(form.date + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Elegí una fecha"}
+                </h3>
+                {cfg && (
+                  <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 10, fontSize: 13, fontWeight: 700, background: cov && cov.gaps.length ? "rgba(254,226,226,.6)" : "rgba(220,252,231,.7)", color: cov && cov.gaps.length ? "#991b1b" : "#14532d", borderLeft: `4px solid ${colorOf(cfg.sectorId).solid}` }}>
+                    {cfg.name}: {!cov ? "no requiere cobertura este día" : cov.gaps.length ? `falta cubrir ${describeGaps(cov)}` : cov.simpleRule ? "ya tiene guardia" : "horario requerido cubierto"}
+                  </div>
+                )}
+                {!sid && <p className="page-subtitle" style={{ marginTop: 8 }}>Elegí un sector para ver qué horas faltan cubrir.</p>}
+                {choque.length > 0 && (
+                  <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "rgba(254,243,199,.8)", color: "#713f12" }}>
+                    ⚠ {form.professionalName} ya tiene guardia en ese horario: {choque.map((g) => `${g.sectorName} ${g.startTime}–${g.endTime}`).join(", ")}
+                  </div>
+                )}
+                <div style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: "hsl(var(--muted-foreground))" }}>Guardias cargadas ({cargaDia.length})</div>
+                {cargaDia.length === 0 ? (
+                  <p className="page-subtitle" style={{ marginTop: 6 }}>Todavía no hay guardias cargadas este día.</p>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 6, marginTop: 6 }}>
+                    {ordenadas.map((g) => (
+                      <div key={g.id} style={{ padding: "6px 10px", borderRadius: 8, fontSize: 12, border: "1px solid hsl(var(--border))", borderLeft: `4px solid ${colorOf(g.sectorId).solid}`, opacity: sid && g.sectorId !== sid ? 0.65 : 1 }}>
+                        <div style={{ fontWeight: 800 }}>{g.professionalName}</div>
+                        <div style={{ color: "hsl(var(--muted-foreground))" }}>
+                          {shortOf(g.sectorId, g.sectorName)} · {g.startTime}–{g.endTime}{(g.endDate || g.date) > g.date ? " (+1)" : ""} · {labelMod(g.modality)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1065,11 +1133,11 @@ export default function GuardiasMedicas() {
                 )}
               </div>
             </div>
-            <div className="agenda-table-wrap">
+            <div className="agenda-table-wrap" style={{ maxHeight: "calc(100vh - 260px)", minHeight: 240, overflowY: "auto" }}>
               <table className="agenda-table">
                 <thead>
                   <tr>
-                    <th>Desde</th><th>Hasta</th><th>Sector</th><th>Horario</th><th>Horas</th><th>Profesional</th><th>Modalidad</th><th>Etiqueta</th><th />
+                    {["Desde", "Hasta", "Sector", "Horario", "Horas", "Profesional", "Modalidad", "Etiqueta", ""].map((h, n) => <th key={n} style={STICKY_TH}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -1245,7 +1313,7 @@ export default function GuardiasMedicas() {
             <div className="section-kicker">Sectores de guardia</div>
             <h3 className="section-title" style={{ marginTop: 4, fontSize: 16 }}>Horario que cada sector necesita cubierto</h3>
             <p className="page-subtitle" style={{ marginTop: 4 }}>El calendario marca en amarillo o rojo solo los huecos de este horario. Sin horario fijo, se marca cuando un día no hay nadie.</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 12, marginTop: 14, alignItems: "start" }}>
               {configs.map((c) => {
                 const draft = cfgDrafts[c.sectorId];
                 const val = draft || { active: c.active, cobertura: c.cobertura };
