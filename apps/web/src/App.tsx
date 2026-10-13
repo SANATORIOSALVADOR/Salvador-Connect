@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { DashboardGraficos } from "@/components/dashboard-graficos";
+import { Notificaciones } from "@/components/notificaciones";
 import { PasswordInput } from "@/components/password-input";
 import { FeedbackHost } from "@/components/feedback";
 import { guardarTema, useApariencia } from '@/pages/shared/apariencia';
@@ -213,6 +215,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
             </div>
             <div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div>
           </Link>
+          <Notificaciones usuario={user?.username} />
           <button className="btn btn-quiet btn-icon" onClick={() => guardarTema(oscuro ? 'claro' : 'oscuro')} title={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} aria-label={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} data-testid="button-theme" style={{ fontSize: 15, width: 34, height: 34 }}>{oscuro ? '☀' : '☾'}</button>
           <button className="btn btn-quiet" style={{ fontSize: 12, padding: '6px 10px' }} onClick={doLogout} disabled={logout.isPending} title="Cerrar sesión" data-testid="button-logout-top">Salir</button>
         </div>
@@ -254,6 +257,7 @@ function Dashboard({ user }: { user?: { name?: string; email?: string | null; ro
         </div>
         <div className="card section-card"><div className="section-head"><div><div className="section-title">Actividad reciente</div><div className="section-kicker">Últimos movimientos del espacio</div></div><ActivityIcon size={17} color="hsl(var(--muted-foreground))" /></div>{activity.isLoading ? <div style={{ display: 'grid', gap: 12 }}>{[1,2,3].map((item) => <div className="skeleton" style={{ height: 42 }} key={item} />)}</div> : activity.isError ? <div className="empty-state" style={{ padding: '20px 5px' }}>La actividad no está disponible.</div> : activity.data?.length ? activity.data.map((entry) => <ActivityRow key={entry.id} entry={entry} />) : <div className="empty-state" style={{ padding: '20px 5px' }}>Todavía no hay movimientos registrados.</div>}</div>
       </div>
+      <DashboardGraficos />
     </>}
   </main>;
 }
