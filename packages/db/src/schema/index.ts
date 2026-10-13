@@ -3,6 +3,7 @@ import {
   boolean,
   date,
   integer,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -79,6 +80,18 @@ export const remindersTable = pgTable("reminders", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Profesionales que hacen guardias (se crean solos al cargar un nombre nuevo). */
+export const profesionalesTable = pgTable("profesionales", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  // Nombre normalizado (sin tildes, minúsculas) para no duplicar "Pérez" / "perez".
+  nameKey: text("name_key").notNull().unique(),
+  matricula: text("matricula").notNull().default(""),
+  especialidad: text("especialidad").notNull().default(""),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const guardiasTable = pgTable("guardias", {
   id: serial("id").primaryKey(),
   sectorId: integer("sector_id")
@@ -93,11 +106,37 @@ export const guardiasTable = pgTable("guardias", {
   modality: text("modality").notNull().default("activa"),
   type: text("type").notNull().default(""),
   professionalName: text("professional_name").notNull(),
+  professionalId: integer("professional_id").references(() => profesionalesTable.id),
   observations: text("observations").notNull().default(""),
   // Etiqueta opcional (ej. GUARDIA EXTRA) + color
   tagLabel: text("tag_label").notNull().default(""),
   tagColor: text("tag_color").notNull().default(""),
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Franja horaria que un sector necesita cubierta. dow: 0 = domingo … 6 = sábado. */
+export type CoberturaFranja = { dow: number; start: string; end: string };
+
+/** Sectores que participan de Guardias y su horario de cobertura requerido. */
+export const guardiaSectoresTable = pgTable("guardia_sectores", {
+  sectorId: integer("sector_id")
+    .primaryKey()
+    .references(() => sectorsTable.id, { onDelete: "cascade" }),
+  active: boolean("active").notNull().default(true),
+  cobertura: jsonb("cobertura").$type<CoberturaFranja[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Registro de altas, cambios y bajas de guardias (quién y qué). */
+export const guardiasAuditoriaTable = pgTable("guardias_auditoria", {
+  id: serial("id").primaryKey(),
+  guardiaId: integer("guardia_id"),
+  action: text("action").notNull(), // alta | modificacion | baja | copia
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  userName: text("user_name").notNull().default(""),
+  before: jsonb("before"),
+  after: jsonb("after"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -166,4 +205,6 @@ export type Sector = typeof sectorsTable.$inferSelect;
 export type User = typeof usersTable.$inferSelect;
 export type AgendaItem = typeof agendaItemsTable.$inferSelect;
 export type Guardia = typeof guardiasTable.$inferSelect;
+export type Profesional = typeof profesionalesTable.$inferSelect;
+export type GuardiaSector = typeof guardiaSectoresTable.$inferSelect;
 export type LiquidacionItem = typeof liquidacionItemsTable.$inferSelect;
