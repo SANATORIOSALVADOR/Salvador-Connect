@@ -142,6 +142,13 @@ export const guardiasAuditoriaTable = pgTable("guardias_auditoria", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Configuración general del sistema (clave → valor JSON). Ej.: "apariencia". */
+export const appSettingsTable = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const liquidacionItemsTable = pgTable("liquidacion_items", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
