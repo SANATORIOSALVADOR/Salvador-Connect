@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db, inventoryItemsTable, inventoryMovementsTable, sectorsTable } from "@salvador/db";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use(requireAuth);
+router.use("/inventario", requireAuth, requireModule("inventario"), requireWriteOnMutation);
 
 const STATUSES = ["activo", "en_reparacion", "baja", "reservado"] as const;
 const CATEGORIES = ["equipo_medico", "informatico", "mobiliario", "infraestructura", "otro"] as const;

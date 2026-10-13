@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db, liquidacionItemsTable } from "@salvador/db";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use(requireAuth);
+router.use("/liquidacion", requireAuth, requireModule("liquidacion"), requireWriteOnMutation);
 
 const TYPES = ["vencimiento", "liquidacion", "cheque", "nota", "recordatorio"] as const;
 const STATUSES = ["pendiente", "hecho", "anulado"] as const;

@@ -1,7 +1,8 @@
 import { createHash, randomBytes, scrypt as nodeScrypt, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, lt, ne } from "drizzle-orm";
 import { db, sessionsTable, userModulesTable, userSectorsTable, usersTable } from "@salvador/db";
+import { logger } from "./logger";
 
 const scrypt = (password: string, salt: string, keyLength: number, options: { cost: number; blockSize: number; parallelization: number }) =>
   new Promise<Buffer>((resolve, reject) => {
@@ -13,10 +14,10 @@ const scrypt = (password: string, salt: string, keyLength: number, options: { co
 export const SESSION_COOKIE = "sanatorio_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
-// Password: salvador2026 (solo bootstrap / staging)
-export const BOOTSTRAP_PASSWORD_HASH =
-  "scrypt$16384$8$1$1db4f90a649ef92fa47361a1faceed29$613b3dc5db7d9f16c43e88ab446a62850d860e4d7979a3840ea914f6207a2975437f260562c123b18c744b14e35921cba6629cd014e7d7436371fe82cafd4de6";
 export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "inventario", "instructivos", "configuracion", "usuarios"] as const;
+
+/** Roles con permiso de escritura (alta / edición / baja) en los módulos asignados. */
+export const WRITE_ROLES = ["superadmin", "responsable", "nivel2", "nivel3"] as const;
 
 const BOOTSTRAP_USERNAME = "sistemas";
 
@@ -24,49 +25,67 @@ function cookieSecure(): boolean {
   return process.env.COOKIE_SECURE === "true";
 }
 
+/**
+ * Crea el superadmin inicial SOLO si no existe ningún superadmin activo.
+ * La contraseña sale de BOOTSTRAP_ADMIN_PASSWORD (.env); nunca se pisa un usuario existente.
+ * Para recuperar el acceso usar scripts/reset-admin.sh.
+ */
 export async function ensureBootstrapSuperadmin(): Promise<void> {
+  const [admin] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(eq(usersTable.role, "superadmin"), eq(usersTable.active, true)))
+    .limit(1);
+  if (admin) return;
+
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "";
+  if (password.length < 10) {
+    logger.warn(
+      "No hay superadmin activo y BOOTSTRAP_ADMIN_PASSWORD no está definida (mín. 10 caracteres). Usá scripts/reset-admin.sh.",
+    );
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
   const [existing] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
     .where(eq(usersTable.username, BOOTSTRAP_USERNAME))
     .limit(1);
 
-  if (existing) {
-    await db
-      .update(usersTable)
-      .set({
-        passwordHash: BOOTSTRAP_PASSWORD_HASH,
-        role: "superadmin",
-        active: true,
-        mustChangePassword: false,
-        name: "Sistemas",
-      })
-      .where(eq(usersTable.id, existing.id));
-    const mods = await db
-      .select({ moduleKey: userModulesTable.moduleKey })
-      .from(userModulesTable)
-      .where(eq(userModulesTable.userId, existing.id));
-    const have = new Set(mods.map((m) => m.moduleKey));
-    const missing = ALL_MODULES.filter((m) => !have.has(m));
-    if (missing.length) {
-      await db.insert(userModulesTable).values(missing.map((moduleKey) => ({ userId: existing.id, moduleKey })));
-    }
-    return;
-  }
+  const userId = existing
+    ? (
+        await db
+          .update(usersTable)
+          .set({ passwordHash, role: "superadmin", active: true, mustChangePassword: true })
+          .where(eq(usersTable.id, existing.id))
+          .returning({ id: usersTable.id })
+      )[0].id
+    : (
+        await db
+          .insert(usersTable)
+          .values({
+            username: BOOTSTRAP_USERNAME,
+            name: "Sistemas",
+            email: null,
+            passwordHash,
+            role: "superadmin",
+            active: true,
+            mustChangePassword: true,
+          })
+          .returning({ id: usersTable.id })
+      )[0].id;
 
-  const [user] = await db
-    .insert(usersTable)
-    .values({
-      username: BOOTSTRAP_USERNAME,
-      name: "Sistemas",
-      email: null,
-      passwordHash: BOOTSTRAP_PASSWORD_HASH,
-      role: "superadmin",
-      active: true,
-      mustChangePassword: false,
-    })
-    .returning({ id: usersTable.id });
-  await db.insert(userModulesTable).values(ALL_MODULES.map((moduleKey) => ({ userId: user.id, moduleKey })));
+  const mods = await db
+    .select({ moduleKey: userModulesTable.moduleKey })
+    .from(userModulesTable)
+    .where(eq(userModulesTable.userId, userId));
+  const have = new Set(mods.map((m) => m.moduleKey));
+  const missing = ALL_MODULES.filter((m) => !have.has(m));
+  if (missing.length) {
+    await db.insert(userModulesTable).values(missing.map((moduleKey) => ({ userId, moduleKey })));
+  }
+  logger.info({ username: BOOTSTRAP_USERNAME }, "Superadmin inicial creado desde BOOTSTRAP_ADMIN_PASSWORD");
 }
 
 export type AuthUser = {
@@ -141,6 +160,23 @@ export async function createSession(userId: number, response: Response): Promise
   });
 }
 
+/** Borra sesiones vencidas (se llama en cada login). */
+export async function purgeExpiredSessions(): Promise<void> {
+  await db.delete(sessionsTable).where(lt(sessionsTable.expiresAt, new Date()));
+}
+
+/** Cierra todas las sesiones del usuario salvo la actual (cambio / reseteo de contraseña). */
+export async function revokeUserSessions(userId: number, keepRequest?: Request): Promise<void> {
+  const token = keepRequest?.cookies?.[SESSION_COOKIE] as string | undefined;
+  await db
+    .delete(sessionsTable)
+    .where(
+      token
+        ? and(eq(sessionsTable.userId, userId), ne(sessionsTable.tokenHash, digestToken(token)))
+        : eq(sessionsTable.userId, userId),
+    );
+}
+
 export async function clearSession(request: Request, response: Response): Promise<void> {
   const token = request.cookies?.[SESSION_COOKIE] as string | undefined;
   if (token) await db.delete(sessionsTable).where(eq(sessionsTable.tokenHash, digestToken(token)));
@@ -181,46 +217,57 @@ export const requireSuperadmin: RequestHandler = (request, response, next) => {
   next();
 };
 
-/** Exige módulo en la lista (superadmin siempre pasa; modules vacío = legacy permitido). */
+export function hasModule(user: AuthUser | null | undefined, moduleKey: string): boolean {
+  if (!user) return false;
+  if (user.role === "superadmin") return true;
+  return user.modules.includes(moduleKey);
+}
+
+export function canWrite(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  return (WRITE_ROLES as readonly string[]).includes(user.role);
+}
+
+/** Exige tener el módulo asignado (superadmin siempre pasa). Sin módulos = sin acceso. */
 export const requireModule = (moduleKey: string): RequestHandler => (request, response, next) => {
   const user = request.authUser;
   if (!user) {
     response.status(401).json({ message: "Sesión no válida o vencida." });
     return;
   }
-  if (user.role === "superadmin") {
-    next();
-    return;
-  }
-  if (!user.modules || user.modules.length === 0) {
-    next();
-    return;
-  }
-  if (!user.modules.includes(moduleKey)) {
+  if (!hasModule(user, moduleKey)) {
     response.status(403).json({ message: "No tenés acceso a este módulo." });
     return;
   }
   next();
 };
 
-/** Escritura en Guardias: superadmin o responsable / niveles 2-3. */
-export const requireGuardiasWrite: RequestHandler = (request, response, next) => {
+/** Escritura (POST / PATCH / DELETE): superadmin o responsable. Usar después de requireModule. */
+export const requireWrite: RequestHandler = (request, response, next) => {
   const user = request.authUser;
   if (!user) {
     response.status(401).json({ message: "Sesión no válida o vencida." });
     return;
   }
-  if (user.role === "superadmin" || user.role === "responsable" || user.role === "nivel2" || user.role === "nivel3") {
+  if (!canWrite(user)) {
+    response.status(403).json({ message: "Tu usuario es de solo lectura en este módulo." });
+    return;
+  }
+  next();
+};
+
+/** Aplica requireWrite solo a métodos que modifican datos. */
+export const requireWriteOnMutation: RequestHandler = (request, response, next) => {
+  if (request.method === "GET" || request.method === "HEAD" || request.method === "OPTIONS") {
     next();
     return;
   }
-  response.status(403).json({ message: "No tenés permiso para cargar o modificar guardias." });
+  requireWrite(request, response, next);
 };
 
-export function canWriteGuardias(user: AuthUser | null | undefined): boolean {
-  if (!user) return false;
-  return user.role === "superadmin" || user.role === "responsable" || user.role === "nivel2" || user.role === "nivel3";
-}
+/** Compatibilidad con guardias.ts */
+export const requireGuardiasWrite = requireWrite;
+export const canWriteGuardias = canWrite;
 
 declare global {
   namespace Express {

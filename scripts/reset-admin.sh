@@ -24,7 +24,21 @@ docker run --rm --network "$NETWORK" \
   bash -c 'corepack enable && corepack prepare pnpm@9.15.0 --activate && pnpm install --no-frozen-lockfile && cd packages/db && pnpm exec drizzle-kit push --force --config ./drizzle.config.ts' \
   || echo "WARN: schema push"
 
-HASH='scrypt$16384$8$1$1db4f90a649ef92fa47361a1faceed29$613b3dc5db7d9f16c43e88ab446a62850d860e4d7979a3840ea914f6207a2975437f260562c123b18c744b14e35921cba6629cd014e7d7436371fe82cafd4de6'
+# La contraseña NO se guarda en el repo: se pide por teclado (o ADMIN_PASSWORD en el entorno).
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+if [ -z "$ADMIN_PASSWORD" ]; then
+  read -r -s -p "Nueva contraseña para 'sistemas' (mín. 10 caracteres): " ADMIN_PASSWORD; echo
+  read -r -s -p "Repetila: " ADMIN_PASSWORD2; echo
+  if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD2" ]; then echo "Las contraseñas no coinciden."; exit 1; fi
+fi
+if [ "${#ADMIN_PASSWORD}" -lt 10 ]; then echo "La contraseña debe tener al menos 10 caracteres."; exit 1; fi
+
+# Mismo formato que hashPassword() de apps/api/src/lib/auth.ts
+HASH="$(docker compose exec -T -e PW="$ADMIN_PASSWORD" api node -e '
+const c=require("node:crypto");const salt=c.randomBytes(16).toString("hex");
+const d=c.scryptSync(process.env.PW,salt,64,{cost:16384,blockSize:8,parallelization:1});
+process.stdout.write("scrypt$16384$8$1$"+salt+"$"+d.toString("hex"));')"
+if [ -z "$HASH" ]; then echo "No se pudo calcular el hash (¿está levantado el contenedor api?)."; exit 1; fi
 
 echo "==> Usuario sistemas"
 docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
@@ -37,6 +51,7 @@ ON CONFLICT (username) DO UPDATE SET
   must_change_password = false,
   name = 'Sistemas';
 
+DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE username = 'sistemas');
 DELETE FROM user_modules WHERE user_id = (SELECT id FROM users WHERE username = 'sistemas');
 INSERT INTO user_modules (user_id, module_key)
 SELECT u.id, m.module_key
@@ -48,12 +63,6 @@ CROSS JOIN (VALUES
 WHERE u.username = 'sistemas';
 SQL
 
-docker compose restart api
-sleep 4
 echo "==> Health"
 curl -s http://127.0.0.1:5000/api/health; echo
-echo "==> Login test"
-curl -s -c /tmp/sc.txt -X POST http://127.0.0.1:5000/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"sistemas","password":"salvador2026"}'
-echo
+echo "Listo. Ingresá con el usuario 'sistemas' y la contraseña que acabás de definir."

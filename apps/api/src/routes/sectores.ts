@@ -4,7 +4,7 @@ import { db, sectorsTable } from "@salvador/db";
 import { requireAuth, requireSuperadmin } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use(requireAuth);
+router.use("/sectores", requireAuth);
 
 router.get("/sectores", async (_req, res): Promise<void> => {
   try {

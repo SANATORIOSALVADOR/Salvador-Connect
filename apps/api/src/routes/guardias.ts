@@ -1,11 +1,10 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq, lte, ne, sql } from "drizzle-orm";
 import { db, guardiasTable, sectorsTable } from "@salvador/db";
-import { requireAuth, requireGuardiasWrite, requireModule } from "../lib/auth";
+import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use(requireAuth);
-router.use(requireModule("guardias"));
+router.use("/guardias", requireAuth, requireModule("guardias"), requireWriteOnMutation);
 
 const MODALITIES = ["activa", "pasiva"] as const;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -185,7 +184,7 @@ router.get("/guardias", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/guardias", requireGuardiasWrite, async (req, res): Promise<void> => {
+router.post("/guardias", async (req, res): Promise<void> => {
   try {
     const parsed = parseBody(req.body ?? {});
     if (!parsed.ok) {
@@ -239,7 +238,7 @@ router.post("/guardias", requireGuardiasWrite, async (req, res): Promise<void> =
   }
 });
 
-router.patch("/guardias/:id", requireGuardiasWrite, async (req, res): Promise<void> => {
+router.patch("/guardias/:id", async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {
@@ -302,7 +301,7 @@ router.patch("/guardias/:id", requireGuardiasWrite, async (req, res): Promise<vo
   }
 });
 
-router.delete("/guardias/:id", requireGuardiasWrite, async (req, res): Promise<void> => {
+router.delete("/guardias/:id", async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {

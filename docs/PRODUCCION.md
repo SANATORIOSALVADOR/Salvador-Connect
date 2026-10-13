@@ -20,6 +20,9 @@ Eso crea `.env`, buildea, levanta Postgres + API + Web y aplica el schema.
 
 - Web: `http://172.20.1.134:8085` (o el puerto de `WEB_BIND`)
 - Login: `sistemas` → **cambiar contraseña**
+- La contraseña del superadmin **no está en el repo**. En una base nueva se crea con
+  `BOOTSTRAP_ADMIN_PASSWORD` del `.env`; si se pierde el acceso: `bash scripts/reset-admin.sh`
+  (pide la contraseña nueva por teclado).
 - Módulos: Resumen, Administración (Agenda), Usuarios operativos; resto accesible (placeholders Tramo 1)
 
 ### 3. Comandos útiles

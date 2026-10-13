@@ -2,10 +2,47 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, sectorsTable, userModulesTable, userSectorsTable, usersTable } from "@salvador/db";
 import { ChangePasswordBody, LoginBody } from "@salvador/api-zod";
-import { clearSession, createSession, hashPassword, requireAuth, verifyPassword } from "../lib/auth";
+import {
+  clearSession,
+  createSession,
+  hashPassword,
+  purgeExpiredSessions,
+  requireAuth,
+  revokeUserSessions,
+  verifyPassword,
+} from "../lib/auth";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+// Límite de intentos fallidos de login (en memoria; alcanza para una sola instancia de API).
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCK_WINDOW_MS = 15 * 60 * 1000;
+const failedLogins = new Map<string, { count: number; firstAt: number }>();
+
+function attemptKey(ip: string | undefined, username: string) {
+  return `${ip ?? "?"}|${username}`;
+}
+
+function isLocked(key: string): boolean {
+  const entry = failedLogins.get(key);
+  if (!entry) return false;
+  if (Date.now() - entry.firstAt > LOCK_WINDOW_MS) {
+    failedLogins.delete(key);
+    return false;
+  }
+  return entry.count >= MAX_FAILED_ATTEMPTS;
+}
+
+function registerFailure(key: string) {
+  if (failedLogins.size > 5000) failedLogins.clear();
+  const entry = failedLogins.get(key);
+  if (!entry || Date.now() - entry.firstAt > LOCK_WINDOW_MS) {
+    failedLogins.set(key, { count: 1, firstAt: Date.now() });
+  } else {
+    entry.count += 1;
+  }
+}
 
 const publicUser = (user: NonNullable<Express.Request["authUser"]>) => ({
   id: user.id,
@@ -27,15 +64,23 @@ router.post("/auth/login", async (request, response): Promise<void> => {
       return;
     }
     const username = parsed.data.username.trim().toLowerCase();
+    const key = attemptKey(request.ip, username);
+    if (isLocked(key)) {
+      response.status(429).json({ message: "Demasiados intentos fallidos. Esperá 15 minutos e intentá de nuevo." });
+      return;
+    }
     const [user] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.username, username))
       .limit(1);
     if (!user || !user.active || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+      registerFailure(key);
       response.status(401).json({ message: "Usuario o contraseña incorrectos." });
       return;
     }
+    failedLogins.delete(key);
+    await purgeExpiredSessions();
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
     await createSession(user.id, response);
 
@@ -103,11 +148,26 @@ router.post("/auth/change-password", requireAuth, async (request, response): Pro
     response.status(400).json({ message: "La nueva contraseña debe tener al menos 6 caracteres." });
     return;
   }
+  const user = request.authUser!;
+  // Fuera del primer acceso se exige la contraseña actual.
+  if (!user.mustChangePassword) {
+    const currentPassword = String((request.body as { currentPassword?: unknown })?.currentPassword ?? "");
+    const [row] = await db
+      .select({ passwordHash: usersTable.passwordHash })
+      .from(usersTable)
+      .where(eq(usersTable.id, user.id))
+      .limit(1);
+    if (!row || !currentPassword || !(await verifyPassword(currentPassword, row.passwordHash))) {
+      response.status(400).json({ message: "La contraseña actual no es correcta." });
+      return;
+    }
+  }
   const passwordHash = await hashPassword(parsed.data.newPassword);
   await db
     .update(usersTable)
     .set({ passwordHash, mustChangePassword: false })
-    .where(eq(usersTable.id, request.authUser!.id));
+    .where(eq(usersTable.id, user.id));
+  await revokeUserSessions(user.id, request);
   response.json({ ok: true });
 });
 

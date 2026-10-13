@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq } from "drizzle-orm";
 import { db, instructivosTable, sectorsTable } from "@salvador/db";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use(requireAuth);
+router.use("/instructivos", requireAuth, requireModule("instructivos"), requireWriteOnMutation);
 
 function canWrite(role?: string) {
   return role === "superadmin" || role === "responsable";

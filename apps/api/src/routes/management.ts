@@ -19,7 +19,7 @@ import {
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use(requireAuth);
+router.use(["/dashboard", "/sectors", "/me", "/agenda"], requireAuth);
 
 function calendarDate(value: Date | string): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;

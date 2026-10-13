@@ -34,6 +34,8 @@ services:
       PORT: "5000"
       # Cookies en HTTP (LAN). Con HTTPS poner COOKIE_SECURE=true
       COOKIE_SECURE: "false"
+      TZ: America/Argentina/Cordoba
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-sanatorio}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sanatorio_db}
     depends_on:
       db:

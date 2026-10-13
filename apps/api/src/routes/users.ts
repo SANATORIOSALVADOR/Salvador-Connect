@@ -14,7 +14,7 @@ import {
   ResetUserPasswordResponse,
   UpdateUserBody,
 } from "@salvador/api-zod";
-import { ALL_MODULES, hashPassword, requireAuth, requireSuperadmin } from "../lib/auth";
+import { ALL_MODULES, hashPassword, requireAuth, requireSuperadmin, revokeUserSessions } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -72,7 +72,8 @@ async function replaceAssignments(
   }
 }
 
-router.use(requireAuth, requireSuperadmin);
+// Acotado a /users: un router.use sin ruta afectaría a todos los módulos montados después.
+router.use("/users", requireAuth, requireSuperadmin);
 
 router.get("/users", async (_request, response): Promise<void> => {
   try {
@@ -265,6 +266,7 @@ router.post("/users/:id/reset-password", async (request, response): Promise<void
     response.status(404).json({ message: "Usuario no encontrado." });
     return;
   }
+  await revokeUserSessions(id);
   response.json(ResetUserPasswordResponse.parse({ ok: true }));
 });
 
