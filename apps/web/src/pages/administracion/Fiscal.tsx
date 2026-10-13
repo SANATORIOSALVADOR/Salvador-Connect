@@ -5,6 +5,7 @@ import { adm, type FilaFiscal } from "./api";
 import { useAdm, useDatos } from "./contexto";
 import { MESES, MESES_CORTOS, ORGANISMOS, fechaAR, fechaCorta, type FechaCal, type Obligacion } from "./logic";
 import { Campo, Modal, OrigenPill, Pill, S, SegControl, UrgenciaPill, Vacio } from "./ui";
+import ImportarAgenda from "./ImportarAgenda";
 
 const ARCA_AGENDA = "https://seti.afip.gob.ar/av/seleccionVencimientos.do";
 const RENTAS_CBA = "https://www.rentascordoba.gob.ar/";
@@ -212,7 +213,10 @@ function CalendarioOficial() {
   const { data, error } = useDatos(() => adm.calendario(anio), [anio]);
   const [editar, setEditar] = useState<{ o: Obligacion; mes: number; c: FechaCal } | null>(null);
   const [pegar, setPegar] = useState<Obligacion | null>(null);
+  const [importar, setImportar] = useState(false);
   const obligs = (data?.obligaciones ?? []).filter((o) => o.activo);
+  const cargadas = obligs.reduce((n, o) => n + Object.values(data?.celdas[o.id] ?? {}).filter((c) => c.origen !== "estimada").length, 0);
+  const totalCeldas = obligs.reduce((n, o) => n + Object.keys(data?.celdas[o.id] ?? {}).length, 0);
 
   const celdaStyle = (c: FechaCal): CSSProperties =>
     c.origen === "estimada"
@@ -229,7 +233,13 @@ function CalendarioOficial() {
           <div style={{ fontWeight: 700, fontSize: 17, minWidth: 70, textAlign: "center" }}>{anio}</div>
           <button type="button" className="btn btn-quiet btn-icon" onClick={() => setAnio(anio + 1)} aria-label="Año siguiente"><ChevronRight size={18} /></button>
         </div>
+        {permisos.total && (
+          <button type="button" className="btn btn-primary" onClick={() => setImportar(true)}>
+            <ClipboardPaste size={16} /> Pegar agenda completa
+          </button>
+        )}
         <p style={{ ...S.small, margin: 0, flex: "1 1 320px" }}>
+          <strong style={{ color: cargadas < totalCeldas ? "var(--adm-warn)" : "var(--adm-ok)" }}>{cargadas} de {totalCeldas} fechas oficiales cargadas.</strong>{" "}
           Cuando ARCA y Rentas publiquen el calendario del año, cargá las fechas de la terminación de CUIT {TERMINACION_CUIT}. Podés copiar la fila completa de una obligación desde la agenda o el PDF y pegarla con el botón «pegar» de cada fila. {permisos.total ? "Tocá una fecha para corregirla o cargar una prórroga." : "Solo Control total puede cambiar fechas."}
         </p>
       </div>
@@ -286,6 +296,7 @@ function CalendarioOficial() {
 
       {editar && <EditarFecha anio={anio} {...editar} onClose={() => setEditar(null)} onSaved={() => { setEditar(null); refrescar(); }} />}
       {pegar && <PegarFechas anio={anio} o={pegar} onClose={() => setPegar(null)} onSaved={() => { setPegar(null); refrescar(); }} />}
+      {importar && data && <ImportarAgenda anio={anio} obligaciones={data.obligaciones} onClose={() => setImportar(false)} onSaved={() => { setImportar(false); refrescar(); }} />}
     </div>
   );
 }
@@ -522,6 +533,9 @@ function ObligacionForm({ o, onClose, onSaved }: { o: Partial<Obligacion>; onClo
         <Campo label="Responsable"><input className="input" value={f.responsable ?? ""} onChange={(e) => set("responsable", e.target.value)} maxLength={120} /></Campo>
         <Campo label="Avisar días antes"><input className="input" type="number" min={0} max={120} value={f.alertDays ?? 7} onChange={(e) => set("alertDays", Number(e.target.value))} /></Campo>
         <Campo label="Orden en la lista"><input className="input" type="number" min={0} value={f.orden ?? 0} onChange={(e) => set("orden", Number(e.target.value))} /></Campo>
+        <Campo label="Palabras clave para reconocerla al pegar la agenda" hint="Separadas por «|». Ej.: valor agregado|iva|f.2002" full>
+          <input className="input" value={f.claves ?? ""} onChange={(e) => set("claves", e.target.value)} maxLength={2000} />
+        </Campo>
         <Campo label="Referencia (formulario, impuesto)" full><input className="input" value={f.referencia ?? ""} onChange={(e) => set("referencia", e.target.value)} placeholder="Ej.: F.2002 · IVA del mes anterior" maxLength={300} /></Campo>
         <Campo label="Notas" full><textarea className="textarea" rows={2} value={f.notas ?? ""} onChange={(e) => set("notas", e.target.value)} /></Campo>
       </div>

@@ -70,6 +70,7 @@ export type Obligacion = {
   alertDays: number;
   referencia: string;
   notas: string;
+  claves: string;
   activo: boolean;
   orden: number;
 };
@@ -291,4 +292,75 @@ export function coincide(it: Item, q: string): boolean {
   const k = clave(q.trim());
   return [it.titulo, it.descripcion, it.responsable, it.comprobante, it.datos?.numero, it.datos?.banco, it.datos?.contraparte, it.datos?.entidad, it.obligacionNombre]
     .some((c) => clave(String(c ?? "")).includes(k));
+}
+
+// ----- Importar la agenda oficial pegada -----
+
+export type FilaAgenda = { texto: string; fechas: string[] };
+
+const FECHA_RE = /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b|\b(\d{4})-(\d{2})-(\d{2})\b/g;
+
+function aIso(d: number, m: number, y: number): string | null {
+  const dt = new Date(y, m - 1, d, 12);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return isoOf(dt);
+}
+
+/**
+ * Lee el texto copiado de la agenda de ARCA, un PDF o una planilla: cada renglón con fechas es una fila.
+ * Si el renglón solo tiene fechas (sin texto), toma la descripción del renglón anterior.
+ * Descarta columnas que son solo números (terminación de CUIT, "6 - 7").
+ */
+export function parsearAgenda(texto: string, anio: number): { filas: FilaAgenda[]; otrosAnios: number } {
+  const filas: FilaAgenda[] = [];
+  let otrosAnios = 0;
+  let anterior = "";
+  for (const linea of texto.split(/\r?\n/)) {
+    const fechas: string[] = [];
+    for (const m of linea.matchAll(FECHA_RE)) {
+      const iso = m[1] ? aIso(Number(m[1]), Number(m[2]), Number(m[3])) : aIso(Number(m[6]), Number(m[5]), Number(m[4]));
+      if (!iso) continue;
+      if (Number(iso.slice(0, 4)) === anio) fechas.push(iso);
+      else otrosAnios++;
+    }
+    const desc = linea
+      .replace(FECHA_RE, " ")
+      .split(/\t|\s{2,}|\|/)
+      .map((c) => c.trim())
+      .filter((c) => /[a-záéíóúñ]/i.test(c))
+      .join(" · ")
+      .trim();
+    if (!fechas.length) {
+      if (desc) anterior = desc;
+      continue;
+    }
+    filas.push({ texto: desc || anterior || "(sin descripción)", fechas });
+  }
+  return { filas, otrosAnios };
+}
+
+/** Obligación que mejor coincide con el texto según sus palabras clave (null si no hay o hay empate). */
+export function sugerirObligacion(texto: string, obligaciones: Pick<Obligacion, "id" | "claves" | "activo">[]): number | null {
+  const t = clave(texto);
+  let mejor: number | null = null;
+  let puntos = 0;
+  let empate = false;
+  for (const o of obligaciones) {
+    if (!o.activo) continue;
+    const p = (o.claves || "")
+      .split("|")
+      .filter((c) => c.length >= 2 && t.includes(c))
+      .reduce((acc, c) => acc + c.length, 0);
+    if (p > puntos) {
+      puntos = p;
+      mejor = o.id;
+      empate = false;
+    } else if (p > 0 && p === puntos) empate = true;
+  }
+  return empate ? null : mejor;
+}
+
+/** Texto de una fila convertido en palabra clave (para recordar una corrección). */
+export function textoParaClave(texto: string): string {
+  return clave(texto).replace(/[^a-z0-9ñ°º.\s]/g, " ").replace(/\b\d+\b/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }

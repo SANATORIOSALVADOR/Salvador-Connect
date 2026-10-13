@@ -56,6 +56,8 @@ export const adm = {
     api<{ ok: true }>("/calendario", { method: "PUT", body }),
   cargarLote: (body: { obligacionId: number; anio: number; texto: string; norma?: string }) =>
     api<{ cargadas: number; meses: number[]; ignoradas: string[] }>("/calendario/lote", { method: "POST", body }),
+  importarAgenda: (body: { anio: number; norma: string; filas: { obligacionId: number; fecha: string }[]; claves: { obligacionId: number; texto: string }[] }) =>
+    api<{ cargadas: number; obligaciones: number; aprendidas: number }>("/calendario/importar", { method: "POST", body }),
   verificarMes: (anio: number, mes: number) => api<{ verificadas: number }>("/calendario/verificar", { method: "POST", body: { anio, mes } }),
   historial: (entidad?: string) => api<Historial[]>(`/historial${entidad ? `?entidad=${entidad}` : ""}`),
 

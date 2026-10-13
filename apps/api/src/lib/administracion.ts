@@ -3,7 +3,7 @@
  * (obligaciones del mes + vencimientos recurrentes). Sin conexión a ARCA: la fecha exacta sale del
  * calendario oficial cargado en adm_calendario; si falta, se estima y queda marcada como "estimada".
  */
-import { and, eq, gte, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import {
   admCalendarioTable,
   admFeriadosTable,
@@ -334,7 +334,77 @@ export async function automatizarAdministracion() {
   const a = await asegurarFiscalMes(actual.anio, actual.mes);
   const b = await asegurarFiscalMes(sig.anio, sig.mes);
   const r = await generarRecurrentes();
-  return { fiscales: a.creados + b.creados, actualizados: a.actualizados + b.actualizados, recurrentes: r.creados };
+  const t = await asegurarTareasDelSistema(actual.anio, actual.mes);
+  return { fiscales: a.creados + b.creados, actualizados: a.actualizados + b.actualizados, recurrentes: r.creados, recordatorios: t };
+}
+
+// ----- Recordatorios del sistema (tareas que se crean y se cierran solas) -----
+
+/** Clave guardada en datos.sistema para no duplicar y poder cerrarlas. */
+export const claveVerificar = (anio: number, mes: number) => `verificar:${periodoKey(anio, mes)}`;
+export const claveCalendario = (anio: number) => `calendario:${anio}`;
+
+async function existeTareaSistema(clave: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: admItemsTable.id })
+    .from(admItemsTable)
+    .where(sql`${admItemsTable.datos}->>'sistema' = ${clave}`)
+    .limit(1);
+  return !!row;
+}
+
+async function crearTareaSistema(clave: string, titulo: string, descripcion: string, fecha: string) {
+  if (await existeTareaSistema(clave)) return 0;
+  const ins = await db
+    .insert(admItemsTable)
+    .values({ tipo: "tarea", titulo, descripcion, fecha, prioridad: "alta", alertDays: 0, datos: { sistema: clave } })
+    .returning({ id: admItemsTable.id });
+  await registrar("item", ins[0].id, "generado", `Recordatorio automático · ${titulo}`, null);
+  return 1;
+}
+
+/**
+ * Recordatorios fijos del área:
+ *  - cada mes: verificar las fechas fiscales con el calendario oficial (se cierra al tocar «Verificar fechas del mes»);
+ *  - en diciembre (y en enero si quedó pendiente): cargar el calendario oficial del año (se cierra al cargarlo).
+ */
+export async function asegurarTareasDelSistema(anio: number, mes: number): Promise<number> {
+  const fer = new Feriados();
+  let creadas = 0;
+  const obligs = (await db.select().from(admObligacionesTable).where(eq(admObligacionesTable.activo, true))).filter((o) => aplicaEnMes(o, mes));
+  const cal = await calendarioDelAnio(anio);
+  const verificadas = obligs.filter((o) => cal.get(`${o.id}:${anio}:${mes}`)?.verificadoAt).length;
+  if (obligs.length && verificadas < obligs.length) {
+    creadas += await crearTareaSistema(
+      claveVerificar(anio, mes),
+      `Verificar fechas fiscales de ${MESES[mes - 1].toLowerCase()} ${anio}`,
+      "Abrir Administración → Fiscal → Control del mes. Comparar cada fecha con la agenda de ARCA (terminación de CUIT 6) y el calendario de Rentas Córdoba. Si alguna cambió, corregirla con el lápiz del Calendario oficial. Después tocar «Verificar fechas del mes»: esta tarea se cierra sola.",
+      await fer.siguienteHabil(isoDate(anio, mes, 1)),
+    );
+  }
+  const objetivo = mes === 12 ? anio + 1 : mes <= 2 ? anio : null;
+  if (objetivo) {
+    const calObj = objetivo === anio ? cal : await calendarioDelAnio(objetivo);
+    if (calObj.size === 0) {
+      creadas += await crearTareaSistema(
+        claveCalendario(objetivo),
+        `Cargar el calendario fiscal oficial ${objetivo}`,
+        `Cuando ARCA y Rentas Córdoba publiquen el calendario ${objetivo}: Administración → Fiscal → Calendario oficial → «Pegar agenda completa». Ver la Guía del módulo. La tarea se cierra sola al cargar las fechas.`,
+        mes === 12 ? await fer.siguienteHabil(isoDate(anio, 12, 1)) : await fer.siguienteHabil(isoDate(anio, mes, 1)),
+      );
+    }
+  }
+  return creadas;
+}
+
+/** Cierra un recordatorio del sistema cuando se hizo lo que pedía. */
+export async function cerrarTareaSistema(clave: string, nota: string, user?: { id: number; name: string } | null) {
+  const rows = await db
+    .update(admItemsTable)
+    .set({ estado: "cumplido", cumplidoFecha: hoyIso(), cumplidoPor: user?.id ?? null, cumplimientoNota: nota, presentado: true, pagado: true, updatedAt: new Date() })
+    .where(and(eq(admItemsTable.estado, "pendiente"), sql`${admItemsTable.datos}->>'sistema' = ${clave}`))
+    .returning({ id: admItemsTable.id });
+  for (const r of rows) await registrar("item", r.id, "cumplido", nota, user);
 }
 
 let timer: NodeJS.Timeout | null = null;

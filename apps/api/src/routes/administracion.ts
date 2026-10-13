@@ -22,6 +22,9 @@ import {
   asegurarFiscalMes,
   borrarItems,
   calendarioDelAnio,
+  cerrarTareaSistema,
+  claveCalendario,
+  claveVerificar,
   generarRecurrentes,
   hoyIso,
   isoDate,
@@ -579,10 +582,22 @@ function parseObligacion(b: Record<string, unknown>, partial: boolean) {
   if (b.alertDays !== undefined) out.alertDays = int(b.alertDays, 0, 120, 7);
   if (b.referencia !== undefined) out.referencia = str(b.referencia, 300);
   if (b.notas !== undefined) out.notas = str(b.notas, 3000);
+  if (b.claves !== undefined) out.claves = normalizarClaves(String(b.claves ?? ""));
   if (b.activo !== undefined) out.activo = !!b.activo;
   if (b.orden !== undefined) out.orden = int(b.orden, 0, 10_000, 0);
   if (out.periodicidad === "anual" && out.mesAnual == null && !partial) fail("Indicá el mes de vencimiento de la obligación anual.");
   return out;
+}
+
+/** "IVA | Valor Agregado||" → "iva|valor agregado" (sin tildes, sin repetidas). */
+function normalizarClaves(txt: string): string {
+  const set = new Set(
+    txt
+      .split("|")
+      .map((c) => c.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120))
+      .filter((c) => c.length >= 2),
+  );
+  return [...set].slice(0, 40).join("|");
 }
 
 async function resincronizarProximos(user: { id: number; name: string } | null) {
@@ -756,8 +771,54 @@ router.post(
     const norma = str(b.norma, 200);
     for (const [mes, fecha] of porMes) await guardarFecha(obligacionId, anio, mes, fecha, "oficial", norma, quien(req));
     for (const mes of porMes.keys()) await aplicarCalendario(anio, mes, quien(req));
+    await cerrarTareaSistema(claveCalendario(anio), `Calendario ${anio} cargado`, quien(req));
     res.json({ cargadas: porMes.size, meses: [...porMes.keys()].sort((a, c) => a - c), ignoradas });
   }, "Error al cargar las fechas."),
+);
+
+/**
+ * Importa la agenda completa pegada (la web arma las filas y el usuario confirma a qué obligación va cada una).
+ * Si dos fechas caen en el mismo mes de la misma obligación, queda la última. `claves`: correcciones para recordar.
+ */
+router.post(
+  "/administracion/calendario/importar",
+  total,
+  h(async (req, res) => {
+    const b = req.body ?? {};
+    const anio = int(b.anio, 2020, 2100, 0);
+    if (!anio) fail("Falta el año.");
+    const filas = Array.isArray(b.filas) ? b.filas.slice(0, 2000) : [];
+    const obligs = new Map((await db.select().from(admObligacionesTable)).map((o) => [o.id, o]));
+    const porClave = new Map<string, { obligacionId: number; mes: number; fecha: string }>();
+    for (const f of filas) {
+      const obligacionId = Number(f?.obligacionId);
+      const fecha = isoOk(f?.fecha);
+      if (!obligs.has(obligacionId) || !fecha || Number(fecha.slice(0, 4)) !== anio) continue;
+      const mes = Number(fecha.slice(5, 7));
+      porClave.set(`${obligacionId}:${mes}`, { obligacionId, mes, fecha });
+    }
+    if (!porClave.size) fail(`No hay fechas de ${anio} asignadas a obligaciones.`);
+    const norma = str(b.norma, 200);
+    const user = quien(req);
+    for (const x of porClave.values()) await guardarFecha(x.obligacionId, anio, x.mes, x.fecha, "oficial", norma, user);
+    for (const mes of new Set([...porClave.values()].map((x) => x.mes))) await aplicarCalendario(anio, mes, user);
+
+    // Aprender: el texto que el usuario asignó a mano pasa a ser palabra clave de esa obligación.
+    let aprendidas = 0;
+    for (const c of Array.isArray(b.claves) ? b.claves.slice(0, 200) : []) {
+      const o = obligs.get(Number(c?.obligacionId));
+      const nueva = normalizarClaves(String(c?.texto ?? ""));
+      if (!o || !nueva) continue;
+      const actual = new Set(o.claves.split("|").filter(Boolean));
+      if (actual.has(nueva)) continue;
+      o.claves = normalizarClaves([...actual, nueva].join("|"));
+      await db.update(admObligacionesTable).set({ claves: o.claves, updatedAt: new Date() }).where(eq(admObligacionesTable.id, o.id));
+      aprendidas++;
+    }
+    await registrar("calendario", null, "importado", `${porClave.size} fechas de ${anio} desde la agenda pegada${norma ? ` · ${norma}` : ""}`, user);
+    await cerrarTareaSistema(claveCalendario(anio), `Calendario ${anio} cargado (${porClave.size} fechas)`, user);
+    res.json({ cargadas: porClave.size, obligaciones: new Set([...porClave.values()].map((x) => x.obligacionId)).size, aprendidas });
+  }, "Error al importar la agenda."),
 );
 
 /** "Verifiqué el mes contra el calendario oficial": las fechas estimadas que coinciden pasan a oficiales. */
@@ -780,6 +841,7 @@ router.post(
     }
     await registrar("calendario", null, "verificado", `Fechas de ${mes}/${anio} verificadas con el calendario oficial (${obligs.length} obligaciones)`, user);
     await aplicarCalendario(anio, mes, user);
+    await cerrarTareaSistema(claveVerificar(anio, mes), "Fechas del mes verificadas", user);
     res.json({ verificadas: obligs.length });
   }, "Error al verificar."),
 );

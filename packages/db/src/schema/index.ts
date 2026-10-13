@@ -192,6 +192,8 @@ export const admObligacionesTable = pgTable("adm_obligaciones", {
   alertDays: integer("alert_days").notNull().default(7),
   referencia: text("referencia").notNull().default(""),
   notas: text("notas").notNull().default(""),
+  /** Palabras clave (separadas por "|") para reconocerla al pegar la agenda oficial. */
+  claves: text("claves").notNull().default(""),
   activo: boolean("activo").notNull().default(true),
   orden: integer("orden").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -15,7 +15,8 @@ documentos que vencen y tareas del día a día, con avisos y registro de cómo s
 - UI: `apps/web/src/pages/Administracion.tsx` (encabezado, pestañas, modales globales) y `apps/web/src/pages/administracion/`
   - `logic.ts` (puro, probado en `tests/web-logic.test.mjs`), `api.ts`, `contexto.tsx` (`useAdm`, `useDatos`), `ui.tsx`, `modales.tsx`
   - Pestañas: `Resumen`, `Agenda` (lista + calendario 7 col.), `Fiscal` (control del mes / calendario oficial / obligaciones),
-    `Cheques`, `Documentos`, `Tareas`, `Recurrentes`, `Contactos`, `Ajustes` (feriados + historial)
+    `Cheques`, `Documentos`, `Tareas`, `Recurrentes`, `Contactos`, `Ajustes` (feriados + historial), `Guia` (manual de uso)
+  - `ImportarAgenda.tsx`: «Pegar agenda completa» (parser `parsearAgenda` + `sugerirObligacion` en logic.ts)
 - API: `apps/api/src/routes/administracion.ts`
 - Lógica de fechas y automatización: `apps/api/src/lib/administracion.ts`
 - Schema: tablas `adm_*` en `packages/db/src/schema/index.ts`; migración `packages/db/migrations/0003_administracion.sql`
@@ -41,6 +42,9 @@ documentos que vencen y tareas del día a día, con avisos y registro de cómo s
 - Un fiscal generado no se borra (409): se **cancela** con motivo. Un recurrente borrado no vuelve (queda en `omitidas`).
 - Cumplir un fiscal pide presentación y/o pago según la obligación; con uno solo queda pendiente ("Falta pagar").
 - Documento renovado → crea el próximo vencimiento (`renovarFecha`).
+- Pegar agenda: la web arma las filas, el usuario confirma; `POST /calendario/importar` guarda y **aprende** las correcciones como palabras clave (`adm_obligaciones.claves`, migración 0004).
+- Recordatorios del sistema (`datos.sistema`): «Verificar fechas fiscales del mes» (1er día hábil, se cierra con /calendario/verificar) y «Cargar el calendario fiscal oficial» (dic–feb si el año no tiene fechas; se cierra al importar/pegar).
+- Si cambia la UI del módulo, actualizar también la pestaña **Guía de uso** (`Guia.tsx`).
 - **No** hay cliente ARCA/AFIP: la agenda pública (seti.afip.gob.ar) no responde a consultas automáticas. No implementarlo sin pedido.
 
 ## Permisos

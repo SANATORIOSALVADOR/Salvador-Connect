@@ -1,11 +1,27 @@
-import { AlertTriangle, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ArrowRight, BookOpen, X } from "lucide-react";
 import { adm } from "./api";
 import { useAdm, useDatos } from "./contexto";
 import { diasEntre, fechaLarga, formatMonto, MESES, sumaMontos, type Item } from "./logic";
 import { ItemFila, Kpi, S, Seccion, Vacio } from "./ui";
 
+const GUIA_VISTA = "sc-adm-guia-vista";
+
 export default function Resumen() {
   const { hoy, permisos, abrir, cumplir, irA, nuevo } = useAdm();
+  const [verGuia, setVerGuia] = useState(() => {
+    try {
+      return localStorage.getItem(GUIA_VISTA) !== "1";
+    } catch {
+      return true;
+    }
+  });
+  const ocultarGuia = () => {
+    setVerGuia(false);
+    try {
+      localStorage.setItem(GUIA_VISTA, "1");
+    } catch {}
+  };
   const { data, error, cargando } = useDatos(() => adm.resumen(), []);
 
   if (error) return <div className="form-error">{error}</div>;
@@ -39,6 +55,16 @@ export default function Resumen() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {verGuia && (
+        <div className="no-print" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1px solid hsl(var(--primary) / .35)", background: "hsl(var(--primary) / .08)" }}>
+          <BookOpen size={20} aria-hidden="true" style={{ color: "hsl(var(--primary))", flex: "0 0 auto" }} />
+          <div style={{ flex: 1, fontSize: 13.5 }}>
+            <strong>¿Primera vez en Administración?</strong> La guía explica cada pestaña, cómo cargar el calendario de ARCA y las rutinas de cada día, mes y año (5 minutos).
+          </div>
+          <button type="button" className="btn btn-primary" style={{ fontSize: 12.5, padding: "6px 12px" }} onClick={() => { ocultarGuia(); irA("guia"); }}>Abrir la guía</button>
+          <button type="button" className="btn btn-quiet btn-icon" aria-label="No mostrar más" title="No mostrar más" onClick={ocultarGuia}><X size={16} /></button>
+        </div>
+      )}
       <p style={{ margin: 0, fontSize: 15 }}>
         Hoy es <strong>{fechaLarga(hoy)}</strong>.{" "}
         {vencidos.length + deHoy.length === 0 ? "No hay nada vencido ni para hoy." : `Hay ${vencidos.length + deHoy.length} cosa${vencidos.length + deHoy.length === 1 ? "" : "s"} para resolver hoy.`}

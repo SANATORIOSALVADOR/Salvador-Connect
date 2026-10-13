@@ -14,6 +14,7 @@ const Tareas = lazy(() => import("./administracion/Tareas"));
 const Recurrentes = lazy(() => import("./administracion/Recurrentes"));
 const Contactos = lazy(() => import("./administracion/Contactos"));
 const Ajustes = lazy(() => import("./administracion/Ajustes"));
+const Guia = lazy(() => import("./administracion/Guia"));
 
 const TABS = [
   { key: "resumen", label: "Resumen" },
@@ -25,6 +26,7 @@ const TABS = [
   { key: "recurrentes", label: "Recurrentes" },
   { key: "contactos", label: "Contactos" },
   { key: "ajustes", label: "Ajustes" },
+  { key: "guia", label: "Guía de uso" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -192,6 +194,7 @@ export default function Administracion() {
           {tab === "recurrentes" && <Recurrentes />}
           {tab === "contactos" && <Contactos busquedaInicial={tab === "contactos" ? leerParam("buscar") ?? "" : ""} />}
           {tab === "ajustes" && <Ajustes />}
+          {tab === "guia" && <Guia />}
         </Suspense>
       </div>
 

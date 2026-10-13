@@ -74,5 +74,35 @@ eq("grilla oct-2026 empieza jueves (3 vacíos)", g.slice(0, 4), [null, null, nul
 eq("grilla múltiplo de 7", g.length % 7, 0);
 eq("falta pagar", A.faltante({ requierePresentacion: true, requierePago: true, presentado: true, pagado: false, estado: "pendiente" }), "Falta pagar");
 eq("recurrente mensual", A.describirRecurrente({ frecuencia: "mensual", dia: 10, desde: "2026-10-01", habiles: true }), "Todos los días 10 · día hábil");
+
+// Agenda pegada: tabulaciones, varias fechas en un renglón, renglón solo con fechas y otros años.
+const pegado = [
+  "Fecha\tImpuesto\tConcepto\tTerminación",
+  "21/01/2027\tIMPUESTO AL VALOR AGREGADO\tDeclaración jurada\t6 - 7",
+  "13/01/2027\tREGIMENES NACIONALES DE LA SEGURIDAD SOCIAL Y OBRAS SOCIALES\tF.931\t4-5-6",
+  "SICORE - Retenciones y percepciones  2a quincena",
+  "12/01/2027   10/02/2027",
+  "31/12/2026\tIVA viejo\tDJ\t6",
+  "Ingresos Brutos Córdoba | 19/01/2027 | 18/02/2027",
+].join("\n");
+const ag = A.parsearAgenda(pegado, 2027);
+eq("agenda: 4 renglones de 2027", ag.filas.length, 4);
+eq("agenda: ignora la fecha de 2026", ag.otrosAnios, 1);
+eq("agenda: descripción sin la terminación", ag.filas[0].texto, "IMPUESTO AL VALOR AGREGADO · Declaración jurada");
+eq("agenda: renglón solo con fechas toma el anterior", ag.filas[2], { texto: "SICORE - Retenciones y percepciones · 2a quincena", fechas: ["2027-01-12", "2027-02-10"] });
+const obl = [
+  { id: 1, activo: true, claves: "valor agregado|iva|f.2002" },
+  { id: 2, activo: true, claves: "seguridad social|f.931|931" },
+  { id: 3, activo: true, claves: "sicore|retenciones y percepciones" },
+  { id: 4, activo: true, claves: "segunda quincena|2a quincena" },
+  { id: 5, activo: true, claves: "ingresos brutos|iibb" },
+  { id: 6, activo: false, claves: "valor agregado" },
+];
+eq("reconoce IVA", A.sugerirObligacion(ag.filas[0].texto, obl), 1);
+eq("reconoce F.931", A.sugerirObligacion(ag.filas[1].texto, obl), 2);
+eq("SICORE gana a 2a quincena (más palabras)", A.sugerirObligacion(ag.filas[2].texto, obl), 3);
+eq("reconoce IIBB con tilde", A.sugerirObligacion(ag.filas[3].texto, obl), 5);
+eq("empate → sin sugerencia", A.sugerirObligacion("algo con iva y igv", [{ id: 1, activo: true, claves: "iva" }, { id: 2, activo: true, claves: "igv" }]), null);
+eq("texto para recordar", A.textoParaClave("IMPUESTO A LAS GANANCIAS · Anticipo 3"), "impuesto a las ganancias anticipo");
 console.log(`\nRESULTADO: ${ok} OK, ${bad} FALLAS`);
 process.exit(bad ? 1 : 0);

@@ -523,3 +523,8 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
   .topbar-actions { gap: 6px !important; margin-left: auto; }
   .main-column > .gm-page:not(.topbar), .main-column > .content-wrap:not(.topbar), .main-column > .usr-page:not(.topbar) { padding: 14px 12px 28px !important; }
 }
+
+/* Textos largos de Administración (guía, instrucciones): listas con números y viñetas. */
+.adm-prosa ol { list-style: decimal; }
+.adm-prosa ul { list-style: disc; }
+.adm-prosa li::marker { color: hsl(var(--muted-foreground)); }
