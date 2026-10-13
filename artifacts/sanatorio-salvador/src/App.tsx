@@ -154,20 +154,20 @@ function Dashboard({ user }: { user?: { name?: string; email?: string | null; ro
   const firstName = user?.name?.split(' ')[0] || 'equipo';
   return <main className="content-wrap">
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap', marginBottom: 25 }}>
-      <div><div className="eyebrow">Martes, 18 de junio de 2024</div><h1 className="page-title">Buen día, {firstName}.</h1><p className="page-subtitle">Esta es la lectura operativa para mantener el día en orden.</p></div>
-      <button className="btn btn-primary" onClick={() => setLocation('/administracion?nuevo=1')} data-testid="button-new-agenda"><Plus size={16} />Nueva agenda</button>
+      <div><div className="eyebrow" style={{ textTransform: 'capitalize' }}>{new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div><h1 className="page-title">Buen día, {firstName}.</h1><p className="page-subtitle">Esta es la lectura operativa para mantener el día en orden.</p></div>
+      <button className="btn btn-primary" onClick={() => setLocation('/administracion?nuevo=1')} data-testid="button-new-agenda"><Plus size={16} />Nuevo vencimiento</button>
     </div>
     {summary.isLoading ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 18 }}>{[1,2,3,4].map((item) => <div key={item} className="metric-card card skeleton" />)}</div> : summary.isError ? <StatusMessage title="No pudimos cargar el resumen" detail="La conexión con el espacio de trabajo no respondió." action={() => summary.refetch()} /> : <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 18 }}>
-        <Metric label="Recordatorios próximos" value={data?.upcomingReminders ?? 0} note="En los próximos 7 días" icon={<Bell size={16} />} />
-        <Metric label="Guardias pendientes" value={data?.pendingGuardias ?? 0} note="Para revisar" icon={<CalendarDays size={16} />} />
-        <Metric label="Ítems con stock bajo" value={data?.lowStockItems ?? 0} note="Requieren atención" icon={<PackageOpen size={16} />} />
-        <Metric label="Actividad reciente" value={data?.recentActivityCount ?? 0} note="Movimientos registrados" icon={<ActivityIcon size={16} />} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 18 }}>
+        <Metric label="Vencimientos próximos" value={data?.upcomingReminders ?? 0} note="Vencidos y próximos 7 días" icon={<Bell size={16} />} />
+        <Metric label="Guardias de hoy" value={data?.pendingGuardias ?? 0} note="Cargadas para hoy" icon={<CalendarDays size={16} />} />
+        <Metric label="Equipos en reparación" value={data?.lowStockItems ?? 0} note="Inventario" icon={<PackageOpen size={16} />} />
+        <Metric label="Actividad reciente" value={data?.recentActivityCount ?? 0} note="Últimos 7 días" icon={<ActivityIcon size={16} />} />
       </div>
       <div className="dashboard-grid">
         <div className="card section-card">
           <div className="section-head"><div><div className="section-title">Próximo en agenda</div><div className="section-kicker">La prioridad más cercana de tu operación</div></div><Link href="/administracion" className="btn btn-quiet" style={{ padding: '8px 11px' }} data-testid="link-view-agenda">Ver agenda <ArrowUpRight size={14} /></Link></div>
-          <div className="reminder-highlight"><div><div className="eyebrow">Siguiente recordatorio</div><div style={{ fontFamily: 'var(--app-font-display)', fontWeight: 800, fontSize: 19, marginTop: 7 }}>{data?.nextReminder || 'No hay recordatorios próximos'}</div></div><div className="reminder-date">{formatDate(data?.nextReminderDate)}</div></div>
+          <div className="reminder-highlight"><div><div className="eyebrow">Siguiente vencimiento pendiente</div><div style={{ fontFamily: 'var(--app-font-display)', fontWeight: 800, fontSize: 19, marginTop: 7 }}>{data?.nextReminder || 'No hay vencimientos pendientes'}</div></div><div className="reminder-date">{formatDate(data?.nextReminderDate)}</div></div>
           <div className="section-head" style={{ marginTop: 21, marginBottom: 7 }}><div><div className="section-title">Accesos directos</div><div className="section-kicker">Atajos para las tareas más frecuentes</div></div></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><QuickAction icon={<ClipboardList size={16} />} title="Revisar agenda" note="Fechas y responsables" href="/administracion" /><QuickAction icon={<Users size={16} />} title="Ver sectores" note={`${sectors.data?.length ?? 0} sectores activos`} href="/configuracion" /></div>
         </div>

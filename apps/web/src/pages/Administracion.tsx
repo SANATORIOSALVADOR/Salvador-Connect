@@ -103,7 +103,10 @@ function formatDateAR(iso: string) {
 }
 
 export default function Administracion() {
-  const [tab, setTab] = useState<"listado" | "calendario" | "nuevo">("listado");
+  // El botón "Nuevo vencimiento" del resumen llega con ?nuevo=1
+  const [tab, setTab] = useState<"listado" | "calendario" | "nuevo">(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("nuevo") ? "nuevo" : "listado",
+  );
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

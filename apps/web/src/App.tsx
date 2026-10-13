@@ -87,12 +87,12 @@ export default function App() {
           <div className="brand">
             <span style={{ fontSize: 22 }}>🏥</span>
             <div>
-              Sanatorio Salvador
+              Sanatorio del Salvador
               <small>SISTEMA INTERNO</small>
             </div>
           </div>
           <div className="pill">
-            <span>● Mega operativa</span>
+            <span>● Mesa operativa</span>
             <span>· Acceso interno</span>
           </div>
           <h1>
@@ -102,7 +102,7 @@ export default function App() {
           </h1>
           <p>
             Un espacio de trabajo preciso para quienes sostienen el Sanatorio
-            Salvador todos los días.
+            del Salvador todos los días.
           </p>
         </aside>
         <section className="auth-panel">
@@ -165,7 +165,7 @@ export default function App() {
   return (
     <div className="flex min-h-full">
       <aside className="w-56 shrink-0 border-r border-slate-800 bg-slate-950 p-4">
-        <div className="mb-1 text-sm font-semibold text-teal-400">Sanatorio Salvador</div>
+        <div className="mb-1 text-sm font-semibold text-teal-400">Sanatorio del Salvador</div>
         <div className="mb-6 text-[11px] uppercase tracking-wide text-slate-500">Sistema interno</div>
         <nav className="space-y-1 text-sm">
           {NAV.map((item) => (
