@@ -1,13 +1,17 @@
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
+  index,
   integer,
   jsonb,
   pgTable,
   serial,
   text,
   timestamp,
+  unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
@@ -169,6 +173,147 @@ export const liquidacionItemsTable = pgTable("liquidacion_items", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ===== Administración (v2, migración 0003) =====
+
+/** Obligaciones fiscales y periódicas que el área tiene que cumplir (catálogo editable). */
+export const admObligacionesTable = pgTable("adm_obligaciones", {
+  id: serial("id").primaryKey(),
+  codigo: text("codigo").notNull().unique(),
+  nombre: text("nombre").notNull(),
+  organismo: text("organismo").notNull().default("arca"),
+  periodicidad: text("periodicidad").notNull().default("mensual"),
+  mesAnual: integer("mes_anual"),
+  diaEstimado: integer("dia_estimado").notNull().default(20),
+  desfasePeriodo: integer("desfase_periodo").notNull().default(-1),
+  presentacion: boolean("presentacion").notNull().default(true),
+  pago: boolean("pago").notNull().default(true),
+  responsable: text("responsable").notNull().default(""),
+  alertDays: integer("alert_days").notNull().default(7),
+  referencia: text("referencia").notNull().default(""),
+  notas: text("notas").notNull().default(""),
+  activo: boolean("activo").notNull().default(true),
+  orden: integer("orden").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Fechas oficiales (o prorrogadas) de cada obligación por mes, cargadas del calendario publicado. */
+export const admCalendarioTable = pgTable(
+  "adm_calendario",
+  {
+    id: serial("id").primaryKey(),
+    obligacionId: integer("obligacion_id")
+      .notNull()
+      .references(() => admObligacionesTable.id, { onDelete: "cascade" }),
+    anio: integer("anio").notNull(),
+    mes: integer("mes").notNull(),
+    fecha: date("fecha", { mode: "string" }).notNull(),
+    origen: text("origen").notNull().default("oficial"),
+    norma: text("norma").notNull().default(""),
+    verificadoPor: integer("verificado_por").references(() => usersTable.id, { onDelete: "set null" }),
+    verificadoAt: timestamp("verificado_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("adm_calendario_oblig_mes_uq").on(t.obligacionId, t.anio, t.mes)],
+);
+
+/** Feriados y días no laborables (para estimar fechas y mover al día hábil). */
+export const admFeriadosTable = pgTable("adm_feriados", {
+  fecha: date("fecha", { mode: "string" }).primaryKey(),
+  nombre: text("nombre").notNull(),
+  tipo: text("tipo").notNull().default("inamovible"),
+});
+
+/** Vencimientos que se repiten (servicios, alquileres, seguros, tareas fijas). */
+export const admRecurrentesTable = pgTable("adm_recurrentes", {
+  id: serial("id").primaryKey(),
+  titulo: text("titulo").notNull(),
+  tipo: text("tipo").notNull().default("pago"),
+  descripcion: text("descripcion").notNull().default(""),
+  frecuencia: text("frecuencia").notNull().default("mensual"),
+  dia: integer("dia").notNull().default(10),
+  desde: date("desde", { mode: "string" }).notNull(),
+  hasta: date("hasta", { mode: "string" }),
+  habiles: boolean("habiles").notNull().default(true),
+  monto: text("monto").notNull().default(""),
+  responsable: text("responsable").notNull().default(""),
+  alertDays: integer("alert_days").notNull().default(3),
+  omitidas: jsonb("omitidas").notNull().default([]),
+  activo: boolean("activo").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Todo lo que tiene fecha en el área: fiscales, pagos, cheques, documentos, tareas y recordatorios. */
+export const admItemsTable = pgTable(
+  "adm_items",
+  {
+    id: serial("id").primaryKey(),
+    tipo: text("tipo").notNull().default("recordatorio"),
+    titulo: text("titulo").notNull(),
+    descripcion: text("descripcion").notNull().default(""),
+    fecha: date("fecha", { mode: "string" }).notNull(),
+    hora: text("hora").notNull().default(""),
+    estado: text("estado").notNull().default("pendiente"),
+    prioridad: text("prioridad").notNull().default("normal"),
+    responsable: text("responsable").notNull().default(""),
+    monto: text("monto").notNull().default(""),
+    alertDays: integer("alert_days").notNull().default(3),
+    obligacionId: integer("obligacion_id").references(() => admObligacionesTable.id, { onDelete: "set null" }),
+    periodo: text("periodo"),
+    fechaOrigen: text("fecha_origen").notNull().default("manual"),
+    recurrenteId: integer("recurrente_id").references(() => admRecurrentesTable.id, { onDelete: "set null" }),
+    datos: jsonb("datos").notNull().default({}),
+    presentado: boolean("presentado").notNull().default(false),
+    pagado: boolean("pagado").notNull().default(false),
+    cumplidoFecha: date("cumplido_fecha", { mode: "string" }),
+    comprobante: text("comprobante").notNull().default(""),
+    montoPagado: text("monto_pagado").notNull().default(""),
+    cumplimientoNota: text("cumplimiento_nota").notNull().default(""),
+    cumplidoPor: integer("cumplido_por").references(() => usersTable.id),
+    legacyId: integer("legacy_id").unique(),
+    createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("adm_items_fecha_idx").on(t.fecha),
+    uniqueIndex("adm_items_fiscal_uq").on(t.obligacionId, t.periodo).where(sql`${t.obligacionId} IS NOT NULL`),
+    uniqueIndex("adm_items_recurrente_uq").on(t.recurrenteId, t.fecha).where(sql`${t.recurrenteId} IS NOT NULL`),
+  ],
+);
+
+/** Agenda de contactos del área (proveedores, bancos, aseguradoras, estudio contable...). */
+export const admContactosTable = pgTable("adm_contactos", {
+  id: serial("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  rubro: text("rubro").notNull().default(""),
+  persona: text("persona").notNull().default(""),
+  telefono: text("telefono").notNull().default(""),
+  email: text("email").notNull().default(""),
+  cuit: text("cuit").notNull().default(""),
+  notas: text("notas").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Historial de cambios del módulo (quién hizo qué y cuándo). Sin FK: sobrevive a los borrados. */
+export const admHistorialTable = pgTable(
+  "adm_historial",
+  {
+    id: serial("id").primaryKey(),
+    entidad: text("entidad").notNull(),
+    entidadId: integer("entidad_id"),
+    accion: text("accion").notNull(),
+    detalle: text("detalle").notNull().default(""),
+    userId: integer("user_id"),
+    userName: text("user_name").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("adm_historial_entidad_idx").on(t.entidad, t.entidadId)],
+);
 
 export const inventoryItemsTable = pgTable("inventory_items", {
   id: serial("id").primaryKey(),

@@ -18,9 +18,9 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
     label: "Administración",
     levels: ["ver", "editar", "total"],
     can: {
-      ver: "Ver el listado, el calendario y los avisos de vencimientos.",
-      editar: "Además: crear y modificar ítems, marcarlos como cumplidos o reabrirlos.",
-      total: "Además: eliminar ítems y generar los vencimientos fiscales del mes.",
+      ver: "Ver la agenda, el control fiscal, cheques, documentos, tareas y contactos.",
+      editar: "Además: cargar y editar, registrar presentaciones y pagos, recurrentes, contactos y verificar las fechas del mes.",
+      total: "Además: eliminar, el catálogo de obligaciones, el calendario oficial (fechas y prórrogas) y los feriados.",
     },
   },
   {

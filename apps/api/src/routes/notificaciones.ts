@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
-import { db, guardiasAuditoriaTable, liquidacionItemsTable } from "@salvador/db";
+import { admItemsTable, db, guardiasAuditoriaTable } from "@salvador/db";
 import { hasLevel, hasModule, requireAuth } from "../lib/auth";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horasEnRango, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
@@ -35,20 +35,20 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
     if (hasModule(user, "administracion")) {
       const items = await db
         .select()
-        .from(liquidacionItemsTable)
-        .where(and(eq(liquidacionItemsTable.status, "pendiente"), lte(liquidacionItemsTable.dueDate, addDaysIso(hoy, 90))))
-        .orderBy(asc(liquidacionItemsTable.dueDate));
+        .from(admItemsTable)
+        .where(and(eq(admItemsTable.estado, "pendiente"), lte(admItemsTable.fecha, addDaysIso(hoy, 120))))
+        .orderBy(asc(admItemsTable.fecha));
       for (const it of items) {
-        const dias = Math.round((Date.parse(it.dueDate) - Date.parse(hoy)) / 86_400_000);
+        const dias = Math.round((Date.parse(it.fecha) - Date.parse(hoy)) / 86_400_000);
         if (dias > (it.alertDays ?? 7)) continue;
         out.push({
-          id: `venc-${it.id}-${it.dueDate}`,
+          id: `venc-${it.id}-${it.fecha}`,
           modulo: "administracion",
           nivel: dias < 0 ? "alta" : dias <= 1 ? "alta" : "media",
           titulo: dias < 0 ? `Vencido hace ${-dias} día${dias === -1 ? "" : "s"}` : dias === 0 ? "Vence hoy" : `Vence en ${dias} día${dias === 1 ? "" : "s"}`,
-          detalle: it.title,
-          fecha: it.dueDate,
-          link: "/administracion",
+          detalle: it.titulo,
+          fecha: it.fecha,
+          link: `/administracion?item=${it.id}`,
         });
       }
     }
@@ -170,9 +170,9 @@ router.get("/dashboard/graficos", requireAuth, async (req, res): Promise<void> =
       const lunes = isoLocal(base);
       const fin = addDaysIso(lunes, 6 * 7 - 1);
       const items = await db
-        .select({ dueDate: liquidacionItemsTable.dueDate, status: liquidacionItemsTable.status })
-        .from(liquidacionItemsTable)
-        .where(and(lte(liquidacionItemsTable.dueDate, fin), inArray(liquidacionItemsTable.status, ["pendiente"])));
+        .select({ dueDate: admItemsTable.fecha })
+        .from(admItemsTable)
+        .where(and(lte(admItemsTable.fecha, fin), eq(admItemsTable.estado, "pendiente")));
       out.vencimientos = Array.from({ length: 6 }, (_, i) => {
         const desde = addDaysIso(lunes, i * 7);
         const hasta = addDaysIso(desde, 6);

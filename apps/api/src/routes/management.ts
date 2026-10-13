@@ -5,7 +5,7 @@ import {
   agendaItemsTable,
   guardiasTable,
   inventoryItemsTable,
-  liquidacionItemsTable,
+  admItemsTable,
   sectorsTable,
   usersTable,
 } from "@salvador/db";
@@ -77,18 +77,18 @@ async function recentActivity(user: AuthUser, limit: number): Promise<ActivityEn
 
   if (hasModule(user, "administracion")) {
     const rows = await db
-      .select({ a: liquidacionItemsTable, actor: usersTable.name })
-      .from(liquidacionItemsTable)
-      .leftJoin(usersTable, eq(liquidacionItemsTable.createdByUserId, usersTable.id))
-      .where(gte(liquidacionItemsTable.updatedAt, since))
-      .orderBy(desc(liquidacionItemsTable.updatedAt))
+      .select({ a: admItemsTable, actor: usersTable.name })
+      .from(admItemsTable)
+      .leftJoin(usersTable, eq(admItemsTable.createdByUserId, usersTable.id))
+      .where(gte(admItemsTable.updatedAt, since))
+      .orderBy(desc(admItemsTable.updatedAt))
       .limit(limit);
     for (const r of rows) {
       const isNew = Math.abs(r.a.updatedAt.getTime() - r.a.createdAt.getTime()) < 1000;
       entries.push({
         id: r.a.id * 2 + 1,
         title: isNew ? "Ítem de administración creado" : "Ítem de administración actualizado",
-        detail: r.a.title,
+        detail: r.a.titulo,
         actor: r.actor ?? "Sistema",
         createdAt: r.a.updatedAt,
         kind: "agenda",
@@ -112,10 +112,10 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     if (hasModule(user, "administracion")) {
       // Pendientes vencidos + los de los próximos 7 días.
       const pending = await db
-        .select({ title: liquidacionItemsTable.title, dueDate: liquidacionItemsTable.dueDate })
-        .from(liquidacionItemsTable)
-        .where(and(eq(liquidacionItemsTable.status, "pendiente"), lte(liquidacionItemsTable.dueDate, isoLocal(in7))))
-        .orderBy(asc(liquidacionItemsTable.dueDate));
+        .select({ title: admItemsTable.titulo, dueDate: admItemsTable.fecha })
+        .from(admItemsTable)
+        .where(and(eq(admItemsTable.estado, "pendiente"), lte(admItemsTable.fecha, isoLocal(in7))))
+        .orderBy(asc(admItemsTable.fecha));
       upcomingReminders = pending.length;
       nextReminder = pending[0]?.title ?? null;
       nextReminderDate = pending[0]?.dueDate ?? null;

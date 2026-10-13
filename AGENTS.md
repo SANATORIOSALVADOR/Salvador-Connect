@@ -4,7 +4,7 @@ Sistema interno **Sanatorio del Salvador**. Monorepo pnpm.
 
 ## Prioridad de trabajo
 
-1. **Administración** (vencimientos + fiscal local + calendario)
+1. **Administración** (agenda, fiscal con calendario oficial, cheques, documentos, tareas, recurrentes, contactos)
 2. **Guardias Médicas** (calendario + carga activa/pasiva)
 3. **Usuarios / sectores** (base)
 4. Inventario / Instructivos solo si el usuario lo pide

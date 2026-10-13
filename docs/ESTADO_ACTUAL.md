@@ -4,7 +4,7 @@
 
 - Login + sesión cookie
 - Sidebar colapsable (248 / 72), fixed, offset de contenido
-- **Administración**: listado, avisos, calendario (detalle a la derecha), ABM ítems, **Generar vencimientos** (fiscal local CUIT)
+- **Administración (v2, oct-2026)**: resumen del día, agenda (lista + calendario), control fiscal mensual con calendario oficial cargado a mano (sin conexión a ARCA), cheques, documentos/contratos con renovación, tareas, vencimientos recurrentes, contactos, feriados e historial. Ver `.claude/skills/administracion/SKILL.md`.
 - **Guardias Médicas**: calendario con cobertura por horario requerido, "de guardia ahora", carga, copiar semana/mes, historial de cambios, productividad por profesional y sector, configuración de sectores y profesionales
 - **Configuración** (solo superadmin): Usuarios con permisos por módulo (Ver / Cargar y editar / Control total) y sectores a cargo; Sectores
 
@@ -34,10 +34,13 @@
 
 ## Fiscal
 
-- Generación local según portal (SICORE, SUSS, IVA, IIBB Córdoba, agente retención)
-- **No** hay integración ARCA online todavía (pendiente de producto)
+- Catálogo de obligaciones editable (precargadas: SICORE, SUSS/F.931, IVA, IIBB Córdoba, pago a cuenta SICORE, agente de retención 1ª/2ª quincena).
+- La fecha exacta sale del **calendario oficial** (ARCA / Rentas Córdoba) que se carga una vez al año en Fiscal → Calendario oficial (se puede pegar la fila copiada). Sin fecha oficial, se **estima** (día habitual + día hábil) y queda marcada.
+- Verificación mensual: botón «Verificar fechas del mes». Prórrogas con resolución e historial.
+- Los vencimientos del mes en curso y del siguiente se crean solos (al arrancar la API y cada hora).
+- **No** hay integración ARCA online: la agenda pública de ARCA no responde a consultas automáticas (probado oct-2026).
 
 ## UI conocida / deuda controlada
 
-- Layout reforzado con CSS `OFFSET FORZADO SIDEBAR` vía `patch-shell.mjs`
+- Layout reforzado con CSS `OFFSET FORZADO SIDEBAR` en `index.css` (en pantallas ≤ 900 px el contenido usa todo el ancho)
 - Preferir estilos inline en grillas de calendario para evitar regresiones del build

@@ -449,7 +449,15 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
 
 @media (max-width: 980px) { .gm-calendar-layout { grid-template-columns: 1fr !important; } }
 @media (max-width: 900px) { .workspace-shell .sidebar { display: none !important; } .mobile-menu { display: inline-flex !important; } }
+/* Con el menú oculto (celular / tablet) el contenido usa todo el ancho. */
+@media (max-width: 900px) {
+  .workspace-shell > .main-column, .main-column,
+  .workspace-shell.is-collapsed > .main-column, .workspace-shell.is-collapsed .main-column { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; padding-left: 0 !important; }
+}
 @media (max-width: 640px) { .adm-page, .content-wrap, .usr-page, .gm-page { padding: 14px 12px 28px !important; } }
+/* Administración v2: margen propio (la regla general de .main-column > * lo deja en 0). */
+.main-column > .adm-page:not(.topbar) { padding: 20px 24px 40px !important; }
+@media (max-width: 640px) { .main-column > .adm-page:not(.topbar) { padding: 14px 12px 28px !important; } }
 
 /* ---------- Accesibilidad ---------- */
 /* Foco visible al navegar con teclado (no con el mouse). */
@@ -488,7 +496,7 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
   /* Fuera de la hoja: menú, barra superior, botones, filtros y avisos. */
   .sidebar, .topbar, .skip-link, .mobile-menu, .no-print, button, select, input[type="date"], [role="status"], [role="alert"] { display: none !important; }
   .main-column, .workspace-shell > .main-column { margin: 0 !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
-  .content-wrap, .adm-page, .gm-page, .usr-page { padding: 0 !important; }
+  .content-wrap, .adm-page, .gm-page, .usr-page, .main-column > .adm-page:not(.topbar) { padding: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
   .agenda-table-wrap { max-height: none !important; overflow: visible !important; }
   thead { display: table-header-group; } /* repite los títulos de la tabla en cada hoja */
@@ -502,4 +510,16 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
   .print-sub { font-size: 10pt; color: #444; }
   .print-meta { margin-left: auto; text-align: right; font-size: 9pt; color: #444; }
   .print-footer { position: fixed; bottom: 0; left: 0; right: 0; justify-content: center; font-size: 8pt; color: #666; border-top: 1px solid #ccc; padding-top: 4px; }
+}
+
+/* Administración: colores de texto de estado que se leen bien en claro y en oscuro. */
+:root { --adm-danger: #b42323; --adm-warn: #9a5b00; --adm-ok: #0f7a0f; --adm-hot: #a2470d; }
+.dark { --adm-danger: #f87171; --adm-warn: #f0b54a; --adm-ok: #4ade80; --adm-hot: #fb923c; }
+
+/* Celular: la barra superior entra completa (sin migas ni nombre; queda el avatar) y las páginas con margen. */
+@media (max-width: 720px) {
+  .topbar { padding-left: 12px !important; padding-right: 12px !important; gap: 8px; }
+  .topbar-meta, .topbar-user-text { display: none !important; }
+  .topbar-actions { gap: 6px !important; margin-left: auto; }
+  .main-column > .gm-page:not(.topbar), .main-column > .content-wrap:not(.topbar), .main-column > .usr-page:not(.topbar) { padding: 14px 12px 28px !important; }
 }

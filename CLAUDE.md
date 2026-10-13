@@ -21,7 +21,7 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 
 | Módulo | Estado | Notas |
 |--------|--------|--------|
-| **Administración** | Activo / prioritario | Vencimientos, recordatorios, calendario, generar fiscal (reglas locales ARCA) |
+| **Administración** | Activo / prioritario | Agenda, fiscal (calendario oficial + estimadas), cheques, documentos, tareas, recurrentes, contactos |
 | **Guardias Médicas** | Activo / prioritario | Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
 | **Configuración** | Activo | Secciones Usuarios (ABM + permisos por módulo y nivel) y Sectores. Solo superadmin |
 | **Inventario** | Código existe; producto poco definido | No ampliar hasta que el usuario lo pida |
@@ -129,9 +129,9 @@ Skills relacionadas: `.claude/skills/layout-ui/SKILL.md`
 
 ## Fiscal (Administración)
 
-- Generación **local** con reglas del CUIT del sanatorio (no API ARCA real todavía).
-- Botón “Generar vencimientos” → modal mes/año.
-- Idempotencia por marca en notes `[FISCAL:CODE:YYYY-MM]`.
+- Sin conexión a ARCA: fechas del **calendario oficial** cargadas a mano (`adm_calendario`); si faltan, **estimadas** (día habitual → día hábil) y marcadas.
+- Catálogo `adm_obligaciones`; vencimientos en `adm_items` (único por obligación + mes). Se generan solos (mes actual y siguiente).
+- Fecha editada a mano en un fiscal → `fecha_origen = manual`: la automatización no la pisa.
 - Pendiente de producto: integración real ARCA/AFIP (no implementar sin pedido explícito).
 
 Skill: `.claude/skills/administracion/SKILL.md`

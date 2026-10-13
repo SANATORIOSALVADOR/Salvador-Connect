@@ -7,9 +7,9 @@ import { guardarTema, temaEfectivo } from "@/pages/shared/apariencia";
 // vencimientos, usuarios, sectores). Todo con teclado: ↑ ↓ para moverse, Enter para abrir, Esc para cerrar.
 
 type Item = { grupo: string; titulo: string; detalle?: string; accion: () => void; clave: string };
-type Resultado = { tipo: "profesional" | "vencimiento" | "usuario" | "sector"; titulo: string; detalle: string; link: string };
+type Resultado = { tipo: "profesional" | "vencimiento" | "contacto" | "usuario" | "sector"; titulo: string; detalle: string; link: string };
 
-const GRUPO_DATO: Record<Resultado["tipo"], string> = { profesional: "Profesionales", vencimiento: "Vencimientos", usuario: "Usuarios", sector: "Sectores" };
+const GRUPO_DATO: Record<Resultado["tipo"], string> = { profesional: "Profesionales", vencimiento: "Vencimientos", contacto: "Contactos", usuario: "Usuarios", sector: "Sectores" };
 
 function normal(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -119,7 +119,7 @@ export function Buscador({ pantallas, esSuperadmin }: { pantallas: { href: strin
       <button type="button" className="btn btn-quiet" onClick={() => setAbierto(true)} aria-label="Buscar (Ctrl + K)" data-testid="button-buscar" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, padding: "6px 10px", color: "hsl(var(--muted-foreground))" }}>
         <Search size={14} />
         <span className="buscar-texto">Buscar</span>
-        <kbd style={{ fontSize: 10, padding: "1px 5px", borderRadius: 5, border: "1px solid hsl(var(--border))", fontFamily: "var(--app-font-mono)" }}>{esMac ? "⌘K" : "Ctrl K"}</kbd>
+        <kbd className="buscar-texto" style={{ fontSize: 10, padding: "1px 5px", borderRadius: 5, border: "1px solid hsl(var(--border))", fontFamily: "var(--app-font-mono)" }}>{esMac ? "⌘K" : "Ctrl K"}</kbd>
       </button>
 
       {abierto && (

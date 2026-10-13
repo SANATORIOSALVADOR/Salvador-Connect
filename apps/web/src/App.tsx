@@ -196,9 +196,9 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
       <header className="topbar" style={{ paddingLeft: 20, paddingRight: 20 }}>
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menú" data-testid="button-open-menu"><Menu size={18} /></button>
         <div className="topbar-meta"><span style={{ fontWeight: 600 }}>{apariencia.nombre}</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/perfil" title="Mi perfil" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }} data-testid="link-perfil">
-            <div style={{ textAlign: 'right' }}>
+            <div className="topbar-user-text" style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 12, fontWeight: 700 }}>{user?.name || 'Sesión interna'}</div>
               <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>@{user?.username || 'usuario'}</div>
             </div>

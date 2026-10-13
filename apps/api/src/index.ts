@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureBootstrapSuperadmin } from "./lib/auth";
 import { runMigrations } from "./lib/migrate";
+import { iniciarAutomatizacionAdministracion } from "./lib/administracion";
 
 const rawPort = process.env["PORT"];
 
@@ -40,6 +41,8 @@ async function start() {
       process.exit(1);
     }
     logger.info({ port }, "Server listening");
+    // Vencimientos fiscales del mes y recurrentes: al arrancar y cada hora.
+    iniciarAutomatizacionAdministracion();
   });
 }
 
