@@ -47,9 +47,9 @@
   --accent-foreground: 198 34% 16%;
   --destructive: 1 68% 50%;
   --destructive-foreground: 42 35% 99%;
-  --app-font-sans: 'DM Sans', sans-serif;
-  --app-font-display: 'Manrope', sans-serif;
-  --app-font-mono: 'Space Mono', monospace;
+  --app-font-sans: 'DM Sans Variable', 'DM Sans', system-ui, sans-serif;
+  --app-font-display: 'Manrope Variable', 'Manrope', system-ui, sans-serif;
+  --app-font-mono: 'Space Mono', ui-monospace, monospace;
   --radius: 0.85rem;
   --sidebar: 197 37% 18%;
   --sidebar-foreground: 39 28% 91%;
