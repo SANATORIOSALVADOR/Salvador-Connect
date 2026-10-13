@@ -526,9 +526,9 @@ export default function Administracion() {
           <div className="card" style={{ padding: 18 }}>
             <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</button>
+                <button type="button" className="btn btn-quiet" aria-label="Mes anterior" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</button>
                 <span style={{ fontWeight: 800, textTransform: "capitalize", minWidth: 140, textAlign: "center" }}>{monthLabel}</span>
-                <button type="button" className="btn btn-quiet" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</button>
+                <button type="button" className="btn btn-quiet" aria-label="Mes siguiente" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</button>
               </div>
               <span className="page-subtitle" style={{ margin: 0 }}>Número = pendientes · rojo = vencido</span>
             </div>

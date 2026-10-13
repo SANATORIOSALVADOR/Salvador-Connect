@@ -125,20 +125,21 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
   };
   // Usuarios vive dentro de Configuración (solo superadmin).
   const visibleNavItems = navItems.filter((item) => item.href !== '/usuarios' && (user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1))));
-  const nav = <nav style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+  const nav = <nav aria-label="Menú principal" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
     {!collapsed && <div className="nav-label">Operación</div>}
     {visibleNavItems.map(({ href, label, icon: Icon }) => (
-      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} title={label} data-testid={`link-nav-${label.toLowerCase()}`}>
+      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} aria-current={location === href ? 'page' : undefined} title={label} data-testid={`link-nav-${label.toLowerCase()}`}>
         <Icon className="nav-icon" />{!collapsed && <span>{label}</span>}
       </Link>
     ))}
     {user?.role === 'superadmin' && !collapsed && <div className="nav-label">Espacio</div>}
-    {user?.role === 'superadmin' && <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={`nav-item ${location === '/configuracion' || location === '/usuarios' ? 'active' : ''}`} title="Configuración" data-testid="link-nav-configuracion">
+    {user?.role === 'superadmin' && <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={`nav-item ${location === '/configuracion' || location === '/usuarios' ? 'active' : ''}`} aria-current={location === '/configuracion' || location === '/usuarios' ? 'page' : undefined} title="Configuración" data-testid="link-nav-configuracion">
       <Settings2 className="nav-icon" />{!collapsed && <span>Configuración</span>}
     </Link>}
   </nav>;
   const sideW = collapsed ? 72 : 248;
   return <div className={`workspace-shell${collapsed ? " is-collapsed" : ""}`} style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+    <a href="#contenido" className="skip-link">Saltar al contenido</a>
     <aside className="sidebar" style={{
       position: 'fixed', left: 0, top: 0, bottom: 0,
       width: sideW, minWidth: sideW, maxWidth: sideW,
@@ -165,7 +166,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
           </div>
         )}
         <button className="btn btn-quiet" style={{ width: '100%', marginTop: collapsed ? 0 : 4, color: 'hsl(var(--sidebar-foreground) / .78)', background: 'transparent', borderColor: 'hsl(var(--sidebar-border))', padding: collapsed ? '10px' : undefined }} onClick={doLogout} disabled={logout.isPending} data-testid="button-logout" title="Cerrar sesión">
-          {collapsed ? "⎋" : "Cerrar sesión"}
+          {collapsed ? <span aria-hidden="true">⎋</span> : "Cerrar sesión"}{collapsed && <span className="sr-only">Cerrar sesión</span>}
         </button>
       </div>
     </aside>
@@ -185,7 +186,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
     )}
     <div className="main-column" style={{ marginLeft: sideW, paddingLeft: 8, width: `calc(100% - ${sideW}px)`, maxWidth: `calc(100% - ${sideW}px)`, minWidth: 0, display: 'flex', flexDirection: 'column', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <header className="topbar" style={{ paddingLeft: 20, paddingRight: 20 }}>
-        <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={18} /></button>
+        <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menú" data-testid="button-open-menu"><Menu size={18} /></button>
         <div className="topbar-meta"><span className="font-mono">{apariencia.nombre.toUpperCase()}</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/perfil" title="Mi perfil" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }} data-testid="link-perfil">
@@ -200,6 +201,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
           <button className="btn btn-quiet" style={{ fontSize: 12, padding: '6px 10px' }} onClick={doLogout} disabled={logout.isPending} title="Cerrar sesión" data-testid="button-logout-top">Salir</button>
         </div>
       </header>
+      <div id="contenido" tabIndex={-1} style={{ outline: 'none' }} />
       {/* Mientras se descarga un módulo se muestra un esqueleto en lugar de una pantalla en blanco. */}
       <Suspense fallback={<main className="content-wrap" aria-busy="true"><div className="skeleton" style={{ height: 34, width: 260, marginBottom: 16 }} /><div className="skeleton" style={{ height: 320 }} /></main>}>{children}</Suspense>
     </div>

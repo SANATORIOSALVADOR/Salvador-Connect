@@ -857,9 +857,9 @@ export default function GuardiasMedicas() {
             <div className="card gm-calendar-panel">
               <div className="gm-cal-toolbar">
                 <div className="gm-cal-nav">
-                  <button type="button" className="btn btn-quiet" onClick={prevMonth}>←</button>
+                  <button type="button" className="btn btn-quiet" aria-label="Mes anterior" onClick={prevMonth}>←</button>
                   <span className="gm-cal-month">{monthLabel}</span>
-                  <button type="button" className="btn btn-quiet" onClick={nextMonth}>→</button>
+                  <button type="button" className="btn btn-quiet" aria-label="Mes siguiente" onClick={nextMonth}>→</button>
                   <button type="button" className="btn btn-quiet" onClick={() => { setCursor(new Date()); setSelectedDay(todayIso); }}>Hoy</button>
                 </div>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 600 }}>
