@@ -361,6 +361,9 @@ importers:
       '@salvador/db':
         specifier: workspace:*
         version: link:../packages/db
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
