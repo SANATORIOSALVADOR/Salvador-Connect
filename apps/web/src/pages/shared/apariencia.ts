@@ -28,6 +28,31 @@ export const APARIENCIA_DEFAULT: Apariencia = {
 
 const CACHE_KEY = "sc-apariencia";
 const TEMA_KEY = "sc-tema"; // preferencia de cada persona en este navegador
+const TEXTO_KEY = "sc-texto";
+
+/** Tamaño de texto de cada persona (accesibilidad). Se aplica como zoom de la página. */
+export type TamanoTexto = "normal" | "grande" | "muy-grande";
+const ZOOM: Record<TamanoTexto, number> = { normal: 1, grande: 1.12, "muy-grande": 1.25 };
+
+export function tamanoTexto(): TamanoTexto {
+  try {
+    const t = localStorage.getItem(TEXTO_KEY);
+    return t === "grande" || t === "muy-grande" ? t : "normal";
+  } catch {
+    return "normal";
+  }
+}
+
+export function guardarTamanoTexto(t: TamanoTexto) {
+  try {
+    if (t === "normal") localStorage.removeItem(TEXTO_KEY);
+    else localStorage.setItem(TEXTO_KEY, t);
+  } catch {
+    /* sin almacenamiento: solo esta sesión */
+  }
+  aplicar(actual);
+  emit();
+}
 
 // ---------- colores ----------
 
@@ -102,6 +127,8 @@ function aplicar(a: Apariencia) {
   const root = document.documentElement;
   const oscuro = temaEfectivo(a) === "oscuro";
   root.classList.toggle("dark", oscuro);
+  const zoom = ZOOM[tamanoTexto()];
+  (root.style as CSSStyleDeclaration & { zoom: string }).zoom = zoom === 1 ? "" : String(zoom);
   root.style.colorScheme = oscuro ? "dark" : "light";
 
   // Color principal: un poco más claro en oscuro para que contraste con el fondo.
@@ -182,7 +209,7 @@ export function useApariencia() {
       listeners.delete(fn);
     };
   }, []);
-  return { apariencia: actual, tema: temaGuardado() ?? actual.temaPorDefecto, oscuro: temaEfectivo() === "oscuro" };
+  return { apariencia: actual, tema: temaGuardado() ?? actual.temaPorDefecto, temaPropio: temaGuardado(), oscuro: temaEfectivo() === "oscuro", texto: tamanoTexto() };
 }
 
 // Al cargar: aplicar lo guardado, pedir lo último al servidor y seguir el tema del sistema operativo.

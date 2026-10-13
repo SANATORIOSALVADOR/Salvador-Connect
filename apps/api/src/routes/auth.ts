@@ -108,6 +108,40 @@ router.get("/auth/me", requireAuth, async (request, response): Promise<void> => 
   response.json(publicUser(request.authUser!));
 });
 
+/** Mi perfil: cada persona corrige su nombre y email (usuario, rol y permisos los define el superadmin). */
+router.patch("/auth/me", requireAuth, async (request, response): Promise<void> => {
+  const body = (request.body ?? {}) as { name?: unknown; email?: unknown };
+  const patch: { name?: string; email?: string | null } = {};
+  if (body.name !== undefined) {
+    const name = String(body.name).replace(/\s+/g, " ").trim().slice(0, 80);
+    if (name.length < 2) {
+      response.status(400).json({ message: "El nombre es obligatorio." });
+      return;
+    }
+    patch.name = name;
+  }
+  if (body.email !== undefined) {
+    const email = String(body.email ?? "").trim().toLowerCase().slice(0, 120);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      response.status(400).json({ message: "El email no es válido." });
+      return;
+    }
+    patch.email = email || null;
+  }
+  try {
+    if (Object.keys(patch).length) await db.update(usersTable).set(patch).where(eq(usersTable.id, request.authUser!.id));
+    const user = await getUserWithPermissions(request.authUser!.id);
+    response.json(publicUser(user!));
+  } catch (err) {
+    if (/unique|duplicate/i.test(String((err as Error)?.message ?? err))) {
+      response.status(409).json({ message: "Ese email ya lo usa otro usuario." });
+      return;
+    }
+    logger.error({ err }, "update profile failed");
+    response.status(500).json({ message: "No se pudo guardar el perfil." });
+  }
+});
+
 router.post("/auth/continue-password", requireAuth, async (request, response): Promise<void> => {
   await db
     .update(usersTable)

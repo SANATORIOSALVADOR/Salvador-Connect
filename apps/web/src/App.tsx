@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { PasswordInput } from "@/components/password-input";
+import { FeedbackHost } from "@/components/feedback";
 import { guardarTema, useApariencia } from '@/pages/shared/apariencia';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
@@ -11,8 +13,6 @@ import {
   Check,
   ClipboardList,
   Clock3,
-  Eye,
-  EyeOff,
   FileText,
   Hospital,
   LayoutDashboard,
@@ -58,6 +58,7 @@ import {
 } from '@salvador/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import ConfiguracionPage from '@/pages/Configuracion';
+import PerfilPage from '@/pages/Perfil';
 import InstructivosPage from '@/pages/Instructivos';
 import InventarioPage from '@/pages/Inventario';
 import UsuariosPage from '@/pages/Usuarios';
@@ -130,7 +131,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
   });
   const [, setLocation] = useLocation();
   const logout = useLogout();
-  const { oscuro } = useApariencia();
+  const { oscuro, apariencia } = useApariencia();
   // Sale siempre: aunque la sesión ya no exista en el servidor (vencida o cerrada), limpia y vuelve al login.
   const doLogout = () => logout.mutate(undefined, { onSettled: () => { queryClient.clear(); setMobileOpen(false); setLocation('/'); } });
   const toggleCollapsed = () => {
@@ -203,13 +204,15 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
     <div className="main-column" style={{ marginLeft: sideW, paddingLeft: 8, width: `calc(100% - ${sideW}px)`, maxWidth: `calc(100% - ${sideW}px)`, minWidth: 0, display: 'flex', flexDirection: 'column', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <header className="topbar" style={{ paddingLeft: 20, paddingRight: 20 }}>
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} data-testid="button-open-menu"><Menu size={18} /></button>
-        <div className="topbar-meta"><span className="font-mono">SANATORIO DEL SALVADOR</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
+        <div className="topbar-meta"><span className="font-mono">{apariencia.nombre.toUpperCase()}</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 12, fontWeight: 700 }}>{user?.name || 'Sesión interna'}</div>
-            <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>@{user?.username || 'usuario'}</div>
-          </div>
-          <div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div>
+          <Link href="/perfil" title="Mi perfil" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }} data-testid="link-perfil">
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>{user?.name || 'Sesión interna'}</div>
+              <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>@{user?.username || 'usuario'}</div>
+            </div>
+            <div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div>
+          </Link>
           <button className="btn btn-quiet btn-icon" onClick={() => guardarTema(oscuro ? 'claro' : 'oscuro')} title={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} aria-label={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} data-testid="button-theme" style={{ fontSize: 15, width: 34, height: 34 }}>{oscuro ? '☀' : '☾'}</button>
           <button className="btn btn-quiet" style={{ fontSize: 12, padding: '6px 10px' }} onClick={doLogout} disabled={logout.isPending} title="Cerrar sesión" data-testid="button-logout-top">Salir</button>
         </div>
@@ -324,16 +327,6 @@ function Welcome() {
   return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Mesa operativa · Acceso interno</div><h1>El día claro.<br /><span style={{ color: 'hsl(var(--sidebar-primary))' }}>La operación</span> en orden.</h1><p>Un espacio de trabajo preciso para quienes sostienen el Sanatorio del Salvador todos los días.</p></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Sistema interno</div><h2>Bienvenido al equipo.</h2><p>Ingresá con el usuario y la contraseña asignados por el superadmin.</p><div style={{ display: 'grid', gap: 10, marginTop: 28 }}><button className="btn btn-primary" onClick={() => setLocation('/sign-in')} data-testid="button-welcome-sign-in">Ingresar al sistema <ArrowUpRight size={15} /></button></div><div className="auth-foot">Acceso reservado para personal autorizado</div></div></section></div>;
 }
 
-function PasswordInput({ value, onChange, autoComplete, testId, minLength, required }: { value: string; onChange: (v: string) => void; autoComplete: string; testId: string; minLength?: number; required?: boolean }) {
-  const [visible, setVisible] = useState(false);
-  return <div style={{ position: 'relative' }}>
-    <input className="input" type={visible ? 'text' : 'password'} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} minLength={minLength} required={required} data-testid={testId} style={{ paddingRight: 42, width: '100%', boxSizing: 'border-box' }} />
-    <button type="button" onClick={() => setVisible((v) => !v)} aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'} title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'} data-testid={`${testId}-toggle`} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'grid', placeItems: 'center', width: 32, height: 32, border: 'none', background: 'transparent', color: 'hsl(var(--muted-foreground))', cursor: 'pointer', borderRadius: 8 }}>
-      {visible ? <EyeOff size={17} /> : <Eye size={17} />}
-    </button>
-  </div>;
-}
-
 /** Mensaje del servidor si lo hay (bloqueo por intentos, error interno…); si no, el genérico. */
 function loginErrorMessage(error: unknown): string {
   const e = error as { status?: number; data?: { message?: string } } | null;
@@ -433,6 +426,7 @@ function Router() {
     <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><InventarioPage /></Shell></Protected></Route>
     <Route path="/instructivos"><Protected user={shellUser}><Shell user={shellUser}><InstructivosPage /></Shell></Protected></Route>
     <Route path="/configuracion"><Protected user={shellUser}><Shell user={shellUser}><ConfiguracionPage /></Shell></Protected></Route>
+    <Route path="/perfil"><Protected user={shellUser}><Shell user={shellUser}><PerfilPage /></Shell></Protected></Route>
     <Route path="/usuarios"><Protected user={shellUser}><Shell user={shellUser}><UsuariosPage /></Shell></Protected></Route>
     <Route><Protected user={shellUser}><Shell user={shellUser}><StatusMessage title="Página no encontrada" detail="El enlace que buscás no existe dentro del sistema." action={() => window.history.back()} /></Shell></Protected></Route>
   </Switch>;
@@ -440,7 +434,7 @@ function Router() {
 
 function App() {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-  return <WouterRouter base={basePath}><QueryClientProvider client={queryClient}><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /></TooltipProvider></QueryClientProvider></WouterRouter>;
+  return <WouterRouter base={basePath}><QueryClientProvider client={queryClient}><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /><FeedbackHost /></TooltipProvider></QueryClientProvider></WouterRouter>;
 }
 
 export default App;
