@@ -265,6 +265,7 @@ function loginErrorMessage(error: unknown): string {
 }
 
 function LoginPage() {
+  const { apariencia } = useApariencia();
   const [, setLocation] = useLocation();
   const login = useLogin();
   const [username, setUsername] = useState('');
@@ -278,7 +279,7 @@ function LoginPage() {
       },
     });
   };
-  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Sanatorio Salvador · Área protegida</div><h1>Una forma más <span style={{ color: 'hsl(var(--sidebar-primary))' }}>serena</span> de trabajar.</h1></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Acceso interno</div><h2>Iniciar sesión.</h2><p>Usá tu usuario y contraseña para entrar al sistema.</p><form onSubmit={submit} className="auth-form"><label className="field"><span className="field-label">Usuario</span><input className="input" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoFocus required data-testid="input-login-username" /></label><label className="field"><span className="field-label">Contraseña</span><PasswordInput value={password} onChange={setPassword} autoComplete="current-password" required testId="input-login-password" /></label>{login.isError && <div className="form-error">{loginErrorMessage(login.error)}</div>}<button className="btn btn-primary" type="submit" disabled={login.isPending} data-testid="button-login-submit">{login.isPending ? 'Ingresando…' : 'Ingresar'} <ArrowUpRight size={15} /></button></form><div className="auth-foot">Los usuarios son creados y administrados por el superadmin.</div></div></section></div>;
+  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">{apariencia.nombre} · Área protegida</div><h1>{apariencia.tituloLogin}</h1>{apariencia.mensajeLogin && <p>{apariencia.mensajeLogin}</p>}</section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Acceso interno</div><h2>Iniciar sesión.</h2><p>Usá tu usuario y contraseña para entrar al sistema.</p><form onSubmit={submit} className="auth-form"><label className="field"><span className="field-label">Usuario</span><input className="input" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoFocus required data-testid="input-login-username" /></label><label className="field"><span className="field-label">Contraseña</span><PasswordInput value={password} onChange={setPassword} autoComplete="current-password" required testId="input-login-password" /></label>{login.isError && <div className="form-error">{loginErrorMessage(login.error)}</div>}<button className="btn btn-primary" type="submit" disabled={login.isPending} data-testid="button-login-submit">{login.isPending ? 'Ingresando…' : 'Ingresar'} <ArrowUpRight size={15} /></button></form><div className="auth-foot">Los usuarios son creados y administrados por el superadmin.</div></div></section></div>;
 }
 
 function FirstAccessPage({ user }: { user: { name?: string; mustChangePassword?: boolean } }) {

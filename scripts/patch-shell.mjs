@@ -23,6 +23,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
   });
   const [, setLocation] = useLocation();
   const logout = useLogout();
+  const { oscuro } = useApariencia();
   // Sale siempre: aunque la sesión ya no exista en el servidor (vencida o cerrada), limpia y vuelve al login.
   const doLogout = () => logout.mutate(undefined, { onSettled: () => { queryClient.clear(); setMobileOpen(false); setLocation('/'); } });
   const toggleCollapsed = () => {
@@ -102,6 +103,7 @@ const newShell = `function Shell({ children, user }: { children: ReactNode; user
             <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>@{user?.username || 'usuario'}</div>
           </div>
           <div className="avatar" data-testid="avatar-current-user">{initials(user?.name)}</div>
+          <button className="btn btn-quiet btn-icon" onClick={() => guardarTema(oscuro ? 'claro' : 'oscuro')} title={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} aria-label={oscuro ? 'Pasar a modo claro' : 'Pasar a modo oscuro'} data-testid="button-theme" style={{ fontSize: 15, width: 34, height: 34 }}>{oscuro ? '☀' : '☾'}</button>
           <button className="btn btn-quiet" style={{ fontSize: 12, padding: '6px 10px' }} onClick={doLogout} disabled={logout.isPending} title="Cerrar sesión" data-testid="button-logout-top">Salir</button>
         </div>
       </header>
@@ -121,12 +123,15 @@ t = t.replace(/SANATORIO SALVADOR/g, "SANATORIO DEL SALVADOR");
   const be = t.indexOf("function Shell(", bi);
   if (bi >= 0 && be > bi) {
     t = t.slice(0, bi) + `function Brand({ compact = false }: { compact?: boolean }) {
+  const { apariencia } = useApariencia();
   return <Link href="/dashboard" className="sidebar-brand" data-testid="link-brand">
-    <div className="brand-mark"><Hospital size={18} strokeWidth={2.4} /></div>
+    <div className="brand-mark" style={apariencia.logo ? { background: '#fff', padding: 3, overflow: 'hidden' } : undefined}>
+      {apariencia.logo ? <img src={apariencia.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <Hospital size={18} strokeWidth={2.4} />}
+    </div>
     {!compact && (
       <div style={{ minWidth: 0 }}>
-        <div className="font-display">Sanatorio del Salvador</div>
-        <div className="brand-sub">Sistema interno</div>
+        <div className="font-display" title={apariencia.nombre}>{apariencia.nombre}</div>
+        {apariencia.subtitulo && <div className="brand-sub">{apariencia.subtitulo}</div>}
       </div>
     )}
   </Link>;
@@ -134,6 +139,10 @@ t = t.replace(/SANATORIO SALVADOR/g, "SANATORIO DEL SALVADOR");
 
 ` + t.slice(be);
   }
+}
+
+if (!t.includes("@/pages/shared/apariencia")) {
+  t = t.replace(/^(import [^\n]+\n)/, "$1import { guardarTema, useApariencia } from '@/pages/shared/apariencia';\n");
 }
 
 fs.writeFileSync(path, t);

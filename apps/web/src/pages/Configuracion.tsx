@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import AparienciaConfig from "./shared/AparienciaConfig";
 
 // Configuración: secciones Usuarios (ABM + permisos por módulo) y Sectores. Solo superadmin.
 
@@ -131,7 +132,7 @@ function PermChips({ u }: { u: UserRow }) {
 }
 
 export default function ConfiguracionPage() {
-  const [section, setSection] = useState<"usuarios" | "sectores">("usuarios");
+  const [section, setSection] = useState<"usuarios" | "sectores" | "apariencia">("usuarios");
   const [me, setMe] = useState<{ id: number; role: string } | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
@@ -355,11 +356,12 @@ export default function ConfiguracionPage() {
         <div>
           <div className="eyebrow">Espacio / Configuración</div>
           <h1 className="page-title">Configuración</h1>
-          <p className="page-subtitle">Usuarios, permisos por módulo y sectores del sanatorio.</p>
+          <p className="page-subtitle">Usuarios, permisos, sectores y apariencia del sistema.</p>
         </div>
         <div className="gm-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={section === "usuarios"} className={`gm-tab${section === "usuarios" ? " is-active" : ""}`} onClick={() => setSection("usuarios")}>Usuarios ({users.filter((u) => u.active).length})</button>
           <button type="button" role="tab" aria-selected={section === "sectores"} className={`gm-tab${section === "sectores" ? " is-active" : ""}`} onClick={() => setSection("sectores")}>Sectores ({sectors.length})</button>
+          <button type="button" role="tab" aria-selected={section === "apariencia"} className={`gm-tab${section === "apariencia" ? " is-active" : ""}`} onClick={() => setSection("apariencia")}>Apariencia</button>
         </div>
       </div>
 
@@ -375,6 +377,8 @@ export default function ConfiguracionPage() {
 
       {loading ? (
         <div className="skeleton" style={{ height: 240 }} />
+      ) : section === "apariencia" ? (
+        <AparienciaConfig onNotice={setNotice} onError={setError} />
       ) : section === "usuarios" ? (
         <div className="card" style={CARD}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 14 }}>

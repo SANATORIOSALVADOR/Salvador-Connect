@@ -42,8 +42,8 @@ const TAG_COLORS = ["#0d9488", "#c2410c", "#1d4ed8", "#7c3aed", "#b91c1c", "#ca8
 
 // Estilos de estado en línea: el CSS del build fija background/border de .gm-cell con !important.
 const COVERAGE_STYLE: Record<string, CSSProperties> = {
-  sin: { boxShadow: "inset 0 0 0 2px rgba(185,28,28,.6), inset 0 0 0 999px rgba(254,226,226,.55)" },
-  baja: { boxShadow: "inset 0 0 0 2px rgba(202,138,4,.6), inset 0 0 0 999px rgba(254,243,199,.55)" },
+  sin: { boxShadow: "inset 0 0 0 2px rgba(185,28,28,.6), inset 0 0 0 999px rgba(220,38,38,.16)" },
+  baja: { boxShadow: "inset 0 0 0 2px rgba(202,138,4,.6), inset 0 0 0 999px rgba(202,138,4,.18)" },
 };
 /** Colores por sector (fijos según el orden de los sectores, no cambian al filtrar). */
 const SECTOR_PALETTE = [
@@ -798,7 +798,7 @@ export default function GuardiasMedicas() {
           </span>
         ))}
         {cov && (cov.status === "baja" || cov.status === "sin") && missing.length > 0 && (
-          <span className="gm-chip" style={{ background: "rgba(185,28,28,.12)", color: "#991b1b", maxWidth: "none" }} title={missing.map((m) => `${m.name}: ${describeGaps(m)}`).join("\n")}>⚠ {missing.length}</span>
+          <span className="gm-chip" style={{ background: "#fee2e2", color: "#991b1b", maxWidth: "none" }} title={missing.map((m) => `${m.name}: ${describeGaps(m)}`).join("\n")}>⚠ {missing.length}</span>
         )}
       </div>
     );
@@ -959,8 +959,8 @@ export default function GuardiasMedicas() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
                   {ahora.length === 0 && <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>No hay sectores de guardia configurados.</div>}
                   {ahora.map(({ cfg, list, uncovered }) => (
-                    <div key={cfg.sectorId} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "4px 8px", borderRadius: 8, fontSize: 12, background: uncovered ? "rgba(254,226,226,.6)" : "transparent" }}>
-                      <span style={{ minWidth: 0, flex: "0 0 auto", fontWeight: 800, color: colorOf(cfg.sectorId).fg }} title={cfg.name}><i style={DOT(colorOf(cfg.sectorId).solid)} />{shortOf(cfg.sectorId, cfg.name)}</span>
+                    <div key={cfg.sectorId} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "4px 8px", borderRadius: 8, fontSize: 12, background: uncovered ? "#fee2e2" : "transparent", color: uncovered ? "#7f1d1d" : undefined }}>
+                      <span style={{ minWidth: 0, flex: "0 0 auto", fontWeight: 800 }} title={cfg.name}><i style={DOT(colorOf(cfg.sectorId).solid)} />{shortOf(cfg.sectorId, cfg.name)}</span>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         {list.length === 0 ? (
                           <span style={{ color: uncovered ? "#991b1b" : "hsl(var(--muted-foreground))", fontWeight: uncovered ? 700 : 400 }}>{uncovered ? "Nadie de guardia" : "—"}</span>
@@ -989,7 +989,7 @@ export default function GuardiasMedicas() {
                 const faltan = cov.sectors.filter((s) => s.gaps.length > 0);
                 if (cov.status === "futuro" || faltan.length === 0) return null;
                 return (
-                  <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "rgba(254,226,226,.55)", color: "#991b1b", fontSize: 12, fontWeight: 700 }}>
+                  <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "#fee2e2", color: "#991b1b", fontSize: 12, fontWeight: 700 }}>
                     {faltan.map((s) => <div key={s.sectorId}>{s.name}: {describeGaps(s)}</div>)}
                   </div>
                 );
@@ -1070,13 +1070,13 @@ export default function GuardiasMedicas() {
                   {form.date ? new Date(form.date + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Elegí una fecha"}
                 </h3>
                 {cfg && (
-                  <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 10, fontSize: 13, fontWeight: 700, background: cov && cov.gaps.length ? "rgba(254,226,226,.6)" : "rgba(220,252,231,.7)", color: cov && cov.gaps.length ? "#991b1b" : "#14532d", borderLeft: `4px solid ${colorOf(cfg.sectorId).solid}` }}>
+                  <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 10, fontSize: 13, fontWeight: 700, background: cov && cov.gaps.length ? "#fee2e2" : "#dcfce7", color: cov && cov.gaps.length ? "#991b1b" : "#14532d", borderLeft: `4px solid ${colorOf(cfg.sectorId).solid}` }}>
                     {cfg.name}: {!cov ? "no requiere cobertura este día" : cov.gaps.length ? `falta cubrir ${describeGaps(cov)}` : cov.simpleRule ? "ya tiene guardia" : "horario requerido cubierto"}
                   </div>
                 )}
                 {!sid && <p className="page-subtitle" style={{ marginTop: 8 }}>Elegí un sector para ver qué horas faltan cubrir.</p>}
                 {choque.length > 0 && (
-                  <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "rgba(254,243,199,.8)", color: "#713f12" }}>
+                  <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "#fef3c7", color: "#713f12" }}>
                     ⚠ {form.professionalName} ya tiene guardia en ese horario: {choque.map((g) => `${g.sectorName} ${g.startTime}–${g.endTime}`).join(", ")}
                   </div>
                 )}

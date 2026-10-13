@@ -437,10 +437,10 @@ export default function Administracion() {
           <div className="adm-alerts-title">Avisos activos ({alerts.length})</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
             {alerts.map((a) => (
-              <div key={a.id} className="adm-alert-item" style={{ borderRadius: 12, padding: "12px 14px", border: "1px solid hsl(40 60% 80%)", background: "hsl(45 90% 94%)" }}>
+              <div key={a.id} className="adm-alert-item" style={{ borderRadius: 12, padding: "12px 14px", border: "1px solid hsl(40 60% 80%)", background: "hsl(45 90% 94%)", color: "#713f12" }}>
                 <strong style={{ fontSize: 12 }}>{urgencyLabel(a.d, a.status)}</strong>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{a.title}</span>
-                <span className="page-subtitle">{formatDateAR(a.dueDate)} · {typeLabel(a.itemType)}</span>
+                <span className="page-subtitle" style={{ color: "#92400e" }}>{formatDateAR(a.dueDate)} · {typeLabel(a.itemType)}</span>
               </div>
             ))}
           </div>
