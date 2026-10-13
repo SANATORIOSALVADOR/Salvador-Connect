@@ -1,17 +1,14 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db, inventoryItemsTable, inventoryMovementsTable, sectorsTable } from "@salvador/db";
-import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
+import { requireAuth, requireModuleAccess } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use("/inventario", requireAuth, requireModule("inventario"), requireWriteOnMutation);
+router.use("/inventario", requireAuth, requireModuleAccess("inventario"));
 
 const STATUSES = ["activo", "en_reparacion", "baja", "reservado"] as const;
 const CATEGORIES = ["equipo_medico", "informatico", "mobiliario", "infraestructura", "otro"] as const;
 
-function canWrite(role?: string) {
-  return role === "superadmin" || role === "responsable";
-}
 
 function mapItem(row: typeof inventoryItemsTable.$inferSelect, sectorName?: string | null) {
   return {
@@ -63,7 +60,6 @@ router.get("/inventario/:id/movimientos", async (req, res): Promise<void> => {
 
 router.post("/inventario", async (req, res): Promise<void> => {
   try {
-    if (!canWrite(req.authUser?.role)) { res.status(403).json({ message: "Sin permiso para crear activos." }); return; }
     const body = req.body ?? {};
     const name = String(body.name || "").trim();
     if (!name) { res.status(400).json({ message: "El nombre es obligatorio." }); return; }
@@ -95,7 +91,6 @@ router.post("/inventario", async (req, res): Promise<void> => {
 
 router.patch("/inventario/:id", async (req, res): Promise<void> => {
   try {
-    if (!canWrite(req.authUser?.role)) { res.status(403).json({ message: "Sin permiso para editar activos." }); return; }
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) { res.status(400).json({ message: "ID inválido." }); return; }
     const body = req.body ?? {};
@@ -137,7 +132,6 @@ router.patch("/inventario/:id", async (req, res): Promise<void> => {
 
 router.delete("/inventario/:id", async (req, res): Promise<void> => {
   try {
-    if (!canWrite(req.authUser?.role)) { res.status(403).json({ message: "Sin permiso para eliminar activos." }); return; }
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) { res.status(400).json({ message: "ID inválido." }); return; }
     await db.delete(inventoryItemsTable).where(eq(inventoryItemsTable.id, id));

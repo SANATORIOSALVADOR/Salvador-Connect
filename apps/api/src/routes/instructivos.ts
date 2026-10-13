@@ -1,14 +1,11 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq } from "drizzle-orm";
 import { db, instructivosTable, sectorsTable } from "@salvador/db";
-import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
+import { requireAuth, requireModuleAccess } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use("/instructivos", requireAuth, requireModule("instructivos"), requireWriteOnMutation);
+router.use("/instructivos", requireAuth, requireModuleAccess("instructivos"));
 
-function canWrite(role?: string) {
-  return role === "superadmin" || role === "responsable";
-}
 
 function mapRow(row: typeof instructivosTable.$inferSelect, sectorName?: string | null) {
   return {
@@ -43,7 +40,6 @@ router.get("/instructivos", async (req, res): Promise<void> => {
 
 router.post("/instructivos", async (req, res): Promise<void> => {
   try {
-    if (!canWrite(req.authUser?.role)) { res.status(403).json({ message: "Sin permiso para crear instructivos." }); return; }
     const body = req.body ?? {};
     const title = String(body.title || "").trim();
     const filePath = String(body.filePath || "").trim();
@@ -64,7 +60,6 @@ router.post("/instructivos", async (req, res): Promise<void> => {
 
 router.patch("/instructivos/:id", async (req, res): Promise<void> => {
   try {
-    if (!canWrite(req.authUser?.role)) { res.status(403).json({ message: "Sin permiso para editar instructivos." }); return; }
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) { res.status(400).json({ message: "ID inválido." }); return; }
     const body = req.body ?? {};
@@ -86,7 +81,6 @@ router.patch("/instructivos/:id", async (req, res): Promise<void> => {
 
 router.delete("/instructivos/:id", async (req, res): Promise<void> => {
   try {
-    if (!canWrite(req.authUser?.role)) { res.status(403).json({ message: "Sin permiso para eliminar instructivos." }); return; }
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) { res.status(400).json({ message: "ID inválido." }); return; }
     await db.delete(instructivosTable).where(eq(instructivosTable.id, id));

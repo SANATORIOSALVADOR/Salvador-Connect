@@ -16,9 +16,6 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
 export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "inventario", "instructivos", "configuracion", "usuarios"] as const;
 
-/** Roles con permiso de escritura (alta / edición / baja) en los módulos asignados. */
-export const WRITE_ROLES = ["superadmin", "responsable", "nivel2", "nivel3"] as const;
-
 const BOOTSTRAP_USERNAME = "sistemas";
 
 function cookieSecure(): boolean {
@@ -88,6 +85,43 @@ export async function ensureBootstrapSuperadmin(): Promise<void> {
   logger.info({ username: BOOTSTRAP_USERNAME }, "Superadmin inicial creado desde BOOTSTRAP_ADMIN_PASSWORD");
 }
 
+// ---------- permisos por módulo ----------
+
+/** Niveles de permiso dentro de un módulo, de menor a mayor. Sin fila = sin acceso. */
+export const LEVELS = ["ver", "editar", "total"] as const;
+export type Level = (typeof LEVELS)[number];
+
+/**
+ * Módulos que se asignan por usuario y los niveles que admite cada uno.
+ * Configuración (usuarios y sectores) es exclusiva del superadmin y no se asigna.
+ */
+export const PERMISSION_MODULES: Record<string, readonly Level[]> = {
+  dashboard: ["ver"],
+  administracion: LEVELS,
+  guardias: LEVELS,
+  inventario: LEVELS,
+  instructivos: LEVELS,
+  liquidacion: ["ver"],
+};
+
+export function levelRank(level: Level | null | undefined): number {
+  return level ? LEVELS.indexOf(level) + 1 : 0;
+}
+
+/** Filas viejas sin nivel: se respeta lo que permitía el rol anterior. */
+function legacyLevel(role: string): Level {
+  return role === "responsable" || role === "nivel2" || role === "nivel3" ? "total" : "ver";
+}
+
+/** Normaliza un nivel pedido para un módulo (lo recorta al máximo que admite). */
+export function normalizeLevel(moduleKey: string, value: unknown): Level | null {
+  const allowed = PERMISSION_MODULES[moduleKey];
+  if (!allowed) return null;
+  const v = String(value ?? "").toLowerCase();
+  if (!(LEVELS as readonly string[]).includes(v)) return null;
+  return allowed.includes(v as Level) ? (v as Level) : allowed[allowed.length - 1];
+}
+
 export type AuthUser = {
   id: number;
   username: string;
@@ -96,7 +130,10 @@ export type AuthUser = {
   role: string;
   active: boolean;
   mustChangePassword: boolean;
+  /** Módulos con algún acceso (para el menú). */
   modules: string[];
+  /** Nivel por módulo. */
+  permissions: Record<string, Level>;
   sectorIds: number[];
 };
 
@@ -123,13 +160,25 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return derived.length === expected.length && timingSafeEqual(derived, expected);
 }
 
-async function getUserWithPermissions(userId: number): Promise<AuthUser | null> {
+/** Arma el mapa módulo → nivel a partir de las filas de user_modules. */
+export function buildPermissions(role: string, rows: { moduleKey: string; level: string }[]): Record<string, Level> {
+  const out: Record<string, Level> = {};
+  for (const r of rows) {
+    if (!PERMISSION_MODULES[r.moduleKey]) continue; // p. ej. "usuarios" / "configuracion" viejos
+    const level = normalizeLevel(r.moduleKey, r.level || legacyLevel(role));
+    if (level && levelRank(level) > levelRank(out[r.moduleKey])) out[r.moduleKey] = level;
+  }
+  return out;
+}
+
+export async function getUserWithPermissions(userId: number): Promise<AuthUser | null> {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user || !user.active) return null;
   const [modules, sectors] = await Promise.all([
-    db.select({ moduleKey: userModulesTable.moduleKey }).from(userModulesTable).where(eq(userModulesTable.userId, userId)),
+    db.select({ moduleKey: userModulesTable.moduleKey, level: userModulesTable.level }).from(userModulesTable).where(eq(userModulesTable.userId, userId)),
     db.select({ sectorId: userSectorsTable.sectorId }).from(userSectorsTable).where(eq(userSectorsTable.userId, userId)),
   ]);
+  const permissions = user.role === "superadmin" ? allPermissions() : buildPermissions(user.role, modules);
   return {
     id: user.id,
     username: user.username,
@@ -138,9 +187,15 @@ async function getUserWithPermissions(userId: number): Promise<AuthUser | null> 
     role: user.role,
     active: user.active,
     mustChangePassword: user.mustChangePassword,
-    modules: modules.map((item) => item.moduleKey),
+    modules: Object.keys(permissions),
+    permissions,
     sectorIds: sectors.map((item) => item.sectorId),
   };
+}
+
+/** El superadmin tiene el nivel máximo en todos los módulos. */
+export function allPermissions(): Record<string, Level> {
+  return Object.fromEntries(Object.entries(PERMISSION_MODULES).map(([k, levels]) => [k, levels[levels.length - 1]]));
 }
 
 export async function createSession(userId: number, response: Response): Promise<void> {
@@ -217,57 +272,53 @@ export const requireSuperadmin: RequestHandler = (request, response, next) => {
   next();
 };
 
+export function levelOf(user: AuthUser | null | undefined, moduleKey: string): Level | null {
+  if (!user) return null;
+  if (user.role === "superadmin") return allPermissions()[moduleKey] ?? "total";
+  return user.permissions[moduleKey] ?? null;
+}
+
+/** ¿Tiene al menos ese nivel en el módulo? */
+export function hasLevel(user: AuthUser | null | undefined, moduleKey: string, min: Level): boolean {
+  return levelRank(levelOf(user, moduleKey)) >= levelRank(min);
+}
+
 export function hasModule(user: AuthUser | null | undefined, moduleKey: string): boolean {
-  if (!user) return false;
-  if (user.role === "superadmin") return true;
-  return user.modules.includes(moduleKey);
+  return hasLevel(user, moduleKey, "ver");
 }
 
-export function canWrite(user: AuthUser | null | undefined): boolean {
-  if (!user) return false;
-  return (WRITE_ROLES as readonly string[]).includes(user.role);
-}
+const LEVEL_MESSAGE: Record<Level, string> = {
+  ver: "No tenés acceso a este módulo.",
+  editar: "Tu permiso en este módulo es de solo lectura.",
+  total: "Esta acción requiere Control total en el módulo.",
+};
 
-/** Exige tener el módulo asignado (superadmin siempre pasa). Sin módulos = sin acceso. */
-export const requireModule = (moduleKey: string): RequestHandler => (request, response, next) => {
+/** Exige un nivel mínimo en el módulo (superadmin siempre pasa). */
+export const requireLevel = (moduleKey: string, min: Level): RequestHandler => (request, response, next) => {
   const user = request.authUser;
   if (!user) {
     response.status(401).json({ message: "Sesión no válida o vencida." });
     return;
   }
-  if (!hasModule(user, moduleKey)) {
-    response.status(403).json({ message: "No tenés acceso a este módulo." });
+  if (!hasLevel(user, moduleKey, min)) {
+    response.status(403).json({ message: LEVEL_MESSAGE[min] });
     return;
   }
   next();
 };
 
-/** Escritura (POST / PATCH / DELETE): superadmin o responsable. Usar después de requireModule. */
-export const requireWrite: RequestHandler = (request, response, next) => {
-  const user = request.authUser;
-  if (!user) {
-    response.status(401).json({ message: "Sesión no válida o vencida." });
-    return;
-  }
-  if (!canWrite(user)) {
-    response.status(403).json({ message: "Tu usuario es de solo lectura en este módulo." });
-    return;
-  }
-  next();
-};
+/** Acceso al módulo (nivel Ver). */
+export const requireModule = (moduleKey: string): RequestHandler => requireLevel(moduleKey, "ver");
 
-/** Aplica requireWrite solo a métodos que modifican datos. */
-export const requireWriteOnMutation: RequestHandler = (request, response, next) => {
-  if (request.method === "GET" || request.method === "HEAD" || request.method === "OPTIONS") {
-    next();
-    return;
-  }
-  requireWrite(request, response, next);
+/**
+ * Nivel según el método: consultar = Ver, crear / modificar = Cargar y editar, eliminar = Control total.
+ * Las acciones de configuración piden "total" explícitamente en cada ruta.
+ */
+export const requireModuleAccess = (moduleKey: string): RequestHandler => (request, response, next) => {
+  const m = request.method;
+  const min: Level = m === "GET" || m === "HEAD" || m === "OPTIONS" ? "ver" : m === "DELETE" ? "total" : "editar";
+  requireLevel(moduleKey, min)(request, response, next);
 };
-
-/** Compatibilidad con guardias.ts */
-export const requireGuardiasWrite = requireWrite;
-export const canWriteGuardias = canWrite;
 
 declare global {
   namespace Express {

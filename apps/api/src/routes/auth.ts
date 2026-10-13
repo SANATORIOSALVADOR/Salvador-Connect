@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, sectorsTable, userModulesTable, userSectorsTable, usersTable } from "@salvador/db";
+import { db, sectorsTable, usersTable } from "@salvador/db";
 import { ChangePasswordBody, LoginBody } from "@salvador/api-zod";
 import {
   clearSession,
   createSession,
+  getUserWithPermissions,
   hashPassword,
   purgeExpiredSessions,
   requireAuth,
@@ -53,6 +54,7 @@ const publicUser = (user: NonNullable<Express.Request["authUser"]>) => ({
   active: user.active,
   mustChangePassword: user.mustChangePassword,
   modules: user.modules,
+  permissions: user.permissions,
   sectorIds: user.sectorIds,
 });
 
@@ -84,41 +86,13 @@ router.post("/auth/login", async (request, response): Promise<void> => {
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
     await createSession(user.id, response);
 
-    const [modules, sectorAssignments, sectors] = await Promise.all([
-      db
-        .select({ moduleKey: userModulesTable.moduleKey })
-        .from(userModulesTable)
-        .where(eq(userModulesTable.userId, user.id)),
-      db
-        .select({ sectorId: userSectorsTable.sectorId })
-        .from(userSectorsTable)
-        .where(eq(userSectorsTable.userId, user.id)),
-      db.select().from(sectorsTable),
-    ]);
-
-    const sectorIds = sectorAssignments.map((item) => item.sectorId);
+    const authUser = await getUserWithPermissions(user.id);
+    const sectors = await db.select().from(sectorsTable);
     const allowedSectors = sectors
-      .filter((sector) => user.role === "superadmin" || sectorIds.includes(sector.id))
-      .map((s) => ({
-        id: s.id,
-        name: s.name,
-        shortName: s.shortName,
-      }));
+      .filter((sector) => user.role === "superadmin" || authUser!.sectorIds.includes(sector.id))
+      .map((s) => ({ id: s.id, name: s.name, shortName: s.shortName }));
 
-    response.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        active: user.active,
-        mustChangePassword: user.mustChangePassword,
-        modules: modules.map((item) => item.moduleKey),
-        sectorIds,
-        sectors: allowedSectors,
-      },
-    });
+    response.json({ user: { ...publicUser(authUser!), sectors: allowedSectors } });
   } catch (err) {
     logger.error({ err }, "login failed");
     response.status(500).json({ message: "Error interno al iniciar sesión." });

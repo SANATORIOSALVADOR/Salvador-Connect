@@ -37,6 +37,8 @@ export const userModulesTable = pgTable("user_modules", {
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   moduleKey: text("module_key").notNull(),
+  // Nivel en el módulo: ver | editar | total. Vacío = fila vieja (se deduce del rol del usuario).
+  level: text("level").notNull().default(""),
 });
 
 export const sessionsTable = pgTable("sessions", {

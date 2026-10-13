@@ -9,10 +9,10 @@ import {
   sectorsTable,
   type CoberturaFranja,
 } from "@salvador/db";
-import { canWrite, requireAuth, requireModule, requireWriteOnMutation, type AuthUser } from "../lib/auth";
+import { hasLevel, requireAuth, requireLevel, requireModuleAccess, type AuthUser } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use("/guardias", requireAuth, requireModule("guardias"), requireWriteOnMutation);
+router.use("/guardias", requireAuth, requireModuleAccess("guardias"));
 
 const MODALITIES = ["activa", "pasiva"] as const;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -277,7 +277,7 @@ router.get("/guardias/config", async (_req, res): Promise<void> => {
   }
 });
 
-router.put("/guardias/config/:sectorId", async (req, res): Promise<void> => {
+router.put("/guardias/config/:sectorId", requireLevel("guardias", "total"), async (req, res): Promise<void> => {
   try {
     const sectorId = Number(req.params.sectorId);
     if (!sectorId || Number.isNaN(sectorId)) {
@@ -361,7 +361,7 @@ router.get("/guardias/profesionales/lista", async (_req, res): Promise<void> => 
   }
 });
 
-router.patch("/guardias/profesionales/:id", async (req, res): Promise<void> => {
+router.patch("/guardias/profesionales/:id", requireLevel("guardias", "total"), async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {
@@ -412,7 +412,7 @@ router.patch("/guardias/profesionales/:id", async (req, res): Promise<void> => {
 
 router.get("/guardias/auditoria", async (req, res): Promise<void> => {
   try {
-    if (!canWrite(req.authUser)) {
+    if (!hasLevel(req.authUser, "guardias", "editar")) {
       res.status(403).json({ message: "No tenés acceso al registro de cambios." });
       return;
     }

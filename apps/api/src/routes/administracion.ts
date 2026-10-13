@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq, gte, inArray, lte, like } from "drizzle-orm";
 import { db, liquidacionItemsTable } from "@salvador/db";
-import { requireAuth, requireModule, requireWriteOnMutation } from "../lib/auth";
+import { requireAuth, requireLevel, requireModuleAccess } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use("/administracion", requireAuth, requireModule("administracion"), requireWriteOnMutation);
+router.use("/administracion", requireAuth, requireModuleAccess("administracion"));
 
 const TYPES = ["vencimiento", "pago", "cheque", "seguro", "recordatorio", "nota", "liquidacion"] as const;
 const STATUSES = ["pendiente", "cumplido", "cancelado"] as const;
@@ -225,7 +225,7 @@ router.get("/administracion/fiscal-config", (_req, res): void => {
   });
 });
 
-router.post("/administracion/generar-fiscal", async (req, res): Promise<void> => {
+router.post("/administracion/generar-fiscal", requireLevel("administracion", "total"), async (req, res): Promise<void> => {
   try {
     const body = req.body ?? {};
     const now = new Date();
