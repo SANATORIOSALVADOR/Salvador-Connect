@@ -21,9 +21,11 @@
 
 ## Código presente pero no prioritario
 
-- Inventario (ABM activos) — no expandir sin definición de negocio
-- Instructivos (metadatos) — idem
-- Liquidación — placeholder
+- Inventario, Instructivos y Liquidación se muestran como **«Próximamente»** (menú: grupo «Próximamente» con etiqueta
+  «Pronto»; pantalla `apps/web/src/components/proximamente.tsx`). El código anterior de Inventario e Instructivos sigue en
+  `pages/` y la API sigue existiendo: para habilitarlos, volver a poner su página en la ruta de `App.tsx` y sacarlos de
+  `MODULOS_PROXIMAMENTE`.
+- «Resumen» pasó a llamarse **«Inicio»**.
 
 ## Infra
 

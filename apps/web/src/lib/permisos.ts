@@ -12,7 +12,7 @@ export const LEVEL_COLOR: Record<Level, { bg: string; fg: string }> = {
 
 /** Qué permite cada nivel en cada módulo (debe coincidir con los controles de la API). */
 export const MODULES: { key: string; label: string; levels: Level[]; can: Partial<Record<Level, string>> }[] = [
-  { key: "dashboard", label: "Resumen", levels: ["ver"], can: { ver: "Ver el tablero: vencimientos próximos, guardias de hoy y actividad reciente." } },
+  { key: "dashboard", label: "Inicio", levels: ["ver"], can: { ver: "Ver la pantalla de inicio con lo de su día según sus módulos." } },
   {
     key: "administracion",
     label: "Administración",
@@ -35,15 +35,15 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   },
   {
     key: "inventario",
-    label: "Inventario",
+    label: "Inventario (próximamente)",
     levels: ["ver", "editar", "total"],
     can: { ver: "Ver activos y movimientos.", editar: "Además: dar de alta y modificar activos.", total: "Además: eliminar activos." },
   },
   {
     key: "instructivos",
-    label: "Instructivos",
+    label: "Instructivos (próximamente)",
     levels: ["ver", "editar", "total"],
     can: { ver: "Ver y consultar instructivos.", editar: "Además: publicar y modificar instructivos.", total: "Además: eliminar instructivos." },
   },
-  { key: "liquidacion", label: "Liquidación", levels: ["ver"], can: { ver: "Ver el módulo (en desarrollo)." } },
+  { key: "liquidacion", label: "Liquidación (próximamente)", levels: ["ver"], can: { ver: "Ver el módulo cuando esté disponible." } },
 ];

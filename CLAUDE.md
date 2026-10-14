@@ -24,9 +24,9 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 | **Administración** | Activo / prioritario | Agenda, fiscal (calendario oficial + estimadas), cheques, documentos, tareas, recurrentes, contactos |
 | **Guardias Médicas** | Activo / prioritario | Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
 | **Configuración** | Activo | Secciones Usuarios (ABM + permisos por módulo y nivel) y Sectores. Solo superadmin |
-| **Inventario** | Código existe; producto poco definido | No ampliar hasta que el usuario lo pida |
-| **Instructivos** | Código existe; producto poco definido | No ampliar hasta pedido |
-| **Liquidación** | Placeholder | No implementar lógica |
+| **Inventario** | **Próximamente** (pantalla `components/proximamente.tsx`); código viejo en `pages/Inventario.tsx` | No ampliar hasta que el usuario lo pida |
+| **Instructivos** | **Próximamente**; código viejo en `pages/Instructivos.tsx` | No ampliar hasta pedido |
+| **Liquidación** | **Próximamente** | No implementar lógica |
 
 **Definidos en uso real hoy:** Administración + Guardias Médicas + Usuarios/Config.
 

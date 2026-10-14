@@ -6,6 +6,7 @@ import { PasswordInput } from "@/components/password-input";
 import { FeedbackHost } from "@/components/feedback";
 import { AccesoNombre } from "@/components/acceso-nombre";
 import { EstadoSistemaHost } from "@/components/estado-sistema";
+import { MODULOS_PROXIMAMENTE, Proximamente } from "@/components/proximamente";
 import { guardarTema, useApariencia } from '@/pages/shared/apariencia';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
@@ -53,8 +54,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 // Cada módulo se descarga recién cuando se abre (la primera carga es más liviana).
 const AdministracionPage = lazy(() => import("@/pages/Administracion"));
 const GuardiasMedicasPage = lazy(() => import("@/pages/GuardiasMedicas"));
-const InventarioPage = lazy(() => import("@/pages/Inventario"));
-const InstructivosPage = lazy(() => import("@/pages/Instructivos"));
 const ConfiguracionPage = lazy(() => import("@/pages/Configuracion"));
 const UsuariosPage = lazy(() => import("@/pages/Usuarios"));
 const PerfilPage = lazy(() => import("@/pages/Perfil"));
@@ -63,12 +62,12 @@ const DashboardGraficos = lazy(() => import("@/components/dashboard-graficos").t
 const queryClient = new QueryClient();
 
 const navItems = [
-  { href: '/dashboard', label: 'Resumen', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
   { href: '/administracion', label: 'Administración', icon: ClipboardList },
-  { href: '/liquidacion', label: 'Liquidación', icon: FileText },
   { href: '/guardias', label: 'Guardias Médicas', icon: CalendarDays },
   { href: '/inventario', label: 'Inventario', icon: PackageOpen },
   { href: '/instructivos', label: 'Instructivos', icon: Archive },
+  { href: '/liquidacion', label: 'Liquidación', icon: FileText },
   { href: '/usuarios', label: 'Usuarios', icon: Users },
 ];
 
@@ -141,9 +140,15 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
   const visibleNavItems = navItems.filter((item) => item.href !== '/usuarios' && (user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1))));
   const nav = <nav aria-label="Menú principal" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
     <div className="nav-label">{collapsed ? <span aria-hidden="true" className="nav-label-linea" /> : 'Operación'}</div>
-    {visibleNavItems.map(({ href, label, icon: Icon }) => (
+    {visibleNavItems.filter((i) => !MODULOS_PROXIMAMENTE.includes(i.href)).map(({ href, label, icon: Icon }) => (
       <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} aria-current={location === href ? 'page' : undefined} title={label} data-testid={`link-nav-${label.toLowerCase()}`}>
         <span className="nav-ico"><Icon className="nav-icon" /></span>{!collapsed && <span className="nav-txt">{label}</span>}
+      </Link>
+    ))}
+    {visibleNavItems.some((i) => MODULOS_PROXIMAMENTE.includes(i.href)) && <div className="nav-label">{collapsed ? <span aria-hidden="true" className="nav-label-linea" /> : 'Próximamente'}</div>}
+    {visibleNavItems.filter((i) => MODULOS_PROXIMAMENTE.includes(i.href)).map(({ href, label, icon: Icon }) => (
+      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item nav-pronto ${location === href ? 'active' : ''}`} aria-current={location === href ? 'page' : undefined} title={`${label} (próximamente)`} data-testid={`link-nav-${label.toLowerCase()}`}>
+        <span className="nav-ico"><Icon className="nav-icon" /></span>{!collapsed && <><span className="nav-txt">{label}</span><span className="nav-badge">Pronto</span></>}
       </Link>
     ))}
     {user?.role === 'superadmin' && <div className="nav-label">{collapsed ? <span aria-hidden="true" className="nav-label-linea" /> : 'Espacio'}</div>}
@@ -252,7 +257,6 @@ function Dashboard({ user }: { user?: { name?: string; email?: string | null; ro
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 18 }}>
         <Metric label="Vencimientos próximos" value={data?.upcomingReminders ?? 0} note="Vencidos y próximos 7 días" icon={<Bell size={16} />} />
         <Metric label="Guardias de hoy" value={data?.pendingGuardias ?? 0} note="Cargadas para hoy" icon={<CalendarDays size={16} />} />
-        <Metric label="Equipos en reparación" value={data?.lowStockItems ?? 0} note="Inventario" icon={<PackageOpen size={16} />} />
         <Metric label="Actividad reciente" value={data?.recentActivityCount ?? 0} note="Últimos 7 días" icon={<ActivityIcon size={16} />} />
       </div>
       <div className="dashboard-grid">
@@ -380,10 +384,10 @@ function Router() {
     <Route path="/primer-acceso"><Protected user={shellUser} allowFirstAccess><FirstAccessPage user={shellUser || {}} /></Protected></Route>
     <Route path="/dashboard"><Protected user={shellUser}><Shell user={shellUser}><Dashboard user={shellUser} /></Shell></Protected></Route>
     <Route path="/administracion"><Protected user={shellUser}><Shell user={shellUser}><AdministracionPage /></Shell></Protected></Route>
-    <Route path="/liquidacion"><Protected user={shellUser}><Shell user={shellUser}><PlaceholderPage kind="Liquidación" title="Liquidación" description="Un espacio para centralizar el seguimiento de liquidaciones." icon={FileText} /></Shell></Protected></Route>
+    <Route path="/liquidacion"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Liquidación" icono={FileText} resumen="Un espacio para centralizar el seguimiento de las liquidaciones del sanatorio." ideas={["Seguimiento de liquidaciones por período y obra social", "Estados y responsables de cada liquidación", "Vínculo con los vencimientos de Administración"]} /></Shell></Protected></Route>
     <Route path="/guardias"><Protected user={shellUser}><Shell user={shellUser}><GuardiasMedicasPage /></Shell></Protected></Route>
-    <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><InventarioPage /></Shell></Protected></Route>
-    <Route path="/instructivos"><Protected user={shellUser}><Shell user={shellUser}><InstructivosPage /></Shell></Protected></Route>
+    <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Inventario" icono={PackageOpen} resumen="Control de los equipos y bienes de cada sector: qué hay, dónde está y en qué estado." ideas={["Registro de equipos y bienes por sector", "Movimientos entre sectores y responsables", "Equipos en reparación y mantenimientos"]} /></Shell></Protected></Route>
+    <Route path="/instructivos"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Instructivos" icono={Archive} resumen="Un lugar ordenado para los instructivos y procedimientos formales de cada área." ideas={["Instructivos por área, siempre en su última versión", "Búsqueda rápida por tema", "Aviso cuando se actualiza un procedimiento"]} /></Shell></Protected></Route>
     <Route path="/configuracion"><Protected user={shellUser}><Shell user={shellUser}><ConfiguracionPage /></Shell></Protected></Route>
     <Route path="/perfil"><Protected user={shellUser}><Shell user={shellUser}><PerfilPage /></Shell></Protected></Route>
     <Route path="/usuarios"><Protected user={shellUser}><Shell user={shellUser}><UsuariosPage /></Shell></Protected></Route>
