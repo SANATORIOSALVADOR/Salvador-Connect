@@ -73,6 +73,8 @@ jobs:
         run: node tests/web-logic.test.mjs
       - name: Service worker
         run: node tests/sw.test.mjs
+      - name: Pantallas de sistema caído / mantenimiento (nginx real en Docker)
+        run: bash tests/nginx-estado.sh
       - name: Compilar y arrancar la API (aplica las migraciones sobre la base vacía)
         run: |
           pnpm --filter @salvador/api run build

@@ -26,6 +26,7 @@ const fetchSim = async (req) => {
   const url = typeof req === "string" ? req : req.url;
   if (modoRed === "caida") throw new TypeError("Failed to fetch");
   if (modoRed === "502") return new Response("bad gateway", { status: 502 });
+  if (modoRed === "mantenimiento") return new Response("Estamos haciendo mantenimiento", { status: 503 });
   return new Response("red:" + new URL(url, "http://localhost").pathname, { status: 200 });
 };
 
@@ -52,6 +53,13 @@ eq("activate borra cachés viejas", [...almacen.keys()].includes("sc-viejo-v0"),
 eq("navegación con red", await pedir("/guardias", { mode: "navigate" }), "200 red:/guardias");
 modoRed = "caida";
 eq("navegación sin red → app guardada", (await pedir("/guardias", { mode: "navigate" })).startsWith("200 red:/guardias"), true);
+modoRed = "ok";
+
+// Mantenimiento: se muestra lo que manda el servidor, pero no reemplaza la copia guardada de la app.
+modoRed = "mantenimiento";
+eq("navegación en mantenimiento → pantalla del servidor", await pedir("/dashboard", { mode: "navigate" }), "503 Estamos haciendo mantenimiento");
+modoRed = "caida";
+eq("después, sin red → sigue la app guardada (no la de mantenimiento)", (await pedir("/dashboard", { mode: "navigate" })).startsWith("200 red:/guardias"), true);
 modoRed = "ok";
 
 eq("asset con red", await pedir("/assets/index-abc.js"), "200 red:/assets/index-abc.js");

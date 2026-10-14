@@ -3,6 +3,10 @@ import { createRoot } from "react-dom/client";
 import "@fontsource-variable/inter";
 import App from "./App";
 import "./index.css";
+import { vigilarEstadoSistema } from "./lib/estado-sistema";
+
+// Pantallas de «sistema no disponible» y «mantenimiento» (components/estado-sistema.tsx).
+vigilarEstadoSistema();
 
 createRoot(document.getElementById("root")!).render(<App />);
 

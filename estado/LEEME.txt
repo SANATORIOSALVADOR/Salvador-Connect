@@ -1,0 +1,2 @@
+# Carpeta del modo mantenimiento (montada en el contenedor web).
+# scripts/mantenimiento.sh crea o borra mantenimiento.json acá. No se sube a git.

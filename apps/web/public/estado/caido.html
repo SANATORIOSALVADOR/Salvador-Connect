@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Sistema no disponible · Sanatorio del Salvador</title>
+<link rel="icon" href="/favicon.svg" />
+<style>
+  :root { --bg: #10232b; --bg2: #16343a; --fg: #f3f0e7; --muted: rgba(243,240,231,.72); --accent: #f0b35a; --card: rgba(255,255,255,.06); --line: rgba(255,255,255,.12); --primary: #208379; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg);
+    background: radial-gradient(900px 520px at 110% -10%, rgba(32,131,121,.55), transparent 60%),
+                radial-gradient(700px 480px at -20% 115%, rgba(240,179,90,.18), transparent 60%),
+                linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+    display: grid; place-items: center; padding: 20px; overflow: hidden;
+  }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none;
+    background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.4px); background-size: 22px 22px;
+    mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent); }
+  .caja { position: relative; width: min(560px, 100%); text-align: center; }
+  .marca { display: inline-flex; align-items: center; gap: 12px; margin-bottom: clamp(18px, 4vh, 34px); font-weight: 700; font-size: 17px; }
+  .logo { width: 46px; height: 46px; border-radius: 13px; background: var(--accent); display: grid; place-items: center; box-shadow: 0 8px 22px rgba(0,0,0,.25); }
+  .icono { width: clamp(76px, 12vh, 96px); height: clamp(76px, 12vh, 96px); margin: 0 auto clamp(16px, 3vh, 26px); border-radius: 26px; display: grid; place-items: center;
+    background: rgba(208,59,59,.14); border: 1px solid rgba(208,59,59,.4); color: #ff8f8f; }
+  .icono svg { animation: latir 2.4s ease-in-out infinite; }
+  @keyframes latir { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.92); opacity: .75; } }
+  h1 { font-size: clamp(26px, 4.6vh, 38px); line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 12px; }
+  p { color: var(--muted); font-size: clamp(14.5px, 2.1vh, 17px); line-height: 1.6; margin: 0 auto; max-width: 46ch; }
+  .estado { margin: clamp(18px, 3.4vh, 28px) auto 0; display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px;
+    background: var(--card); border: 1px solid var(--line); font-size: 14px; font-weight: 600; }
+  .punto { width: 9px; height: 9px; border-radius: 99px; background: var(--accent); animation: parpadeo 1.4s infinite; }
+  @keyframes parpadeo { 50% { opacity: .25; } }
+  .botones { margin-top: clamp(16px, 3vh, 24px); display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 700; font-size: 15px; border-radius: 12px; padding: 12px 20px; cursor: pointer; border: 1px solid var(--line); color: var(--fg); background: var(--card); }
+  button.primario { background: var(--primary); border-color: transparent; color: #fff; box-shadow: 0 10px 24px -10px rgba(32,131,121,.9); }
+  button:disabled { opacity: .6; cursor: default; }
+  .pie { margin-top: clamp(20px, 4vh, 34px); font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+  .pie strong { color: var(--fg); }
+  @media (prefers-reduced-motion: reduce) { .icono svg, .punto { animation: none; } }
+</style>
+</head>
+<body>
+  <main class="caja" role="main">
+    <div class="marca">
+      <span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 180 180"><path d="M74 38h32v36h36v32h-36v36H74v-36H38V74h36z" fill="#10232b"/></svg></span>
+      <span id="nombre">Sanatorio del Salvador</span>
+    </div>
+    <div class="icono" aria-hidden="true">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    </div>
+    <h1>El sistema no está disponible en este momento</h1>
+    <p>No pudimos conectarnos con el servidor. Puede ser un corte momentáneo: <strong style="color:var(--fg)">no cierres esta pantalla</strong>, vuelve sola apenas el sistema responda.</p>
+    <div class="estado" role="status" aria-live="polite"><span class="punto" aria-hidden="true"></span><span id="estado">Reintentando en 10 s…</span></div>
+    <div class="botones"><button class="primario" id="reintentar" type="button">Reintentar ahora</button></div>
+    <div class="pie">Si lleva más de unos minutos, comunicate con el <strong>área de Sistemas</strong>.</div>
+  </main>
+<script>
+(function () {
+  var destino = new URLSearchParams(location.search).get("volver") || (location.pathname.indexOf("/estado/") === 0 ? "/" : location.pathname + location.search);
+  if (destino.charAt(0) !== "/" || destino.indexOf("//") === 0) destino = "/";
+  var espera = 10, quedan = espera, ocupado = false;
+  var el = document.getElementById("estado"), btn = document.getElementById("reintentar");
+  function probar() {
+    if (ocupado) return; ocupado = true; btn.disabled = true; el.textContent = "Comprobando…";
+    var c = new AbortController(); var t = setTimeout(function () { c.abort(); }, 5000);
+    fetch("/api/health?_=" + Date.now(), { cache: "no-store", signal: c.signal })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then(function () { el.textContent = "¡Volvió! Entrando…"; location.replace(destino); })
+      .catch(function () { espera = Math.min(espera + 5, 30); quedan = espera; el.textContent = "Sigue sin responder. Reintentando en " + quedan + " s…"; })
+      .then(function () { clearTimeout(t); ocupado = false; btn.disabled = false; });
+  }
+  btn.addEventListener("click", probar);
+  setInterval(function () { if (ocupado) return; quedan--; if (quedan <= 0) { probar(); } else { el.textContent = "Reintentando en " + quedan + " s…"; } }, 1000);
+})();
+</script>
+</body>
+</html>

@@ -70,3 +70,7 @@ Misma estructura de repo; no hace falta reescribir el stack.
 ## Entrar por nombre (sanatorio.salvador.connect)
 
 Ver `docs/NOMBRE_LOCAL.md`: `bash scripts/configurar-nombre.sh` pasa la web al puerto 80 y levanta el DNS interno.
+
+## Pantallas de sistema caído y mantenimiento
+
+Ver `docs/MANTENIMIENTO.md`: `bash scripts/mantenimiento.sh on|off` prende o apaga la pantalla de mantenimiento al instante.

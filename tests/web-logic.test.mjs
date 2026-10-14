@@ -121,5 +121,18 @@ eq("instalador con fin de línea Windows", bat.split("\r\n").length > 30 && !/[^
 eq("instalador con IP y nombre", bat.includes('set "IP=172.20.1.134"') && bat.includes('set "NOMBRE=sanatorio.salvador.connect"'), true);
 eq("instalador con la dirección", bat.includes('set "URL=http://sanatorio.salvador.connect/"'), true);
 eq("instalador escribe IP<TAB>nombre en hosts", bat.includes('>>"%HOSTS%" echo %IP%\t%NOMBRE%'), true);
+
+// ----- Pantallas de estado (apps/web/src/lib/estado-sistema.ts) -----
+const salidaEst = path.join(path.dirname(salida), "estado.mjs");
+buildSync({ entryPoints: [path.join(raiz, "apps/web/src/lib/estado-sistema.ts")], format: "esm", outfile: salidaEst, logLevel: "warning" });
+const ES = await import(pathToFileURL(salidaEst).href);
+eq("503 codigo mantenimiento → mantenimiento", ES.clasificarRespuesta(503, "mantenimiento"), "mantenimiento");
+eq("503 codigo caido → caido", ES.clasificarRespuesta(503, "caido"), "caido");
+eq("502 sin código → caido", ES.clasificarRespuesta(502, null), "caido");
+eq("503 propio del API (sin código) → nada", ES.clasificarRespuesta(503, null), null);
+const ahora = new Date(2026, 9, 14, 10, 0);
+eq("vuelta estimada hoy", /^hoy a las /.test(ES.textoHasta(new Date(2026, 9, 14, 18, 30).toISOString(), ahora)), true);
+eq("vuelta estimada otro día", /^(jueves|jue)/i.test(ES.textoHasta(new Date(2026, 9, 15, 9, 0).toISOString(), ahora)), true);
+eq("sin fecha → vacío", ES.textoHasta(undefined, ahora), "");
 console.log(`\nRESULTADO: ${ok} OK, ${bad} FALLAS`);
 process.exit(bad ? 1 : 0);

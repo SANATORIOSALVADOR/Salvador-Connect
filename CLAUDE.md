@@ -184,5 +184,7 @@ Skill: `.claude/skills/guardias-medicas/SKILL.md`
 | `docs/PRODUCCION.md` | Deploy Docker |
 | `docs/POSTGRES.md` | DB |
 | `docs/BACKUPS_Y_MIGRACIONES.md` | Migraciones automáticas y backups diarios |
+| `docs/MANTENIMIENTO.md` | Pantallas de sistema caído / mantenimiento (`scripts/mantenimiento.sh`) |
+| `docs/NOMBRE_LOCAL.md` | Acceso por nombre (sanatorio.salvador.connect) |
 | `AGENTS.md` | Resumen corto para cualquier agente |
 | `.claude/skills/*/SKILL.md` | Procedimientos por dominio |

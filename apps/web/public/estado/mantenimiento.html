@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Mantenimiento · Sanatorio del Salvador</title>
+<link rel="icon" href="/favicon.svg" />
+<style>
+  :root { --bg: #10232b; --bg2: #16343a; --fg: #f3f0e7; --muted: rgba(243,240,231,.72); --accent: #f0b35a; --card: rgba(255,255,255,.06); --line: rgba(255,255,255,.12); --primary: #208379; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg);
+    background: radial-gradient(900px 520px at 110% -10%, rgba(32,131,121,.55), transparent 60%),
+                radial-gradient(700px 480px at -20% 115%, rgba(240,179,90,.22), transparent 60%),
+                linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+    display: grid; place-items: center; padding: 20px; overflow: hidden;
+  }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none;
+    background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.4px); background-size: 22px 22px;
+    mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent); }
+  .caja { position: relative; width: min(580px, 100%); text-align: center; }
+  .marca { display: inline-flex; align-items: center; gap: 12px; margin-bottom: clamp(18px, 4vh, 34px); font-weight: 700; font-size: 17px; }
+  .logo { width: 46px; height: 46px; border-radius: 13px; background: var(--accent); display: grid; place-items: center; box-shadow: 0 8px 22px rgba(0,0,0,.25); }
+  .icono { width: clamp(76px, 12vh, 96px); height: clamp(76px, 12vh, 96px); margin: 0 auto clamp(16px, 3vh, 26px); border-radius: 26px; display: grid; place-items: center;
+    background: rgba(240,179,90,.14); border: 1px solid rgba(240,179,90,.45); color: var(--accent); }
+  .icono svg { animation: girar 6s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+  h1 { font-size: clamp(26px, 4.6vh, 38px); line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 12px; }
+  p { color: var(--muted); font-size: clamp(14.5px, 2.1vh, 17px); line-height: 1.6; margin: 0 auto; max-width: 48ch; }
+  .mensaje { margin: clamp(16px, 3vh, 24px) auto 0; padding: 14px 18px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); text-align: left; font-size: 15px; line-height: 1.55; max-width: 48ch; }
+  .mensaje[hidden] { display: none; }
+  .mensaje b { display: block; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .barra { margin: clamp(18px, 3.4vh, 28px) auto 0; height: 6px; width: min(320px, 80%); border-radius: 99px; background: var(--card); overflow: hidden; }
+  .barra i { display: block; height: 100%; width: 35%; border-radius: 99px; background: var(--accent); animation: ir 1.8s ease-in-out infinite; }
+  @keyframes ir { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
+  .estado { margin-top: 12px; font-size: 13.5px; color: var(--muted); }
+  .pie { margin-top: clamp(20px, 4vh, 34px); font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+  .pie strong { color: var(--fg); }
+  @media (prefers-reduced-motion: reduce) { .icono svg, .barra i { animation: none; } }
+</style>
+</head>
+<body>
+  <main class="caja" role="main">
+    <div class="marca">
+      <span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 180 180"><path d="M74 38h32v36h36v32h-36v36H74v-36H38V74h36z" fill="#10232b"/></svg></span>
+      <span>Sanatorio del Salvador</span>
+    </div>
+    <div class="icono" aria-hidden="true">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </div>
+    <h1>Estamos haciendo mantenimiento</h1>
+    <p>El área de Sistemas está trabajando en el sistema para mejorarlo. <strong style="color:var(--fg)">No hace falta hacer nada</strong>: esta pantalla vuelve sola cuando termine.</p>
+    <div class="mensaje" id="mensaje" hidden><b>Aviso</b><span id="texto"></span></div>
+    <div class="barra" aria-hidden="true"><i></i></div>
+    <div class="estado" role="status" aria-live="polite" id="estado">Comprobando cada 15 segundos…</div>
+    <div class="pie">Ante una urgencia, comunicate con el <strong>área de Sistemas</strong>.</div>
+  </main>
+<script>
+(function () {
+  var destino = new URLSearchParams(location.search).get("volver") || (location.pathname.indexOf("/estado/") === 0 ? "/" : location.pathname + location.search);
+  if (destino.charAt(0) !== "/" || destino.indexOf("//") === 0) destino = "/";
+  var el = document.getElementById("estado");
+  function hora(iso) {
+    var d = new Date(iso); if (isNaN(d)) return "";
+    var hoy = new Date(); var mismoDia = d.toDateString() === hoy.toDateString();
+    return (mismoDia ? "hoy" : d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })) + " a las " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  }
+  function revisar() {
+    fetch("/estado/mantenimiento.json?_=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { if (r.status === 404) return null; if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (m) {
+        if (!m) {
+          // Terminó el mantenimiento: vuelve cuando el sistema responde.
+          return fetch("/api/health?_=" + Date.now(), { cache: "no-store" }).then(function (r) {
+            if (r.ok) { el.textContent = "¡Listo! Entrando…"; location.replace(destino); } else { el.textContent = "Terminando… vuelve en unos segundos."; }
+          });
+        }
+        var partes = [];
+        if (m.mensaje) partes.push(m.mensaje);
+        if (m.hasta) { var h = hora(m.hasta); if (h) partes.push(("Vuelve aproximadamente " + h + ".").replace(/\.\.$/, ".")); }
+        if (partes.length) { document.getElementById("texto").textContent = partes.join(" "); document.getElementById("mensaje").hidden = false; }
+        el.textContent = "Comprobando cada 15 segundos…";
+      })
+      .catch(function () { el.textContent = "Comprobando cada 15 segundos…"; });
+  }
+  revisar();
+  setInterval(revisar, 15000);
+})();
+</script>
+</body>
+</html>

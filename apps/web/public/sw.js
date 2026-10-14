@@ -1,5 +1,6 @@
 // Service worker de la app instalable.
 // - Pantallas: primero la red; sin conexión, la última versión guardada (la app abre igual).
+//   En mantenimiento (503) se muestra lo que manda el servidor y no se guarda.
 // - Archivos con hash (/assets/…): se guardan y se sirven desde la caché (nunca cambian).
 // - /api/guardias y /api/apariencia: primero la red (espera 4 s); sin conexión, la última respuesta
 //   guardada, así "De guardia ahora" se ve aunque se corte la red. Se borra al cerrar sesión.
@@ -45,8 +46,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req)
         .then((r) => {
-          const copia = r.clone();
-          caches.open(SHELL).then((c) => c.put("/", copia));
+          // Solo se guarda la app de verdad: nunca la pantalla de mantenimiento ni un error.
+          if (r.ok && !new URL(r.url || req.url).pathname.startsWith("/estado/")) {
+            const copia = r.clone();
+            caches.open(SHELL).then((c) => c.put("/", copia));
+          }
           return r;
         })
         .catch(() => caches.match("/")),

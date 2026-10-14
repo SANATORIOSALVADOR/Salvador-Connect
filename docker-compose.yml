@@ -62,6 +62,9 @@ services:
     restart: unless-stopped
     ports:
       - "${WEB_BIND:-0.0.0.0:8080}:80"
+    # Modo mantenimiento: bash scripts/mantenimiento.sh on|off (crea / borra estado/mantenimiento.json)
+    volumes:
+      - ./estado:/usr/share/nginx/estado:ro
     # NO exigir API healthy: si el API falla, igual se actualiza el frontend
     depends_on:
       - api

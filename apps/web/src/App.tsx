@@ -5,6 +5,7 @@ import { Notificaciones } from "@/components/notificaciones";
 import { PasswordInput } from "@/components/password-input";
 import { FeedbackHost } from "@/components/feedback";
 import { AccesoNombre } from "@/components/acceso-nombre";
+import { EstadoSistemaHost } from "@/components/estado-sistema";
 import { guardarTema, useApariencia } from '@/pages/shared/apariencia';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
@@ -349,10 +350,13 @@ function FirstAccessPage({ user }: { user: { name?: string; mustChangePassword?:
 function Protected({ children, user, allowFirstAccess = false }: { children: ReactNode; user?: { mustChangePassword?: boolean }; allowFirstAccess?: boolean }) {
   const [, setLocation] = useLocation();
   const currentUser = useCurrentUserSafe();
-  useEffect(() => { if (currentUser.isError) setLocation('/'); }, [currentUser.isError, setLocation]);
+  // Solo una sesión vencida (401/403) manda al ingreso. Si el sistema está caído o en mantenimiento
+  // (5xx o sin red) se queda en la pantalla: la pantalla de estado la cubre y al volver sigue igual.
+  const sinSesion = currentUser.isError && [401, 403].includes((currentUser.error as { status?: number } | null)?.status ?? 0);
+  useEffect(() => { if (sinSesion) setLocation('/'); }, [sinSesion, setLocation]);
   useEffect(() => { if (currentUser.data?.mustChangePassword && !allowFirstAccess) setLocation('/primer-acceso'); }, [allowFirstAccess, currentUser.data?.mustChangePassword, setLocation]);
   if (currentUser.isLoading) return <div className="auth-layout"><div className="skeleton" style={{ width: 260, height: 18, margin: 'auto' }} /></div>;
-  if (currentUser.isError || !currentUser.data) return null;
+  if (!currentUser.data) return null;
   return <>{children}</>;
 }
 
@@ -379,7 +383,7 @@ function Router() {
 
 function App() {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-  return <WouterRouter base={basePath}><QueryClientProvider client={queryClient}><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /><FeedbackHost /><AccesoNombre /></TooltipProvider></QueryClientProvider></WouterRouter>;
+  return <WouterRouter base={basePath}><QueryClientProvider client={queryClient}><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /><FeedbackHost /><AccesoNombre /><EstadoSistemaHost /></TooltipProvider></QueryClientProvider></WouterRouter>;
 }
 
 export default App;

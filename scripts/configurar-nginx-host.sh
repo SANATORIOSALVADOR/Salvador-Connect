@@ -26,6 +26,13 @@ else
   LINK=""
 fi
 
+# Pantalla «sistema no disponible» propia de este nginx: se muestra si el contenedor de la web está caído
+# (por ejemplo, mientras se reconstruye). Las de mantenimiento las da el nginx de la web.
+PAGINAS=/var/www/salvador-connect-estado
+sudo mkdir -p "$PAGINAS"
+sudo cp apps/web/public/estado/caido.html "$PAGINAS/__sc_caido.html"
+sudo chmod -R a+rX "$PAGINAS"
+
 echo "== $NOMBRE → $DESTINO (archivo: $CONF)"
 TMP="$(mktemp)"
 cat > "$TMP" <<EOF
@@ -36,6 +43,14 @@ server {
     server_name $NOMBRE;
 
     client_max_body_size 20m;
+
+    # Web caída o reiniciándose → pantalla «sistema no disponible» (se reintenta sola).
+    error_page 502 504 =503 /__sc_caido.html;
+    location = /__sc_caido.html {
+        internal;
+        root $PAGINAS;
+        add_header Cache-Control "no-store" always;
+    }
 
     location / {
         proxy_pass $DESTINO;
@@ -77,3 +92,4 @@ echo
 echo "Listo. Dirección del sistema (en las PCs con el acceso instalado): http://$NOMBRE"
 echo "Quien entre por http://$(leer SERVER_IP):$PUERTO desde una PC con Windows verá el botón para instalar el acceso."
 echo "Para deshacer: sudo rm -f $CONF ${LINK} && sudo systemctl reload nginx"
+echo "(Si cambia la pantalla de «no disponible», volver a correr este script para actualizarla.)"
