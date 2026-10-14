@@ -23,7 +23,20 @@ El script:
 
 Con `COMPOSE_PROFILES=dns` en `.env`, los comandos de siempre (`docker compose up -d …`) mantienen el DNS andando.
 
-## 2. En la red (una vez): que las PCs usen el servidor como DNS
+## 2a. Sin tocar el router (PC por PC) — lo que se usa hoy
+
+En cada PC, abrir en el navegador `http://172.20.1.134:8085/descargas/acceso-sanatorio.bat`, descargarlo y
+ejecutarlo (doble clic → aceptar el permiso de administrador). Hace tres cosas:
+
+1. Agrega `172.20.1.134  sanatorio.salvador.connect` al archivo `hosts` de esa PC (guarda copia en `hosts.bak-sanatorio`).
+2. Crea el acceso directo **«Sanatorio del Salvador»** en el escritorio de todos los usuarios.
+3. Abre el sistema.
+
+Se puede ejecutar varias veces (no duplica). Si cambia la IP o el puerto, editar las 3 primeras líneas del archivo
+(`scripts/windows/acceso-sanatorio.bat` y la copia en `apps/web/public/descargas/`). Windows puede advertir que el archivo
+"no es común": elegir «Más información → Ejecutar de todas formas».
+
+## 2b. En la red (una vez): que las PCs usen el servidor como DNS
 
 Elegí **una** opción:
 
