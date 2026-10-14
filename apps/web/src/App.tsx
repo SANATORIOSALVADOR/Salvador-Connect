@@ -4,6 +4,7 @@ import { Buscador } from "@/components/buscador";
 import { Notificaciones } from "@/components/notificaciones";
 import { PasswordInput } from "@/components/password-input";
 import { FeedbackHost } from "@/components/feedback";
+import { AccesoNombre } from "@/components/acceso-nombre";
 import { guardarTema, useApariencia } from '@/pages/shared/apariencia';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
@@ -341,7 +342,7 @@ function Router() {
 
 function App() {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-  return <WouterRouter base={basePath}><QueryClientProvider client={queryClient}><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /><FeedbackHost /></TooltipProvider></QueryClientProvider></WouterRouter>;
+  return <WouterRouter base={basePath}><QueryClientProvider client={queryClient}><TooltipProvider><ErrorBoundary><Router /></ErrorBoundary><Toaster /><FeedbackHost /><AccesoNombre /></TooltipProvider></QueryClientProvider></WouterRouter>;
 }
 
 export default App;

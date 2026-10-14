@@ -244,6 +244,9 @@ check "PUT superadmin" 200 "$(req $A PUT /apariencia '{"subtitulo":"Pruebas","co
 [ "$(jget d.colorPrimario)" = "#7c3aed" ] && ok "color guardado" || bad "apariencia" "$(body)"
 check "logo inválido rechazado" 400 "$(req $A PUT /apariencia '{"logo":"data:text/html;base64,PGgxPg=="}')"
 
+echo "== Acceso por nombre"
+check "acceso público (sin sesión)" 200 "$(req $T/anon GET /acceso)"; [ "$(jget "Object.keys(d).sort().join(',')")" = "ip,nombre,siteUrl" ] && ok "devuelve siteUrl, nombre e ip" || bad "acceso" "$(body)"
+
 echo "== Búsqueda, notificaciones y gráficos"
 check "buscar 'perez' (sin tilde)" 200 "$(req $A GET '/buscar?q=perez')"
 [ "$(jget "d.some(r=>r.tipo==='profesional')")" = "true" ] && ok "encuentra al profesional" || bad "buscar" "$(body)"

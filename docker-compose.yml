@@ -36,6 +36,9 @@ services:
       COOKIE_SECURE: "false"
       TZ: America/Argentina/Cordoba
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      # Acceso por nombre (docs/NOMBRE_LOCAL.md): la web ofrece el instalador a quien entra por IP.
+      SITE_URL: ${SITE_URL:-}
+      SERVER_IP: ${SERVER_IP:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-sanatorio}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sanatorio_db}
     depends_on:
       db:

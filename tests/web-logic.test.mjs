@@ -104,5 +104,22 @@ eq("SICORE gana a 2a quincena (más palabras)", A.sugerirObligacion(ag.filas[2].
 eq("reconoce IIBB con tilde", A.sugerirObligacion(ag.filas[3].texto, obl), 5);
 eq("empate → sin sugerencia", A.sugerirObligacion("algo con iva y igv", [{ id: 1, activo: true, claves: "iva" }, { id: 2, activo: true, claves: "igv" }]), null);
 eq("texto para recordar", A.textoParaClave("IMPUESTO A LAS GANANCIAS · Anticipo 3"), "impuesto a las ganancias anticipo");
+
+// ----- Acceso por nombre (apps/web/src/lib/acceso.ts) -----
+const salidaAcc = path.join(path.dirname(salida), "acceso.mjs");
+buildSync({ entryPoints: [path.join(raiz, "apps/web/src/lib/acceso.ts")], format: "esm", outfile: salidaAcc, logLevel: "warning" });
+const AC = await import(pathToFileURL(salidaAcc).href);
+const cfgA = { siteUrl: "http://sanatorio.salvador.connect", nombre: "sanatorio.salvador.connect", ip: "172.20.1.134" };
+const win = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36";
+const android = "Mozilla/5.0 (Linux; Android 14; Pixel) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36";
+eq("ofrece en Windows entrando por IP", AC.debeOfrecer(cfgA, "172.20.1.134", win), true);
+eq("no ofrece si ya entró por el nombre", AC.debeOfrecer(cfgA, "sanatorio.salvador.connect", win), false);
+eq("no ofrece en celular", AC.debeOfrecer(cfgA, "172.20.1.134", android), false);
+eq("no ofrece sin configuración", AC.debeOfrecer({ siteUrl: null, nombre: null, ip: null }, "172.20.1.134", win), false);
+const bat = AC.generarBat(cfgA);
+eq("instalador con fin de línea Windows", bat.split("\r\n").length > 30 && !/[^\r]\n/.test(bat), true);
+eq("instalador con IP y nombre", bat.includes('set "IP=172.20.1.134"') && bat.includes('set "NOMBRE=sanatorio.salvador.connect"'), true);
+eq("instalador con la dirección", bat.includes('set "URL=http://sanatorio.salvador.connect/"'), true);
+eq("instalador escribe IP<TAB>nombre en hosts", bat.includes('>>"%HOSTS%" echo %IP%\t%NOMBRE%'), true);
 console.log(`\nRESULTADO: ${ok} OK, ${bad} FALLAS`);
 process.exit(bad ? 1 : 0);

@@ -83,6 +83,12 @@ if [ "$SIN_DNS" = 0 ]; then
   docker compose up -d --build --force-recreate dns
 fi
 
+# La web ofrece el instalador del acceso con esta dirección (si el nginx del servidor ya da la dirección
+# sin puerto —scripts/configurar-nginx-host.sh— se respeta).
+URL_SITIO="http://$NOMBRE"; [ "$PUERTO_WEB" != 80 ] && URL_SITIO="$URL_SITIO:$PUERTO_WEB"
+[ "$(grep -E '^SITE_URL=' .env | cut -d= -f2- || true)" = "http://$NOMBRE" ] || set_env SITE_URL "$URL_SITIO"
+docker compose up -d --force-recreate api >/dev/null
+
 # 3) Pruebas.
 sleep 3
 echo

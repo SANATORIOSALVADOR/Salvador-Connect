@@ -23,9 +23,28 @@ El script:
 
 Con `COMPOSE_PROFILES=dns` en `.env`, los comandos de siempre (`docker compose up -d …`) mantienen el DNS andando.
 
+## 1b. Sin puerto: usar el nginx que ya tiene el servidor en el puerto 80
+
+El servidor tiene su propio nginx en el puerto 80 (fuera de Docker). Se le agrega un sitio solo para el nombre
+(lo demás que sirve no cambia):
+
+```bash
+bash scripts/configurar-nginx-host.sh
+```
+
+Después el sistema abre con `http://sanatorio.salvador.connect` (sin `:8085`) y el API informa esa dirección
+(`SITE_URL` en `.env`) para el instalador automático.
+
 ## 2a. Sin tocar el router (PC por PC) — lo que se usa hoy
 
-En cada PC, abrir en el navegador `http://172.20.1.134:8085/descargas/acceso-sanatorio.bat`, descargarlo y
+**Automático:** quien entra por IP (`http://172.20.1.134:8085`) desde una PC con Windows ve un aviso
+«Entrá con el nombre, sin la IP» con el botón **Descargar instalador** (generado con los datos de este servidor).
+Se ejecuta una vez y listo. Si la PC ya tiene el nombre, la pantalla de ingreso la lleva sola al nombre.
+El aviso se puede cerrar o «No mostrar más en esta PC». En celulares no aparece.
+
+**Manual (alternativa):
+
+** en cada PC, abrir en el navegador `http://172.20.1.134:8085/descargas/acceso-sanatorio.bat`, descargarlo y
 ejecutarlo (doble clic → aceptar el permiso de administrador). Hace tres cosas:
 
 1. Agrega `172.20.1.134  sanatorio.salvador.connect` al archivo `hosts` de esa PC (guarda copia en `hosts.bak-sanatorio`).
