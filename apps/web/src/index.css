@@ -764,3 +764,29 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
   @keyframes drawer-in { from { transform: translateX(-24px); opacity: .6; } to { transform: none; opacity: 1; } }
 }
 @media (prefers-reduced-motion: reduce) { .sidebar-drawer { animation: none !important; } }
+
+/* Menú lateral sin scroll: los tamaños se ajustan a la altura de la ventana (notebooks con escala 125 %, zoom). */
+.sidebar { padding-top: clamp(8px, 2vh, 16px) !important; padding-bottom: clamp(8px, 1.8vh, 14px) !important; }
+.sidebar .sidebar-top { padding-bottom: clamp(8px, 2vh, 16px) !important; margin-bottom: clamp(2px, .6vh, 6px) !important; }
+.sidebar .brand-mark { width: clamp(30px, 5vh, 38px) !important; height: clamp(30px, 5vh, 38px) !important; }
+.sidebar .nav-label { padding-top: clamp(6px, 1.7vh, 14px) !important; padding-bottom: clamp(2px, .7vh, 6px) !important; }
+.sidebar .nav-item { min-height: clamp(32px, 5.4vh, 42px); margin: clamp(1px, .25vh, 2px) 0 !important; padding-top: clamp(2px, .6vh, 6px) !important; padding-bottom: clamp(2px, .6vh, 6px) !important; }
+.sidebar .nav-ico { width: clamp(26px, 4vh, 30px); height: clamp(26px, 4vh, 30px); flex-basis: clamp(26px, 4vh, 30px); }
+.workspace-shell.is-collapsed .sidebar .nav-ico { width: clamp(30px, 4.6vh, 36px); height: clamp(30px, 4.6vh, 36px); flex-basis: clamp(30px, 4.6vh, 36px); }
+.sidebar .sidebar-foot { padding-top: clamp(8px, 1.6vh, 12px) !important; }
+.side-user { padding: clamp(3px, .8vh, 6px) 6px; }
+.side-avatar, .side-logout { width: clamp(28px, 4.6vh, 34px); height: clamp(28px, 4.6vh, 34px); flex-basis: clamp(28px, 4.6vh, 34px); }
+@media (max-height: 560px) {
+  .sidebar .brand-sub { display: none !important; }
+  .sidebar .nav-label { font-size: 0 !important; padding: 5px 10px 3px !important; }
+  .sidebar .nav-label::after { content: ""; display: block; height: 1px; background: hsl(var(--sidebar-border) / .8); }
+  .sidebar .nav-label .nav-label-linea { display: none; }
+}
+.workspace-shell.is-collapsed .sidebar .nav-label { padding: clamp(3px, 1.1vh, 10px) 0 clamp(2px, .6vh, 6px) !important; }
+.workspace-shell.is-collapsed .sidebar .sidebar-top { gap: clamp(4px, 1.2vh, 12px) !important; }
+.workspace-shell.is-collapsed .sidebar .nav-item { min-height: 0; padding: clamp(1px, .4vh, 6px) !important; }
+.workspace-shell.is-collapsed .sidebar .nav-ico { width: clamp(26px, 4.6vh, 36px); height: clamp(26px, 4.6vh, 36px); flex-basis: clamp(26px, 4.6vh, 36px); }
+.workspace-shell.is-collapsed .side-user { gap: clamp(2px, .6vh, 6px); padding: clamp(2px, .6vh, 6px) 4px; }
+.sidebar .sidebar-toggle { width: clamp(26px, 4vh, 30px) !important; height: clamp(26px, 4vh, 30px) !important; }
+@media (max-height: 470px) { .workspace-shell.is-collapsed .sidebar .nav-label { display: none !important; } }
+@media (max-height: 470px) { .sidebar .nav-item { margin: 0 !important; } }
