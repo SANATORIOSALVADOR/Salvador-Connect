@@ -15,12 +15,14 @@ import {
   ArrowUpRight,
   Bell,
   CalendarDays,
+  ChevronsLeft,
   ClipboardList,
   Clock3,
   FileText,
   Hospital,
   KeyRound,
   LayoutDashboard,
+  LogOut,
   Menu,
   PackageOpen,
   Plus,
@@ -138,15 +140,15 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
   // Usuarios vive dentro de Configuración (solo superadmin).
   const visibleNavItems = navItems.filter((item) => item.href !== '/usuarios' && (user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1))));
   const nav = <nav aria-label="Menú principal" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-    {!collapsed && <div className="nav-label">Operación</div>}
+    <div className="nav-label">{collapsed ? <span aria-hidden="true" className="nav-label-linea" /> : 'Operación'}</div>
     {visibleNavItems.map(({ href, label, icon: Icon }) => (
       <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} aria-current={location === href ? 'page' : undefined} title={label} data-testid={`link-nav-${label.toLowerCase()}`}>
-        <Icon className="nav-icon" />{!collapsed && <span>{label}</span>}
+        <span className="nav-ico"><Icon className="nav-icon" /></span>{!collapsed && <span className="nav-txt">{label}</span>}
       </Link>
     ))}
-    {user?.role === 'superadmin' && !collapsed && <div className="nav-label">Espacio</div>}
+    {user?.role === 'superadmin' && <div className="nav-label">{collapsed ? <span aria-hidden="true" className="nav-label-linea" /> : 'Espacio'}</div>}
     {user?.role === 'superadmin' && <Link href="/configuracion" onClick={() => setMobileOpen(false)} className={`nav-item ${location === '/configuracion' || location === '/usuarios' ? 'active' : ''}`} aria-current={location === '/configuracion' || location === '/usuarios' ? 'page' : undefined} title="Configuración" data-testid="link-nav-configuracion">
-      <Settings2 className="nav-icon" />{!collapsed && <span>Configuración</span>}
+      <span className="nav-ico"><Settings2 className="nav-icon" /></span>{!collapsed && <span className="nav-txt">Configuración</span>}
     </Link>}
   </nav>;
   const sideW = collapsed ? 72 : 248;
@@ -163,23 +165,25 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
       <div className="sidebar-top" style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', gap: 8, padding: '0 4px 12px', marginBottom: 2, borderBottom: '1px solid hsl(var(--sidebar-border) / 0.5)', flexShrink: 0, flexDirection: collapsed ? 'column' : 'row' }}>
         <Brand compact={collapsed} />
         <button type="button" className="sidebar-toggle" onClick={toggleCollapsed} title={collapsed ? "Expandir menú" : "Contraer menú"} aria-label={collapsed ? "Expandir menú" : "Contraer menú"}>
-          <Menu size={15} strokeWidth={2.2} />
+          <ChevronsLeft size={16} strokeWidth={2.2} style={{ transform: collapsed ? 'rotate(180deg)' : undefined, transition: 'transform .25s' }} />
         </button>
       </div>
       {nav}
-      <div className="sidebar-foot" style={{ marginTop: 'auto', flexShrink: 0, borderTop: '1px solid hsl(var(--sidebar-border) / 0.5)', paddingTop: 12 }}>
-        {!collapsed && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 8px' }}>
-            <div className="avatar" style={{ width: 32, height: 32, background: 'hsl(var(--sidebar-primary) / .18)', color: 'hsl(var(--sidebar-primary))', border: 'none' }}>{initials(user?.name)}</div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Usuario interno'}</div>
-              <div style={{ fontSize: 10, opacity: .48, marginTop: 2 }}>{user?.role || 'Acceso operativo'}</div>
-            </div>
-          </div>
-        )}
-        <button className="btn btn-quiet" style={{ width: '100%', marginTop: collapsed ? 0 : 4, color: 'hsl(var(--sidebar-foreground) / .78)', background: 'transparent', borderColor: 'hsl(var(--sidebar-border))', padding: collapsed ? '10px' : undefined }} onClick={doLogout} disabled={logout.isPending} data-testid="button-logout" title="Cerrar sesión">
-          {collapsed ? <span aria-hidden="true">⎋</span> : "Cerrar sesión"}{collapsed && <span className="sr-only">Cerrar sesión</span>}
-        </button>
+      <div className="sidebar-foot">
+        <div className="side-user">
+          <Link href="/perfil" className="side-user-link" title="Mi perfil">
+            <span className="side-avatar" aria-hidden="true">{initials(user?.name)}</span>
+            {!collapsed && (
+              <span className="side-user-txt">
+                <b>{user?.name || 'Usuario interno'}</b>
+                <small>{user?.role === 'superadmin' ? 'Superadministrador' : 'Usuario'}</small>
+              </span>
+            )}
+          </Link>
+          <button type="button" className="side-logout" onClick={doLogout} disabled={logout.isPending} data-testid="button-logout" title="Cerrar sesión" aria-label="Cerrar sesión">
+            <LogOut size={16} strokeWidth={2.1} />
+          </button>
+        </div>
       </div>
     </aside>
     {mobileOpen && (
@@ -190,8 +194,14 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
             <button className="sidebar-toggle" onClick={() => setMobileOpen(false)} data-testid="button-close-menu"><X size={15} /></button>
           </div>
           {nav}
-          <div style={{ borderTop: '1px solid hsl(var(--sidebar-border) / 0.5)', padding: '12px 4px 4px' }}>
-            <button className="btn btn-quiet" style={{ width: '100%', color: 'hsl(var(--sidebar-foreground) / .78)', background: 'transparent', borderColor: 'hsl(var(--sidebar-border))' }} onClick={doLogout} disabled={logout.isPending} data-testid="button-logout-drawer">Cerrar sesión</button>
+          <div className="sidebar-foot">
+            <div className="side-user">
+              <Link href="/perfil" className="side-user-link" title="Mi perfil" onClick={() => setMobileOpen(false)}>
+                <span className="side-avatar" aria-hidden="true">{initials(user?.name)}</span>
+                <span className="side-user-txt"><b>{user?.name || 'Usuario interno'}</b><small>{user?.role === 'superadmin' ? 'Superadministrador' : 'Usuario'}</small></span>
+              </Link>
+              <button type="button" className="side-logout" onClick={doLogout} disabled={logout.isPending} data-testid="button-logout-drawer" title="Cerrar sesión" aria-label="Cerrar sesión"><LogOut size={16} strokeWidth={2.1} /></button>
+            </div>
           </div>
         </aside>
       </div>

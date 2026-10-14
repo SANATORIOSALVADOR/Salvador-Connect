@@ -663,3 +663,104 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
 .estado-barra { position: fixed; top: 0; left: 0; right: 0; z-index: 150; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
   padding: 8px 14px; font-size: 13.5px; font-weight: 600; background: #fdf0d5; color: #6b4204; border-bottom: 1px solid #efd28f; }
 .estado-barra button { font: inherit; font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 8px; border: 1px solid #e3b964; background: #fff8e6; color: #6b4204; cursor: pointer; }
+
+/* ===== Menú lateral (rediseño visual; anchos 248 / 72 sin cambios) ===== */
+.sidebar {
+  background:
+    radial-gradient(420px 260px at 0% 0%, hsl(var(--sidebar-primary) / .10), transparent 70%),
+    radial-gradient(380px 300px at 100% 100%, hsl(var(--primary) / .22), transparent 70%),
+    linear-gradient(180deg, hsl(var(--sidebar)) 0%, hsl(var(--sidebar)) 100%) !important;
+  border-right: 1px solid hsl(var(--sidebar-border) / .7) !important;
+  box-shadow: 1px 0 0 hsl(0 0% 100% / .03), 8px 0 30px -18px rgba(0,0,0,.45);
+  padding: 16px 12px 14px !important;
+  scrollbar-width: thin; scrollbar-color: hsl(var(--sidebar-foreground) / .15) transparent;
+}
+.workspace-shell.is-collapsed .sidebar { padding: 16px 10px 14px !important; }
+
+/* Marca y botón de contraer */
+.sidebar .sidebar-top { padding: 2px 2px 16px !important; margin-bottom: 6px !important; border-bottom: 1px solid hsl(var(--sidebar-border) / .55) !important; gap: 10px !important; }
+.sidebar .brand-mark { width: 38px !important; height: 38px !important; border-radius: 11px !important; box-shadow: 0 6px 16px -6px hsl(var(--sidebar-primary) / .7), inset 0 1px 0 hsl(0 0% 100% / .35); }
+.sidebar .sidebar-brand .font-display { font-size: 13.5px !important; line-height: 1.25; max-width: 140px; }
+.sidebar .brand-sub { font-size: 11.5px !important; opacity: .55; margin-top: 1px; }
+.sidebar .sidebar-toggle {
+  width: 30px !important; height: 30px !important; border-radius: 9px !important; flex-shrink: 0;
+  border: 1px solid hsl(var(--sidebar-border) / .9) !important; background: hsl(0 0% 100% / .04) !important;
+  color: hsl(var(--sidebar-foreground) / .7) !important; cursor: pointer; transition: background .15s, color .15s;
+}
+.sidebar .sidebar-toggle:hover { background: hsl(0 0% 100% / .09) !important; color: hsl(var(--sidebar-foreground)) !important; }
+.workspace-shell.is-collapsed .sidebar .sidebar-top { gap: 12px !important; }
+
+/* Grupos */
+.sidebar .nav-label { font-size: 10.5px !important; font-weight: 700 !important; letter-spacing: .12em !important; text-transform: uppercase; opacity: 1 !important;
+  color: hsl(var(--sidebar-foreground) / .38); padding: 14px 12px 6px !important; }
+.nav-label-linea { display: block; height: 1px; margin: 4px 10px 0; background: hsl(var(--sidebar-border) / .8); }
+.workspace-shell.is-collapsed .sidebar .nav-label { display: block !important; padding: 10px 0 6px !important; }
+
+/* Ítems */
+.sidebar .nav-item {
+  position: relative; display: flex !important; align-items: center !important; gap: 11px !important;
+  padding: 6px 8px !important; margin: 2px 0 !important; border-radius: 12px !important; min-height: 42px;
+  color: hsl(var(--sidebar-foreground) / .72) !important; font-size: 13.5px; font-weight: 500 !important; text-decoration: none;
+  background: transparent !important; transition: background .18s, color .18s;
+}
+.sidebar .nav-ico {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 30px;
+  background: hsl(0 0% 100% / .05); border: 1px solid hsl(0 0% 100% / .05); transition: background .18s, color .18s, transform .18s, box-shadow .18s;
+}
+.sidebar .nav-icon { width: 16px !important; height: 16px !important; }
+.sidebar .nav-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: transform .18s; }
+.sidebar .nav-item:hover { background: hsl(0 0% 100% / .05) !important; color: hsl(var(--sidebar-foreground)) !important; }
+.sidebar .nav-item:hover .nav-ico { background: hsl(0 0% 100% / .09); transform: translateY(-1px); }
+.sidebar .nav-item:hover .nav-txt { transform: translateX(2px); }
+.sidebar .nav-item.active, .sidebar .nav-item.active:hover {
+  color: hsl(var(--sidebar-foreground)) !important; font-weight: 650 !important; padding: 6px 8px !important;
+  background: linear-gradient(90deg, hsl(var(--sidebar-primary) / .16), hsl(var(--sidebar-primary) / .04) 70%, transparent) !important;
+  box-shadow: inset 0 0 0 1px hsl(var(--sidebar-primary) / .14);
+}
+.sidebar .nav-item.active::before {
+  content: ""; position: absolute; left: -12px; top: 9px; bottom: 9px; width: 4px; border-radius: 0 4px 4px 0;
+  background: hsl(var(--sidebar-primary)); box-shadow: 0 0 12px hsl(var(--sidebar-primary) / .8);
+}
+.sidebar .nav-item.active .nav-ico { background: hsl(var(--sidebar-primary)); border-color: transparent; color: hsl(var(--sidebar-primary-foreground)); box-shadow: 0 6px 14px -6px hsl(var(--sidebar-primary) / .9); }
+.sidebar .nav-item:focus-visible { outline: 2px solid hsl(var(--sidebar-primary)) !important; outline-offset: 1px; }
+.workspace-shell.is-collapsed .sidebar .nav-item { justify-content: center !important; padding: 6px !important; }
+.workspace-shell.is-collapsed .sidebar .nav-item.active::before { left: -10px; }
+.workspace-shell.is-collapsed .sidebar .nav-ico { width: 36px; height: 36px; flex-basis: 36px; border-radius: 11px; }
+
+/* Pie: usuario + salir */
+.sidebar .sidebar-foot { margin-top: auto; flex-shrink: 0; border-top: 1px solid hsl(var(--sidebar-border) / .55) !important; padding-top: 12px !important; }
+.side-user { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 14px; background: hsl(0 0% 100% / .04); border: 1px solid hsl(0 0% 100% / .06); }
+.side-user-link { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; padding: 2px; border-radius: 10px; color: inherit; text-decoration: none; }
+.side-user-link:hover .side-user-txt b { color: hsl(var(--sidebar-primary)); }
+.side-avatar {
+  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 11px; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; letter-spacing: .02em;
+  color: hsl(var(--sidebar-primary-foreground));
+  background: linear-gradient(135deg, hsl(var(--sidebar-primary)), hsl(var(--sidebar-primary) / .65));
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / .35);
+}
+.side-user-txt { min-width: 0; display: block; line-height: 1.2; }
+.side-user-txt b { display: block; font-size: 12.8px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .15s; }
+.side-user-txt small { display: block; font-size: 11px; color: hsl(var(--sidebar-foreground) / .5); margin-top: 2px; }
+.side-logout {
+  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: hsl(var(--sidebar-foreground) / .6); transition: background .15s, color .15s, border-color .15s;
+}
+.side-logout:hover { background: hsl(0 72% 60% / .14); color: hsl(0 85% 75%); border-color: hsl(0 72% 60% / .25); }
+.side-logout:focus-visible { outline: 2px solid hsl(var(--sidebar-primary)); outline-offset: 1px; }
+.side-logout:disabled { opacity: .5; cursor: default; }
+.workspace-shell.is-collapsed .side-user { flex-direction: column; padding: 6px 4px; gap: 6px; }
+.workspace-shell.is-collapsed .side-user-link { flex: none; padding: 0; }
+
+/* Menú de celular */
+.sidebar-drawer { padding: 16px 12px 14px !important; }
+.sidebar-drawer .sidebar-top { padding: 2px 2px 14px !important; }
+/* Contraído: la regla vieja oculta todos los <span> del ítem; el ícono tiene que verse. */
+.workspace-shell.is-collapsed .sidebar .nav-item .nav-ico { display: grid !important; }
+/* Nombre del sistema: hasta dos renglones. */
+.sidebar .sidebar-brand .font-display { white-space: normal !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Celular: el menú desplegable sí se muestra (la regla que oculta el menú fijo lo tapaba). */
+@media (max-width: 900px) {
+  .workspace-shell .sidebar.sidebar-drawer { display: flex !important; flex-direction: column; height: 100dvh; overflow-y: auto; box-shadow: 18px 0 50px -10px rgba(0,0,0,.5); animation: drawer-in .22s ease-out; }
+  @keyframes drawer-in { from { transform: translateX(-24px); opacity: .6; } to { transform: none; opacity: 1; } }
+}
+@media (prefers-reduced-motion: reduce) { .sidebar-drawer { animation: none !important; } }
