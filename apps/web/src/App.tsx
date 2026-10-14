@@ -326,7 +326,7 @@ function LoginPage() {
           {login.isError && <div className="form-error">{loginErrorMessage(login.error)}</div>}
           <button className="btn btn-primary auth-submit" type="submit" disabled={login.isPending} data-testid="button-login-submit">{login.isPending ? 'Ingresando…' : 'Ingresar'} <ArrowUpRight size={17} /></button>
         </form>
-        <div className="auth-foot">Los usuarios son creados y administrados por el <strong>área de Sistemas</strong>.<br />¿No podés entrar? Comunicate con Sistemas.</div>
+        <div className="auth-foot">Los usuarios son creados y administrados por el <strong>área de Sistemas</strong>.<span className="auth-foot-extra"><br />¿No podés entrar? Comunicate con Sistemas.</span></div>
       </div>
     </section>
   </div>;
