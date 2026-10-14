@@ -88,6 +88,22 @@ services:
     networks:
       - salvador
 
+  # Nombre interno (opcional): SITE_NAME → SERVER_IP para las PCs de la red. Solo arranca con
+  # COMPOSE_PROFILES=dns en .env. Se configura con: bash scripts/configurar-nombre.sh (docs/NOMBRE_LOCAL.md)
+  dns:
+    profiles: ["dns"]
+    build:
+      context: ./deploy/dns
+    restart: unless-stopped
+    environment:
+      SITE_NAME: ${SITE_NAME:-sanatorio.salvador.connect}
+      SERVER_IP: ${SERVER_IP:-}
+      DNS_UPSTREAM_1: ${DNS_UPSTREAM_1:-8.8.8.8}
+      DNS_UPSTREAM_2: ${DNS_UPSTREAM_2:-1.1.1.1}
+    ports:
+      - "${SERVER_IP:-127.0.0.1}:53:53/udp"
+      - "${SERVER_IP:-127.0.0.1}:53:53/tcp"
+
 volumes:
   pgdata:
 

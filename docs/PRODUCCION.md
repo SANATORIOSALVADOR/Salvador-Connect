@@ -66,3 +66,7 @@ Misma estructura de repo; no hace falta reescribir el stack.
 | UI Replit (login, shell, agenda, users) | Instructivos PDF |
 | Postgres + migraciones | HTTPS / dominio |
 | Scripts deploy | Backups automatizados |
+
+## Entrar por nombre (sanatorio.salvador.connect)
+
+Ver `docs/NOMBRE_LOCAL.md`: `bash scripts/configurar-nombre.sh` pasa la web al puerto 80 y levanta el DNS interno.

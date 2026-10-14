@@ -1,2 +1,3 @@
 # Scripts de shell siempre con fin de línea Linux (con CRLF fallan en el servidor).
 *.sh text eol=lf
+*Dockerfile text eol=lf
