@@ -4,76 +4,308 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
+<meta name="theme-color" content="#0b1a20" />
 <title>Sistema no disponible · Sanatorio del Salvador</title>
 <link rel="icon" href="/favicon.svg" />
 <style>
-  :root { --bg: #10232b; --bg2: #16343a; --fg: #f3f0e7; --muted: rgba(243,240,231,.72); --accent: #f0b35a; --card: rgba(255,255,255,.06); --line: rgba(255,255,255,.12); --primary: #208379; }
+  /* Pantalla autónoma: no depende del API ni de otros archivos (la sirve también el nginx del servidor). */
+  :root {
+    --primario: #208379; --menu: #103b4c;
+    --fondo: #0b1a20; --panel: rgba(14, 33, 41, .78); --linea: rgba(160, 205, 210, .14); --linea-fuerte: rgba(160, 205, 210, .24);
+    --texto: #eef3f1; --suave: rgba(226, 238, 236, .66); --tenue: rgba(226, 238, 236, .42);
+    --ambar: #f2b14c; --rojo: #ef6f6f; --verde: #3fd68c;
+  }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg);
-    background: radial-gradient(900px 520px at 110% -10%, rgba(32,131,121,.55), transparent 60%),
-                radial-gradient(700px 480px at -20% 115%, rgba(240,179,90,.18), transparent 60%),
-                linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
-    display: grid; place-items: center; padding: 20px; overflow: hidden;
+    font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    font-feature-settings: "tnum" 1; color: var(--texto); background: var(--fondo); overflow: hidden;
+    -webkit-font-smoothing: antialiased;
   }
-  body::before { content: ""; position: fixed; inset: 0; pointer-events: none;
-    background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.4px); background-size: 22px 22px;
-    mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent); }
-  .caja { position: relative; width: min(560px, 100%); text-align: center; }
-  .marca { display: inline-flex; align-items: center; gap: 12px; margin-bottom: clamp(18px, 4vh, 34px); font-weight: 700; font-size: 17px; }
-  .logo { width: 46px; height: 46px; border-radius: 13px; background: var(--accent); display: grid; place-items: center; box-shadow: 0 8px 22px rgba(0,0,0,.25); }
-  .icono { width: clamp(76px, 12vh, 96px); height: clamp(76px, 12vh, 96px); margin: 0 auto clamp(16px, 3vh, 26px); border-radius: 26px; display: grid; place-items: center;
-    background: rgba(208,59,59,.14); border: 1px solid rgba(208,59,59,.4); color: #ff8f8f; }
-  .icono svg { animation: latir 2.4s ease-in-out infinite; }
-  @keyframes latir { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.92); opacity: .75; } }
-  h1 { font-size: clamp(26px, 4.6vh, 38px); line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 12px; }
-  p { color: var(--muted); font-size: clamp(14.5px, 2.1vh, 17px); line-height: 1.6; margin: 0 auto; max-width: 46ch; }
-  .estado { margin: clamp(18px, 3.4vh, 28px) auto 0; display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px;
-    background: var(--card); border: 1px solid var(--line); font-size: 14px; font-weight: 600; }
-  .punto { width: 9px; height: 9px; border-radius: 99px; background: var(--accent); animation: parpadeo 1.4s infinite; }
-  @keyframes parpadeo { 50% { opacity: .25; } }
-  .botones { margin-top: clamp(16px, 3vh, 24px); display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-  button { font: inherit; font-weight: 700; font-size: 15px; border-radius: 12px; padding: 12px 20px; cursor: pointer; border: 1px solid var(--line); color: var(--fg); background: var(--card); }
-  button.primario { background: var(--primary); border-color: transparent; color: #fff; box-shadow: 0 10px 24px -10px rgba(32,131,121,.9); }
-  button:disabled { opacity: .6; cursor: default; }
-  .pie { margin-top: clamp(20px, 4vh, 34px); font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
-  .pie strong { color: var(--fg); }
-  @media (prefers-reduced-motion: reduce) { .icono svg, .punto { animation: none; } }
+  .fondo { position: fixed; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(1100px 600px at 85% -10%, color-mix(in srgb, var(--primario) 38%, transparent), transparent 62%),
+      radial-gradient(800px 500px at -10% 110%, color-mix(in srgb, var(--menu) 85%, transparent), transparent 60%),
+      linear-gradient(180deg, #0b1a20, #0a161b); }
+  .fondo::after { content: ""; position: absolute; inset: 0; opacity: .5;
+    background-image: linear-gradient(var(--linea) 1px, transparent 1px), linear-gradient(90deg, var(--linea) 1px, transparent 1px);
+    background-size: 44px 44px; mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 75%); }
+
+  .pagina { position: relative; height: 100%; display: grid; grid-template-rows: auto 1fr auto; padding: clamp(14px, 3vh, 28px) clamp(16px, 4vw, 48px); gap: clamp(10px, 2vh, 20px); }
+  header, footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .logo { width: 40px; height: 40px; border-radius: 11px; background: #f0b35a; display: grid; place-items: center; overflow: hidden; flex: 0 0 auto; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+  .logo img { width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 3px; }
+  .marca b { display: block; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .marca small { display: block; font-size: 12.5px; color: var(--tenue); }
+  .reloj { text-align: right; font-size: 13px; color: var(--suave); }
+  .reloj b { display: block; font-size: 20px; color: var(--texto); letter-spacing: .02em; font-weight: 600; }
+
+  main { display: grid; place-items: center; min-height: 0; }
+  .tarjeta { width: min(860px, 100%); border-radius: 22px; background: var(--panel); border: 1px solid var(--linea-fuerte);
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.04); backdrop-filter: blur(10px); overflow: hidden;
+    animation: entrar .7s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes entrar { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+
+  /* Monitor */
+  .monitor { position: relative; padding: 14px 18px 10px; border-bottom: 1px solid var(--linea); background: linear-gradient(180deg, rgba(0,0,0,.28), rgba(0,0,0,.12)); }
+  .monitor-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--tenue); }
+  .vivo { display: inline-flex; align-items: center; gap: 8px; }
+  .vivo i { width: 8px; height: 8px; border-radius: 99px; background: var(--ambar); box-shadow: 0 0 0 0 currentColor; color: var(--ambar); animation: latido 1.6s infinite; }
+  .ok .vivo i { background: var(--verde); color: var(--verde); }
+  @keyframes latido { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent); } 80%, 100% { box-shadow: 0 0 0 9px transparent; } }
+  .monitor-cuerpo { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; margin-top: 6px; }
+  canvas { display: block; width: 100%; height: clamp(84px, 15vh, 140px); }
+  .lecturas { display: grid; gap: 10px; min-width: 128px; text-align: right; }
+  .lectura small { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .14em; color: var(--tenue); }
+  .lectura b { display: block; font-size: clamp(22px, 3.6vh, 30px); font-weight: 600; line-height: 1.1; color: var(--ambar); transition: color .4s; }
+  .ok .lectura b { color: var(--verde); }
+
+  /* Contenido */
+  .contenido { display: grid; grid-template-columns: 1.25fr 1fr; gap: clamp(16px, 3vw, 32px); padding: clamp(16px, 3vh, 28px) clamp(18px, 3vw, 30px); }
+  .etiqueta { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ambar); background: color-mix(in srgb, var(--ambar) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ambar) 30%, transparent); padding: 5px 10px; border-radius: 999px; transition: all .4s; }
+  .ok .etiqueta { color: var(--verde); background: color-mix(in srgb, var(--verde) 12%, transparent); border-color: color-mix(in srgb, var(--verde) 30%, transparent); }
+  h1 { font-size: clamp(24px, 4vh, 34px); line-height: 1.12; letter-spacing: -0.025em; margin: 12px 0 10px; font-weight: 700; }
+  .texto { font-size: clamp(14px, 1.9vh, 15.5px); line-height: 1.6; color: var(--suave); margin: 0; max-width: 46ch; }
+  .texto strong { color: var(--texto); font-weight: 600; }
+  .acciones { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: clamp(14px, 2.6vh, 22px); }
+  button { font: inherit; font-size: 14.5px; font-weight: 600; border-radius: 11px; padding: 11px 18px; cursor: pointer; border: 1px solid var(--linea-fuerte); color: var(--texto); background: rgba(255,255,255,.05); transition: transform .15s, background .2s, opacity .2s; }
+  button:hover:not(:disabled) { background: rgba(255,255,255,.09); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button.primario { background: var(--primario); border-color: transparent; color: #fff; box-shadow: 0 12px 26px -12px var(--primario); }
+  button.primario:hover:not(:disabled) { filter: brightness(1.08); background: var(--primario); }
+  button:disabled { opacity: .55; cursor: default; }
+  button:focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; }
+  .proximo { font-size: 13px; color: var(--tenue); }
+
+  .componentes { list-style: none; margin: 0; padding: 0; border: 1px solid var(--linea); border-radius: 14px; overflow: hidden; align-self: start; }
+  .componentes li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; font-size: 14px; }
+  .componentes li + li { border-top: 1px solid var(--linea); }
+  .componentes li span:first-child { color: var(--suave); }
+  .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 99px; background: var(--tenue); }
+  .chip.bien { color: var(--verde); } .chip.bien::before { background: var(--verde); }
+  .chip.mal { color: var(--rojo); } .chip.mal::before { background: var(--rojo); }
+  .chip.espera { color: var(--tenue); } .chip.espera::before { animation: parpadeo 1s infinite; }
+  @keyframes parpadeo { 50% { opacity: .2; } }
+  .comp-titulo { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--tenue); margin: 0 0 8px; }
+  .ultima { font-size: 12.5px; color: var(--tenue); margin-top: 10px; }
+
+  footer { font-size: 13px; color: var(--tenue); }
+  footer strong { color: var(--suave); }
+
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    .pagina { height: auto; min-height: 100%; }
+    .contenido { grid-template-columns: 1fr; }
+    .lecturas { grid-template-columns: repeat(2, auto); min-width: 0; gap: 4px 14px; }
+    .monitor-cuerpo { grid-template-columns: 1fr; }
+    .lecturas { text-align: left; }
+    .reloj small { display: none; }
+    footer { flex-direction: column; align-items: flex-start; }
+  }
+  @media (max-height: 640px) and (min-width: 761px) { .marca small, .ultima { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .tarjeta, .vivo i, .chip.espera::before { animation: none !important; } }
 </style>
 </head>
 <body>
-  <main class="caja" role="main">
+<div class="fondo" aria-hidden="true"></div>
+<div class="pagina" id="pagina">
+  <header>
     <div class="marca">
-      <span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 180 180"><path d="M74 38h32v36h36v32h-36v36H74v-36H38V74h36z" fill="#10232b"/></svg></span>
-      <span id="nombre">Sanatorio del Salvador</span>
+      <span class="logo" id="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 180 180"><path d="M74 38h32v36h36v32h-36v36H74v-36H38V74h36z" fill="#0b1a20"/></svg></span>
+      <span style="min-width:0"><b id="nombre">Sanatorio del Salvador</b><small id="subtitulo">Sistema interno</small></span>
     </div>
-    <div class="icono" aria-hidden="true">
-      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-    </div>
-    <h1>El sistema no está disponible en este momento</h1>
-    <p>No pudimos conectarnos con el servidor. Puede ser un corte momentáneo: <strong style="color:var(--fg)">no cierres esta pantalla</strong>, vuelve sola apenas el sistema responda.</p>
-    <div class="estado" role="status" aria-live="polite"><span class="punto" aria-hidden="true"></span><span id="estado">Reintentando en 10 s…</span></div>
-    <div class="botones"><button class="primario" id="reintentar" type="button">Reintentar ahora</button></div>
-    <div class="pie">Si lleva más de unos minutos, comunicate con el <strong>área de Sistemas</strong>.</div>
+    <div class="reloj" aria-hidden="true"><b id="hora">--:--</b><small id="fecha"></small></div>
+  </header>
+
+  <main>
+    <section class="tarjeta" aria-labelledby="titulo">
+      <div class="monitor" aria-hidden="true">
+        <div class="monitor-cab"><span class="vivo"><i></i><span id="monitorTxt">Monitor del sistema · buscando señal</span></span><span id="intento">Intento 1</span></div>
+        <div class="monitor-cuerpo">
+          <canvas id="ecg"></canvas>
+          <div class="lecturas">
+            <div class="lectura"><small>Respuesta</small><b id="latencia">— ms</b></div>
+            <div class="lectura"><small>Sin servicio</small><b id="caido">0:00</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="contenido">
+        <div>
+          <span class="etiqueta" id="etiqueta">Sin conexión con el servidor</span>
+          <h1 id="titulo">El sistema no está disponible en este momento</h1>
+          <p class="texto" id="texto">Estamos intentando reconectar automáticamente. <strong>No cierres esta pantalla</strong>: apenas el sistema responda vas a volver solo a donde estabas.</p>
+          <div class="acciones">
+            <button class="primario" id="reintentar" type="button">Reintentar ahora</button>
+            <button id="copia" type="button" hidden>Ver la última copia de Guardias</button>
+            <span class="proximo" id="proximo" role="status" aria-live="polite">Próximo intento en 10 s</span>
+          </div>
+        </div>
+        <div>
+          <p class="comp-titulo">Estado de los servicios</p>
+          <ul class="componentes">
+            <li><span>Red y servidor web</span><span class="chip espera" id="cWeb">Comprobando</span></li>
+            <li><span>Servicio del sistema</span><span class="chip espera" id="cApi">Comprobando</span></li>
+            <li><span>Base de datos</span><span class="chip espera" id="cDb">Comprobando</span></li>
+          </ul>
+          <div class="ultima" id="ultima">Comprobando…</div>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <span>Si lleva más de unos minutos, comunicate con el <strong>área de Sistemas</strong>.</span>
+    <span>Mientras tanto, anotá en papel lo urgente y cargalo cuando vuelva.</span>
+  </footer>
+</div>
+
 <script>
 (function () {
-  var destino = new URLSearchParams(location.search).get("volver") || (location.pathname.indexOf("/estado/") === 0 ? "/" : location.pathname + location.search);
+  "use strict";
+  var q = new URLSearchParams(location.search);
+  var embebido = q.get("embebido") === "1";
+  var destino = q.get("volver") || (location.pathname.indexOf("/estado/") === 0 ? "/" : location.pathname + location.search);
   if (destino.charAt(0) !== "/" || destino.indexOf("//") === 0) destino = "/";
-  var espera = 10, quedan = espera, ocupado = false;
-  var el = document.getElementById("estado"), btn = document.getElementById("reintentar");
-  function probar() {
-    if (ocupado) return; ocupado = true; btn.disabled = true; el.textContent = "Comprobando…";
-    var c = new AbortController(); var t = setTimeout(function () { c.abort(); }, 5000);
-    fetch("/api/health?_=" + Date.now(), { cache: "no-store", signal: c.signal })
-      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then(function () { el.textContent = "¡Volvió! Entrando…"; location.replace(destino); })
-      .catch(function () { espera = Math.min(espera + 5, 30); quedan = espera; el.textContent = "Sigue sin responder. Reintentando en " + quedan + " s…"; })
-      .then(function () { clearTimeout(t); ocupado = false; btn.disabled = false; });
+  var $ = function (id) { return document.getElementById(id); };
+  var reducido = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- Apariencia (la última guardada por el sistema en esta PC) ----
+  try {
+    var ap = JSON.parse(localStorage.getItem("sc-apariencia") || "null");
+    if (ap) {
+      if (ap.nombre) $("nombre").textContent = ap.nombre;
+      if (ap.subtitulo) $("subtitulo").textContent = ap.subtitulo;
+      if (/^#[0-9a-f]{6}$/i.test(ap.colorPrimario || "")) document.documentElement.style.setProperty("--primario", ap.colorPrimario);
+      if (/^#[0-9a-f]{6}$/i.test(ap.colorMenu || "")) document.documentElement.style.setProperty("--menu", ap.colorMenu);
+      if (ap.logo && /^data:image\//.test(ap.logo)) { var im = new Image(); im.alt = ""; im.src = ap.logo; $("logo").replaceChildren(im); }
+    }
+  } catch (e) {}
+  if (embebido && q.get("copia") === "1") $("copia").hidden = false;
+
+  // ---- Reloj ----
+  function reloj() {
+    var d = new Date();
+    $("hora").textContent = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    $("fecha").textContent = d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
   }
-  btn.addEventListener("click", probar);
-  setInterval(function () { if (ocupado) return; quedan--; if (quedan <= 0) { probar(); } else { el.textContent = "Reintentando en " + quedan + " s…"; } }, 1000);
+  reloj(); setInterval(reloj, 1000);
+
+  // ---- Monitor (ECG) ----
+  var cv = $("ecg"), cx = cv.getContext("2d"), W = 0, H = 0, buf = [], x = 0, t = 0, modo = "busca";
+  function medir() {
+    var r = cv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(200, Math.round(r.width)); H = Math.max(60, Math.round(r.height));
+    cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buf = new Array(W).fill(null); x = 0;
+  }
+  // Latido normal (P-QRS-T) en fase 0..1
+  function latido(f) {
+    var g = function (c, a, s) { return a * Math.exp(-Math.pow((f - c) / s, 2)); };
+    return g(.18, .10, .03) - g(.36, .12, .012) + g(.40, 1, .014) - g(.44, .26, .014) + g(.66, .22, .05);
+  }
+  var proximoPulso = 1.6;
+  function senal(dt) {
+    t += dt;
+    if (modo === "ok") return latido((t % .95) / .95);
+    // Buscando señal: casi plano, con intentos débiles e irregulares.
+    var v = (Math.random() - .5) * .025;
+    proximoPulso -= dt;
+    if (proximoPulso < 0 && proximoPulso > -.22) { var f = (-proximoPulso) / .22; v += .22 * Math.sin(f * Math.PI) * Math.sin(f * Math.PI * 3); }
+    if (proximoPulso <= -.22) proximoPulso = 1.4 + Math.random() * 1.8;
+    return v;
+  }
+  function color() { return modo === "ok" ? "#3fd68c" : "#f2b14c"; }
+  function dibujar() {
+    cx.clearRect(0, 0, W, H);
+    cx.lineWidth = 1; cx.strokeStyle = "rgba(160,205,210,.07)";
+    for (var gx = 0; gx < W; gx += 22) { cx.beginPath(); cx.moveTo(gx + .5, 0); cx.lineTo(gx + .5, H); cx.stroke(); }
+    for (var gy = 0; gy < H; gy += 22) { cx.beginPath(); cx.moveTo(0, gy + .5); cx.lineTo(W, gy + .5); cx.stroke(); }
+    cx.lineWidth = 2.2; cx.lineJoin = "round"; cx.strokeStyle = color(); cx.shadowColor = color(); cx.shadowBlur = 10;
+    var hueco = 28; cx.beginPath(); var abierto = false;
+    for (var i = 0; i < W; i++) {
+      var d = (i - x + W) % W;
+      if (buf[i] === null || (d > 0 && d < hueco)) { abierto = false; continue; }
+      var yy = H * .62 - buf[i] * H * .52;
+      if (!abierto) { cx.moveTo(i, yy); abierto = true; } else cx.lineTo(i, yy);
+    }
+    cx.stroke(); cx.shadowBlur = 0;
+    var yc = buf[(x - 1 + W) % W]; if (yc !== null) { cx.fillStyle = "#fff"; cx.beginPath(); cx.arc((x - 1 + W) % W, H * .62 - yc * H * .52, 2.6, 0, 7); cx.fill(); }
+  }
+  var previo = 0;
+  function cuadro(ts) {
+    var dt = previo ? Math.min((ts - previo) / 1000, .05) : 0.016; previo = ts;
+    var pasos = Math.max(1, Math.round(dt * 150));
+    for (var k = 0; k < pasos; k++) { buf[x] = senal(dt / pasos); x = (x + 1) % W; }
+    dibujar(); requestAnimationFrame(cuadro);
+  }
+  medir(); window.addEventListener("resize", medir);
+  if (reducido) { for (var i = 0; i < W; i++) buf[i] = 0; x = 0; dibujar(); } else requestAnimationFrame(cuadro);
+
+  // ---- Comprobaciones ----
+  var inicio = Date.now(), intento = 0, espera = 10, quedan = espera, ocupado = false, listo = false;
+  function chip(id, clase, txt) { var el = $(id); el.className = "chip " + clase; el.textContent = txt; }
+  function conTiempo(url, ms) {
+    var c = new AbortController(), tm = setTimeout(function () { c.abort(); }, ms), t0 = performance.now();
+    return fetch(url, { cache: "no-store", signal: c.signal }).then(function (r) { clearTimeout(tm); r.ms = Math.round(performance.now() - t0); return r; },
+      function (e) { clearTimeout(tm); throw e; });
+  }
+  function hace(seg) { return seg < 60 ? "hace " + seg + " s" : "hace " + Math.floor(seg / 60) + " min"; }
+  var ultimaVez = 0;
+  setInterval(function () {
+    var s = Math.floor((Date.now() - inicio) / 1000);
+    if (!listo) $("caido").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    if (ultimaVez) $("ultima").textContent = "Última comprobación " + hace(Math.floor((Date.now() - ultimaVez) / 1000)) + ".";
+    if (ocupado || listo) return;
+    quedan--; if (quedan <= 0) probar(); else $("proximo").textContent = "Próximo intento en " + quedan + " s";
+  }, 1000);
+
+  function probar() {
+    if (ocupado || listo) return;
+    ocupado = true; intento++; $("intento").textContent = "Intento " + intento; $("reintentar").disabled = true;
+    $("proximo").textContent = "Comprobando…";
+    ["cWeb", "cApi", "cDb"].forEach(function (id) { chip(id, "espera", "Comprobando"); });
+    var web = conTiempo("/favicon.svg?_=" + Date.now(), 5000).then(function (r) { return r.ok; }, function () { return false; });
+    var api = conTiempo("/api/health?_=" + Date.now(), 6000).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, ms: r.ms, d: d || {} }; });
+    }, function () { return { ok: false, red: true, d: {} }; });
+    Promise.all([web, api]).then(function (res) {
+      var w = res[0], a = res[1]; ultimaVez = Date.now();
+      chip("cWeb", w ? "bien" : "mal", w ? "Operativo" : "Sin respuesta");
+      var apiViva = a.ok || a.d.db === "caida";
+      chip("cApi", apiViva ? "bien" : "mal", apiViva ? "Operativo" : "Sin respuesta");
+      if (a.ok) chip("cDb", "bien", "Operativo");
+      else if (a.d.db === "caida") chip("cDb", "mal", "Sin respuesta");
+      else chip("cDb", "espera", "Sin datos");
+      if (a.ok) { $("latencia").textContent = a.ms + " ms"; volvio(); return; }
+      $("latencia").textContent = "— ms";
+      espera = Math.min(espera + 5, 30); quedan = espera;
+      $("proximo").textContent = "Sigue sin responder · próximo intento en " + quedan + " s";
+    }).then(function () { ocupado = false; $("reintentar").disabled = listo; });
+  }
+
+  function volvio() {
+    listo = true; modo = "ok"; t = 0;
+    $("pagina").classList.add("ok");
+    $("monitorTxt").textContent = "Monitor del sistema · señal estable";
+    $("etiqueta").textContent = "Conexión restablecida";
+    $("titulo").textContent = "¡El sistema volvió!";
+    $("texto").innerHTML = "Todo responde con normalidad. <strong>Te llevamos de vuelta</strong> a donde estabas…";
+    $("proximo").textContent = "Volviendo al sistema…";
+    $("reintentar").hidden = true; $("copia").hidden = true;
+    $("caido").textContent = "0:00";
+    setTimeout(function () {
+      if (embebido) parent.postMessage({ sc: "estado", evento: "recuperado" }, location.origin);
+      else location.replace(destino);
+    }, reducido ? 400 : 2200);
+  }
+
+  $("reintentar").addEventListener("click", probar);
+  $("copia").addEventListener("click", function () { parent.postMessage({ sc: "estado", evento: "ver-copia" }, location.origin); });
+  setTimeout(probar, 600);
 })();
 </script>
 </body>

@@ -61,6 +61,13 @@ eq("navegación en mantenimiento → pantalla del servidor", await pedir("/dashb
 modoRed = "caida";
 eq("después, sin red → sigue la app guardada (no la de mantenimiento)", (await pedir("/dashboard", { mode: "navigate" })).startsWith("200 red:/guardias"), true);
 modoRed = "ok";
+modoRed = "caida";
+eq("pantalla de estado sin red → «no disponible» guardada", await pedir("/estado/mantenimiento.html?embebido=1", { mode: "navigate" }), "200 cache:/estado/caido.html");
+modoRed = "ok";
+eq("pantalla de estado con red → no reemplaza la app guardada", (await pedir("/estado/caido.html", { mode: "navigate" }), true), true);
+modoRed = "caida";
+eq("…y sin red la app sigue siendo la de antes", (await pedir("/guardias", { mode: "navigate" })).startsWith("200 red:/guardias"), true);
+modoRed = "ok";
 
 eq("asset con red", await pedir("/assets/index-abc.js"), "200 red:/assets/index-abc.js");
 modoRed = "caida";

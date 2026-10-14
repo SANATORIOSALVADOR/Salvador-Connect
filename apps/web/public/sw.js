@@ -12,7 +12,7 @@ const ASSETS = `sc-assets-${VERSION}`;
 const API = `sc-api-${VERSION}`;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(SHELL).then((c) => c.addAll(["/", "/favicon.svg", "/manifest.webmanifest"])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(SHELL).then((c) => c.addAll(["/", "/favicon.svg", "/manifest.webmanifest", "/estado/caido.html"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -53,7 +53,8 @@ self.addEventListener("fetch", (event) => {
           }
           return r;
         })
-        .catch(() => caches.match("/")),
+        // Sin red: las pantallas de estado muestran la de «no disponible»; el resto, la app guardada.
+        .catch(() => caches.match(url.pathname.startsWith("/estado/") ? "/estado/caido.html" : "/")),
     );
     return;
   }

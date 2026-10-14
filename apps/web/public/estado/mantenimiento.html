@@ -4,89 +4,267 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Mantenimiento · Sanatorio del Salvador</title>
+<meta name="theme-color" content="#0b1a20" />
+<title>Mantenimiento programado · Sanatorio del Salvador</title>
 <link rel="icon" href="/favicon.svg" />
 <style>
-  :root { --bg: #10232b; --bg2: #16343a; --fg: #f3f0e7; --muted: rgba(243,240,231,.72); --accent: #f0b35a; --card: rgba(255,255,255,.06); --line: rgba(255,255,255,.12); --primary: #208379; }
+  /* Pantalla autónoma (no depende del API). Texto de referencia para pruebas: «Estamos haciendo mantenimiento». */
+  :root {
+    --primario: #208379; --menu: #103b4c;
+    --fondo: #0b1a20; --panel: rgba(14, 33, 41, .78); --linea: rgba(160, 205, 210, .14); --linea-fuerte: rgba(160, 205, 210, .24);
+    --texto: #eef3f1; --suave: rgba(226, 238, 236, .66); --tenue: rgba(226, 238, 236, .42);
+    --ambar: #f2b14c; --verde: #3fd68c;
+  }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg);
-    background: radial-gradient(900px 520px at 110% -10%, rgba(32,131,121,.55), transparent 60%),
-                radial-gradient(700px 480px at -20% 115%, rgba(240,179,90,.22), transparent 60%),
-                linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
-    display: grid; place-items: center; padding: 20px; overflow: hidden;
+    font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    font-feature-settings: "tnum" 1; color: var(--texto); background: var(--fondo); overflow: hidden; -webkit-font-smoothing: antialiased;
   }
-  body::before { content: ""; position: fixed; inset: 0; pointer-events: none;
-    background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.4px); background-size: 22px 22px;
-    mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent); }
-  .caja { position: relative; width: min(580px, 100%); text-align: center; }
-  .marca { display: inline-flex; align-items: center; gap: 12px; margin-bottom: clamp(18px, 4vh, 34px); font-weight: 700; font-size: 17px; }
-  .logo { width: 46px; height: 46px; border-radius: 13px; background: var(--accent); display: grid; place-items: center; box-shadow: 0 8px 22px rgba(0,0,0,.25); }
-  .icono { width: clamp(76px, 12vh, 96px); height: clamp(76px, 12vh, 96px); margin: 0 auto clamp(16px, 3vh, 26px); border-radius: 26px; display: grid; place-items: center;
-    background: rgba(240,179,90,.14); border: 1px solid rgba(240,179,90,.45); color: var(--accent); }
-  .icono svg { animation: girar 6s linear infinite; }
+  .fondo { position: fixed; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(1100px 600px at 85% -10%, color-mix(in srgb, var(--primario) 38%, transparent), transparent 62%),
+      radial-gradient(800px 500px at -10% 110%, color-mix(in srgb, var(--menu) 85%, transparent), transparent 60%),
+      linear-gradient(180deg, #0b1a20, #0a161b); }
+  .fondo::after { content: ""; position: absolute; inset: 0; opacity: .5;
+    background-image: linear-gradient(var(--linea) 1px, transparent 1px), linear-gradient(90deg, var(--linea) 1px, transparent 1px);
+    background-size: 44px 44px; mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 75%); }
+  .barrido { position: fixed; left: 0; right: 0; height: 160px; top: -160px; pointer-events: none;
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--primario) 10%, transparent), transparent); animation: barrer 7s linear infinite; }
+  @keyframes barrer { to { transform: translateY(calc(100vh + 160px)); } }
+
+  .pagina { position: relative; height: 100%; display: grid; grid-template-rows: auto 1fr auto; padding: clamp(14px, 3vh, 28px) clamp(16px, 4vw, 48px); gap: clamp(10px, 2vh, 20px); }
+  header, footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .marca { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .logo { width: 40px; height: 40px; border-radius: 11px; background: #f0b35a; display: grid; place-items: center; overflow: hidden; flex: 0 0 auto; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+  .logo img { width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 3px; }
+  .marca b { display: block; font-size: 15px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .marca small { display: block; font-size: 12.5px; color: var(--tenue); }
+  .reloj { text-align: right; font-size: 13px; color: var(--suave); }
+  .reloj b { display: block; font-size: 20px; color: var(--texto); letter-spacing: .02em; font-weight: 600; }
+
+  main { display: grid; place-items: center; min-height: 0; }
+  .tarjeta { width: min(900px, 100%); border-radius: 22px; background: var(--panel); border: 1px solid var(--linea-fuerte);
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.04); backdrop-filter: blur(10px);
+    display: grid; grid-template-columns: minmax(220px, 300px) 1fr; overflow: hidden; animation: entrar .7s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes entrar { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+
+  /* Anillo de progreso */
+  .lado { position: relative; display: grid; place-items: center; padding: clamp(18px, 3.5vh, 34px) 20px; border-right: 1px solid var(--linea);
+    background: linear-gradient(180deg, rgba(0,0,0,.26), rgba(0,0,0,.1)); }
+  .anillo { position: relative; width: clamp(150px, 26vh, 220px); aspect-ratio: 1; }
+  .anillo svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+  .pista { fill: none; stroke: rgba(255,255,255,.07); stroke-width: 9; }
+  .avance { fill: none; stroke: var(--ambar); stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 1s linear; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ambar) 60%, transparent)); }
+  .indet .avance { animation: girar 1.6s linear infinite; transform-origin: 50% 50%; }
   @keyframes girar { to { transform: rotate(360deg); } }
-  h1 { font-size: clamp(26px, 4.6vh, 38px); line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 12px; }
-  p { color: var(--muted); font-size: clamp(14.5px, 2.1vh, 17px); line-height: 1.6; margin: 0 auto; max-width: 48ch; }
-  .mensaje { margin: clamp(16px, 3vh, 24px) auto 0; padding: 14px 18px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); text-align: left; font-size: 15px; line-height: 1.55; max-width: 48ch; }
-  .mensaje[hidden] { display: none; }
-  .mensaje b { display: block; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
-  .barra { margin: clamp(18px, 3.4vh, 28px) auto 0; height: 6px; width: min(320px, 80%); border-radius: 99px; background: var(--card); overflow: hidden; }
-  .barra i { display: block; height: 100%; width: 35%; border-radius: 99px; background: var(--accent); animation: ir 1.8s ease-in-out infinite; }
-  @keyframes ir { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
-  .estado { margin-top: 12px; font-size: 13.5px; color: var(--muted); }
-  .pie { margin-top: clamp(20px, 4vh, 34px); font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
-  .pie strong { color: var(--fg); }
-  @media (prefers-reduced-motion: reduce) { .icono svg, .barra i { animation: none; } }
+  .marcas { fill: none; stroke: rgba(255,255,255,.12); stroke-width: 2; stroke-dasharray: 1 13.1; }
+  .centro { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .centro small { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--tenue); }
+  .centro b { font-size: clamp(30px, 5.4vh, 44px); line-height: 1.05; font-weight: 600; letter-spacing: -0.02em; }
+  .centro span { font-size: 12.5px; color: var(--suave); margin-top: 2px; }
+  .engranaje { position: absolute; right: 16px; bottom: 14px; color: color-mix(in srgb, var(--ambar) 55%, transparent); animation: girar 9s linear infinite; }
+  .listo .avance { stroke: var(--verde); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--verde) 60%, transparent)); }
+
+  /* Contenido */
+  .contenido { padding: clamp(18px, 3.4vh, 32px) clamp(18px, 3vw, 32px); min-width: 0; }
+  .etiqueta { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ambar); background: color-mix(in srgb, var(--ambar) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ambar) 30%, transparent); padding: 5px 10px; border-radius: 999px; }
+  .etiqueta i { width: 7px; height: 7px; border-radius: 99px; background: currentColor; animation: parpadeo 1.4s infinite; }
+  .listo .etiqueta { color: var(--verde); background: color-mix(in srgb, var(--verde) 12%, transparent); border-color: color-mix(in srgb, var(--verde) 30%, transparent); }
+  @keyframes parpadeo { 50% { opacity: .25; } }
+  h1 { font-size: clamp(24px, 4vh, 34px); line-height: 1.12; letter-spacing: -0.025em; margin: 12px 0 10px; font-weight: 700; }
+  .texto { font-size: clamp(14px, 1.9vh, 15.5px); line-height: 1.6; color: var(--suave); margin: 0; max-width: 52ch; }
+  .texto strong { color: var(--texto); font-weight: 600; }
+  .aviso { margin-top: clamp(12px, 2.2vh, 18px); padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--linea); border-left: 3px solid var(--ambar); font-size: 14.5px; line-height: 1.5; }
+  .aviso[hidden] { display: none; }
+
+  /* Etapas */
+  .etapas { list-style: none; margin: clamp(14px, 2.8vh, 24px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; counter-reset: e; }
+  .etapas li { position: relative; padding-top: 16px; font-size: 13px; color: var(--tenue); }
+  .etapas li::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; border-radius: 99px; background: rgba(255,255,255,.08); }
+  .etapas li::after { content: ""; position: absolute; left: 0; top: 0; height: 4px; width: 0; border-radius: 99px; background: var(--ambar); transition: width .6s; }
+  .etapas li.hecha { color: var(--suave); } .etapas li.hecha::after { width: 100%; background: var(--verde); }
+  .etapas li.actual { color: var(--texto); font-weight: 600; } .etapas li.actual::after { width: 100%; animation: llenar 2.2s ease-in-out infinite; }
+  @keyframes llenar { 0% { width: 0; opacity: 1; } 80% { width: 100%; opacity: 1; } 100% { width: 100%; opacity: .2; } }
+  .etapas small { display: block; font-weight: 400; color: var(--tenue); font-size: 12px; margin-top: 2px; }
+
+  .mientras { margin-top: clamp(14px, 2.8vh, 22px); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mientras div { padding: 11px 12px; border-radius: 12px; border: 1px solid var(--linea); font-size: 13px; line-height: 1.45; color: var(--suave); }
+  .mientras b { display: block; color: var(--texto); font-size: 13.5px; margin-bottom: 2px; }
+  .estado { margin-top: 12px; font-size: 12.5px; color: var(--tenue); }
+
+  footer { font-size: 13px; color: var(--tenue); }
+  footer strong { color: var(--suave); }
+
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    .pagina { height: auto; min-height: 100%; }
+    .tarjeta { grid-template-columns: 1fr; }
+    .lado { border-right: 0; border-bottom: 1px solid var(--linea); }
+    .etapas { grid-template-columns: 1fr 1fr; row-gap: 14px; }
+    .mientras { grid-template-columns: 1fr; }
+    .reloj small { display: none; }
+    footer { flex-direction: column; align-items: flex-start; }
+  }
+  @media (max-height: 680px) and (min-width: 761px) { .mientras, .marca small { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .tarjeta, .barrido, .engranaje, .etiqueta i, .etapas li.actual::after, .indet .avance { animation: none !important; } .barrido { display: none; } }
 </style>
 </head>
 <body>
-  <main class="caja" role="main">
+<div class="fondo" aria-hidden="true"></div>
+<div class="barrido" aria-hidden="true"></div>
+<div class="pagina" id="pagina">
+  <header>
     <div class="marca">
-      <span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 180 180"><path d="M74 38h32v36h36v32h-36v36H74v-36H38V74h36z" fill="#10232b"/></svg></span>
-      <span>Sanatorio del Salvador</span>
+      <span class="logo" id="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 180 180"><path d="M74 38h32v36h36v32h-36v36H74v-36H38V74h36z" fill="#0b1a20"/></svg></span>
+      <span style="min-width:0"><b id="nombre">Sanatorio del Salvador</b><small id="subtitulo">Sistema interno</small></span>
     </div>
-    <div class="icono" aria-hidden="true">
-      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </div>
-    <h1>Estamos haciendo mantenimiento</h1>
-    <p>El área de Sistemas está trabajando en el sistema para mejorarlo. <strong style="color:var(--fg)">No hace falta hacer nada</strong>: esta pantalla vuelve sola cuando termine.</p>
-    <div class="mensaje" id="mensaje" hidden><b>Aviso</b><span id="texto"></span></div>
-    <div class="barra" aria-hidden="true"><i></i></div>
-    <div class="estado" role="status" aria-live="polite" id="estado">Comprobando cada 15 segundos…</div>
-    <div class="pie">Ante una urgencia, comunicate con el <strong>área de Sistemas</strong>.</div>
+    <div class="reloj" aria-hidden="true"><b id="hora">--:--</b><small id="fecha"></small></div>
+  </header>
+
+  <main>
+    <section class="tarjeta" aria-labelledby="titulo">
+      <div class="lado" aria-hidden="true">
+        <div class="anillo" id="anillo">
+          <svg viewBox="0 0 120 120">
+            <circle class="marcas" cx="60" cy="60" r="56"/>
+            <circle class="pista" cx="60" cy="60" r="48"/>
+            <circle class="avance" id="avance" cx="60" cy="60" r="48" stroke-dasharray="301.6" stroke-dashoffset="301.6"/>
+          </svg>
+          <div class="centro"><small id="cLabel">Vuelve en</small><b id="cValor">—</b><span id="cSub">aprox.</span></div>
+        </div>
+        <svg class="engranaje" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+
+      <div class="contenido">
+        <span class="etiqueta" id="etiqueta"><i aria-hidden="true"></i><span id="etiquetaTxt">Mantenimiento programado</span></span>
+        <h1 id="titulo">Estamos haciendo mantenimiento</h1>
+        <p class="texto" id="texto">El área de Sistemas está trabajando para mejorar el sistema. <strong>No hace falta hacer nada</strong>: esta pantalla vuelve sola cuando termine y lo que tenías abierto sigue ahí.</p>
+        <div class="aviso" id="aviso" hidden></div>
+        <ol class="etapas" aria-label="Etapas del mantenimiento">
+          <li class="hecha" id="e1">Inicio<small id="e1t">—</small></li>
+          <li class="actual" id="e2">Trabajos en curso<small>Sistemas</small></li>
+          <li id="e3">Verificación<small>Pruebas finales</small></li>
+          <li id="e4">Disponible<small id="e4t">al terminar</small></li>
+        </ol>
+        <div class="mientras">
+          <div><b>Mientras tanto</b>Anotá en papel lo urgente y cargalo cuando vuelva.</div>
+          <div><b>¿Urgencia?</b>Comunicate con el área de Sistemas.</div>
+        </div>
+        <div class="estado" role="status" aria-live="polite" id="estado">Comprobando cada 15 segundos…</div>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <span>Mantenimiento a cargo del <strong>área de Sistemas</strong>.</span>
+    <span id="desdeTxt"></span>
+  </footer>
+</div>
+
 <script>
 (function () {
-  var destino = new URLSearchParams(location.search).get("volver") || (location.pathname.indexOf("/estado/") === 0 ? "/" : location.pathname + location.search);
+  "use strict";
+  var q = new URLSearchParams(location.search);
+  var embebido = q.get("embebido") === "1";
+  var destino = q.get("volver") || (location.pathname.indexOf("/estado/") === 0 ? "/" : location.pathname + location.search);
   if (destino.charAt(0) !== "/" || destino.indexOf("//") === 0) destino = "/";
-  var el = document.getElementById("estado");
-  function hora(iso) {
-    var d = new Date(iso); if (isNaN(d)) return "";
-    var hoy = new Date(); var mismoDia = d.toDateString() === hoy.toDateString();
-    return (mismoDia ? "hoy" : d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })) + " a las " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  var $ = function (id) { return document.getElementById(id); };
+  var reducido = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var C = 2 * Math.PI * 48;
+
+  try {
+    var ap = JSON.parse(localStorage.getItem("sc-apariencia") || "null");
+    if (ap) {
+      if (ap.nombre) $("nombre").textContent = ap.nombre;
+      if (ap.subtitulo) $("subtitulo").textContent = ap.subtitulo;
+      if (/^#[0-9a-f]{6}$/i.test(ap.colorPrimario || "")) document.documentElement.style.setProperty("--primario", ap.colorPrimario);
+      if (/^#[0-9a-f]{6}$/i.test(ap.colorMenu || "")) document.documentElement.style.setProperty("--menu", ap.colorMenu);
+      if (ap.logo && /^data:image\//.test(ap.logo)) { var im = new Image(); im.alt = ""; im.src = ap.logo; $("logo").replaceChildren(im); }
+    }
+  } catch (e) {}
+
+  function hhmm(d) { return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); }
+  function reloj() {
+    var d = new Date();
+    $("hora").textContent = hhmm(d);
+    $("fecha").textContent = d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
   }
+  reloj(); setInterval(reloj, 1000);
+
+  var aviso = null, terminado = false;
+  function fecha(iso) { var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d : null; }
+  function mismoDia(a, b) { return a.toDateString() === b.toDateString(); }
+
+  function pintar() {
+    if (terminado) return;
+    var ahora = new Date(), desde = fecha(aviso && aviso.desde), hasta = fecha(aviso && aviso.hasta);
+    $("e1t").textContent = desde ? hhmm(desde) : "—";
+    $("desdeTxt").textContent = desde ? "En mantenimiento desde las " + hhmm(desde) + "." : "";
+    $("e4t").textContent = hasta ? "≈ " + (mismoDia(hasta, ahora) ? "" : hasta.toLocaleDateString("es-AR", { day: "numeric", month: "numeric" }) + " ") + hhmm(hasta) : "al terminar";
+    var e2 = $("e2"), e3 = $("e3");
+    if (desde && hasta && hasta > desde) {
+      $("anillo").classList.remove("indet");
+      var f = Math.min(1, Math.max(0, (ahora - desde) / (hasta - desde)));
+      $("avance").style.strokeDashoffset = String(C * (1 - Math.max(f, .02)));
+      var rest = Math.round((hasta - ahora) / 60000);
+      if (rest > 0) {
+        $("cLabel").textContent = "Vuelve en";
+        $("cValor").textContent = rest >= 60 ? Math.floor(rest / 60) + " h " + String(rest % 60).padStart(2, "0") : rest + " min";
+        $("cSub").textContent = "aprox. · " + hhmm(hasta);
+      } else {
+        $("cLabel").textContent = "Terminando";
+        $("cValor").textContent = "pronto";
+        $("cSub").textContent = "últimos ajustes";
+      }
+      var verif = f >= .85;
+      e2.className = verif ? "hecha" : "actual"; e3.className = verif ? "actual" : "";
+    } else {
+      $("anillo").classList.add("indet");
+      $("avance").style.strokeDashoffset = String(C * .72);
+      var trans = desde ? Math.max(0, Math.round((ahora - desde) / 60000)) : null;
+      $("cLabel").textContent = trans === null ? "En curso" : "En curso hace";
+      $("cValor").textContent = trans === null ? "…" : trans + " min";
+      $("cSub").textContent = "sin hora estimada";
+      e2.className = "actual"; e3.className = "";
+    }
+    if (aviso && aviso.mensaje) { $("aviso").textContent = aviso.mensaje; $("aviso").hidden = false; } else $("aviso").hidden = true;
+  }
+
+  function fin() {
+    terminado = true;
+    $("pagina").classList.add("listo");
+    $("etiquetaTxt").textContent = "Mantenimiento finalizado";
+    $("titulo").textContent = "¡Listo! El sistema ya está disponible";
+    $("texto").innerHTML = "Terminamos el mantenimiento. <strong>Te llevamos de vuelta</strong> a donde estabas…";
+    $("anillo").classList.remove("indet");
+    $("avance").style.strokeDashoffset = "0";
+    $("cLabel").textContent = "Estado"; $("cValor").textContent = "OK"; $("cSub").textContent = "disponible";
+    ["e1", "e2", "e3", "e4"].forEach(function (id) { $(id).className = "hecha"; });
+    $("estado").textContent = "Volviendo al sistema…";
+    setTimeout(function () {
+      if (embebido) parent.postMessage({ sc: "estado", evento: "recuperado" }, location.origin);
+      else location.replace(destino);
+    }, reducido ? 400 : 2000);
+  }
+
   function revisar() {
+    if (terminado) return;
     fetch("/estado/mantenimiento.json?_=" + Date.now(), { cache: "no-store" })
       .then(function (r) { if (r.status === 404) return null; if (!r.ok) throw new Error(); return r.json(); })
       .then(function (m) {
-        if (!m) {
-          // Terminó el mantenimiento: vuelve cuando el sistema responde.
-          return fetch("/api/health?_=" + Date.now(), { cache: "no-store" }).then(function (r) {
-            if (r.ok) { el.textContent = "¡Listo! Entrando…"; location.replace(destino); } else { el.textContent = "Terminando… vuelve en unos segundos."; }
-          });
-        }
-        var partes = [];
-        if (m.mensaje) partes.push(m.mensaje);
-        if (m.hasta) { var h = hora(m.hasta); if (h) partes.push(("Vuelve aproximadamente " + h + ".").replace(/\.\.$/, ".")); }
-        if (partes.length) { document.getElementById("texto").textContent = partes.join(" "); document.getElementById("mensaje").hidden = false; }
-        el.textContent = "Comprobando cada 15 segundos…";
+        if (m) { aviso = m; pintar(); $("estado").textContent = "Comprobando cada 15 segundos…"; return; }
+        // Se apagó el mantenimiento: se vuelve cuando el sistema responde.
+        return fetch("/api/health?_=" + Date.now(), { cache: "no-store" }).then(function (r) {
+          if (r.ok) fin(); else $("estado").textContent = "Terminando… el sistema vuelve en unos segundos.";
+        });
       })
-      .catch(function () { el.textContent = "Comprobando cada 15 segundos…"; });
+      .catch(function () { $("estado").textContent = "Comprobando cada 15 segundos…"; });
   }
-  revisar();
+  pintar(); revisar();
   setInterval(revisar, 15000);
+  setInterval(pintar, 20000);
 })();
 </script>
 </body>

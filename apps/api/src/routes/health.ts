@@ -1,9 +1,25 @@
 import { Router, type IRouter } from "express";
+import { sql } from "drizzle-orm";
+import { db } from "@salvador/db";
 
 const router: IRouter = Router();
 
-router.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+/** Salud: el API responde y la base de datos contesta (lo usan Docker y las pantallas de estado). */
+router.get("/health", async (_req, res) => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      db.execute(sql`select 1`),
+      new Promise((_, rechazar) => {
+        timer = setTimeout(() => rechazar(new Error("timeout")), 2500);
+      }),
+    ]);
+    res.json({ status: "ok", db: "ok" });
+  } catch {
+    res.status(503).json({ status: "error", db: "caida", message: "La base de datos no responde." });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 });
 
 /**
