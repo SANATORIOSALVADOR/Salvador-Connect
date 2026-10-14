@@ -329,7 +329,7 @@ export default function ConfiguracionPage() {
         <div className="eyebrow">Espacio / Configuración</div>
         <h1 className="page-title">Configuración</h1>
         <div className="card" style={{ ...CARD, marginTop: 16, maxWidth: 520 }}>
-          <strong>Solo el superadmin puede administrar usuarios y sectores.</strong>
+          <strong>Los usuarios y sectores los administra el área de Sistemas.</strong>
           <p className="page-subtitle" style={{ marginTop: 6 }}>Si necesitás un acceso o un cambio de permisos, pedíselo al área de Sistemas.</p>
         </div>
       </div>

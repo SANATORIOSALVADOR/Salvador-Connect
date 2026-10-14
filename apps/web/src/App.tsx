@@ -18,12 +18,14 @@ import {
   Clock3,
   FileText,
   Hospital,
+  KeyRound,
   LayoutDashboard,
   Menu,
   PackageOpen,
   Plus,
   Settings2,
   ShieldCheck,
+  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -292,7 +294,42 @@ function LoginPage() {
       },
     });
   };
-  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">{apariencia.nombre} · Área protegida</div><h1>{apariencia.tituloLogin}</h1>{apariencia.mensajeLogin && <p>{apariencia.mensajeLogin}</p>}</section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Acceso interno</div><h2>Iniciar sesión.</h2><p>Usá tu usuario y contraseña para entrar al sistema.</p><form onSubmit={submit} className="auth-form"><label className="field"><span className="field-label">Usuario</span><input className="input" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoFocus required data-testid="input-login-username" /></label><label className="field"><span className="field-label">Contraseña</span><PasswordInput value={password} onChange={setPassword} autoComplete="current-password" required testId="input-login-password" /></label>{login.isError && <div className="form-error">{loginErrorMessage(login.error)}</div>}<button className="btn btn-primary" type="submit" disabled={login.isPending} data-testid="button-login-submit">{login.isPending ? 'Ingresando…' : 'Ingresar'} <ArrowUpRight size={15} /></button></form><div className="auth-foot">Los usuarios son creados y administrados por el superadmin.</div></div></section></div>;
+  return <div className="auth-layout">
+    <section className="auth-aside">
+      <div className="auth-aside-deco" aria-hidden="true" />
+      <div className="auth-aside-top"><Brand /></div>
+      <div className="auth-aside-main">
+        <div className="auth-signal"><ShieldCheck size={14} aria-hidden="true" />{apariencia.nombre} · Área protegida</div>
+        <h1>{apariencia.tituloLogin}</h1>
+        {apariencia.mensajeLogin && <p>{apariencia.mensajeLogin}</p>}
+        <ul className="auth-chips" aria-label="Módulos del sistema">
+          <li><CalendarDays size={15} aria-hidden="true" />Guardias médicas</li>
+          <li><ClipboardList size={15} aria-hidden="true" />Administración</li>
+          <li><Bell size={15} aria-hidden="true" />Vencimientos y avisos</li>
+        </ul>
+      </div>
+      <div className="auth-aside-foot">© {new Date().getFullYear()} {apariencia.nombre} · Uso interno</div>
+    </section>
+    <section className="auth-panel">
+      <div className="auth-box">
+        <div className="auth-pill"><span className="auth-dot" aria-hidden="true" />Red interna del sanatorio</div>
+        <div className="eyebrow">Acceso interno</div>
+        <h2>Iniciar sesión</h2>
+        <p className="lead">Usá tu usuario y contraseña para entrar al sistema.</p>
+        <form onSubmit={submit} className="auth-form">
+          <label className="field"><span className="field-label">Usuario</span>
+            <div className="auth-ico"><UserRound size={18} aria-hidden="true" /><input className="input" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoFocus required placeholder="Tu usuario" data-testid="input-login-username" /></div>
+          </label>
+          <label className="field"><span className="field-label">Contraseña</span>
+            <div className="auth-ico"><KeyRound size={18} aria-hidden="true" /><PasswordInput value={password} onChange={setPassword} autoComplete="current-password" required testId="input-login-password" /></div>
+          </label>
+          {login.isError && <div className="form-error">{loginErrorMessage(login.error)}</div>}
+          <button className="btn btn-primary auth-submit" type="submit" disabled={login.isPending} data-testid="button-login-submit">{login.isPending ? 'Ingresando…' : 'Ingresar'} <ArrowUpRight size={17} /></button>
+        </form>
+        <div className="auth-foot">Los usuarios son creados y administrados por el <strong>área de Sistemas</strong>.<br />¿No podés entrar? Comunicate con Sistemas.</div>
+      </div>
+    </section>
+  </div>;
 }
 
 function FirstAccessPage({ user }: { user: { name?: string; mustChangePassword?: boolean } }) {
@@ -306,7 +343,7 @@ function FirstAccessPage({ user }: { user: { name?: string; mustChangePassword?:
     queryClient.setQueryData(getGetCurrentUserQueryKey(), (current: any) => current ? { ...current, mustChangePassword: false } : current);
     setLocation('/dashboard');
   };
-  return <div className="auth-layout"><section className="auth-aside"><Brand /><div className="auth-signal">Primer acceso · Cuenta interna</div><h1>Elegí cómo <span style={{ color: 'hsl(var(--sidebar-primary))' }}>continuar.</span></h1><p>Tu usuario fue creado por el superadmin. Podés mantener la clave inicial o definir una nueva ahora.</p></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Hola, {user.name?.split(' ')[0] || 'equipo'}</div><h2>Confirmá tu contraseña.</h2><p>Por seguridad, esta decisión se registra al completar el primer acceso.</p><div style={{ display: 'grid', gap: 10, marginTop: 27 }}><button className="btn btn-primary" onClick={() => keep.mutate(undefined, { onSuccess: finish })} disabled={keep.isPending} data-testid="button-keep-password">Continuar con la misma clave</button><div className="card" style={{ padding: 17, marginTop: 5 }}><div className="section-title" style={{ fontSize: 14 }}>Modificar contraseña</div><div className="form-grid" style={{ marginTop: 14 }}><label className="field full"><span className="field-label">Nueva contraseña</span><PasswordInput value={password} onChange={setPassword} autoComplete="new-password" minLength={6} testId="input-first-password" /></label><label className="field full"><span className="field-label">Repetir contraseña</span><PasswordInput value={confirm} onChange={setConfirm} autoComplete="new-password" minLength={6} testId="input-first-password-confirm" /></label></div><button className="btn btn-quiet" style={{ width: '100%', marginTop: 13 }} disabled={change.isPending || password.length < 6 || password !== confirm} onClick={() => change.mutate({ data: { newPassword: password } }, { onSuccess: finish, onError: () => setNotice('No se pudo actualizar la contraseña.') })} data-testid="button-change-first-password">{change.isPending ? 'Guardando…' : 'Guardar nueva contraseña'}</button></div>{notice && <div className="form-error">{notice}</div>}</div></div></section></div>;
+  return <div className="auth-layout"><section className="auth-aside"><div className="auth-aside-deco" aria-hidden="true" /><div className="auth-aside-top"><Brand /></div><div className="auth-aside-main"><div className="auth-signal"><ShieldCheck size={14} aria-hidden="true" />Primer acceso · Cuenta interna</div><h1>Elegí cómo <span style={{ color: 'hsl(var(--sidebar-primary))' }}>continuar.</span></h1><p>Tu usuario fue creado por el área de Sistemas. Podés mantener la clave inicial o definir una nueva ahora.</p></div><div className="auth-aside-foot">Ante cualquier duda, comunicate con el área de Sistemas.</div></section><section className="auth-panel"><div className="auth-box"><div className="eyebrow">Hola, {user.name?.split(' ')[0] || 'equipo'}</div><h2>Confirmá tu contraseña</h2><p className="lead">Por seguridad, esta decisión se registra al completar el primer acceso.</p><div style={{ display: 'grid', gap: 10, marginTop: 27 }}><button className="btn btn-primary" onClick={() => keep.mutate(undefined, { onSuccess: finish })} disabled={keep.isPending} data-testid="button-keep-password">Continuar con la misma clave</button><div className="card" style={{ padding: 17, marginTop: 5 }}><div className="section-title" style={{ fontSize: 14 }}>Modificar contraseña</div><div className="form-grid" style={{ marginTop: 14 }}><label className="field full"><span className="field-label">Nueva contraseña</span><PasswordInput value={password} onChange={setPassword} autoComplete="new-password" minLength={6} testId="input-first-password" /></label><label className="field full"><span className="field-label">Repetir contraseña</span><PasswordInput value={confirm} onChange={setConfirm} autoComplete="new-password" minLength={6} testId="input-first-password-confirm" /></label></div><button className="btn btn-quiet" style={{ width: '100%', marginTop: 13 }} disabled={change.isPending || password.length < 6 || password !== confirm} onClick={() => change.mutate({ data: { newPassword: password } }, { onSuccess: finish, onError: () => setNotice('No se pudo actualizar la contraseña.') })} data-testid="button-change-first-password">{change.isPending ? 'Guardando…' : 'Guardar nueva contraseña'}</button></div>{notice && <div className="form-error">{notice}</div>}</div></div></section></div>;
 }
 
 function Protected({ children, user, allowFirstAccess = false }: { children: ReactNode; user?: { mustChangePassword?: boolean }; allowFirstAccess?: boolean }) {

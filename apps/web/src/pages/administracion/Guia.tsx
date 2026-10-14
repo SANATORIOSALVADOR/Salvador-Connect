@@ -229,7 +229,7 @@ export default function Guia() {
             <li style={LI}><strong>Cargar y editar</strong>: además crea y edita, registra presentaciones y pagos, cancela, carga recurrentes y contactos y toca «Verificar fechas del mes».</li>
             <li style={LI}><strong>Control total</strong>: además elimina, edita el catálogo de obligaciones, carga el calendario oficial y las prórrogas, y los feriados.</li>
           </ul>
-          <p style={{ ...P, marginTop: 8, marginBottom: 0 }}>Los permisos se asignan en Configuración → Usuarios (solo el superadmin).</p>
+          <p style={{ ...P, marginTop: 8, marginBottom: 0 }}>Los usuarios y sus permisos los administra el área de Sistemas (Configuración → Usuarios).</p>
         </Bloque>
 
         <Bloque id="faq" titulo="Preguntas frecuentes">
