@@ -195,6 +195,8 @@ ANA=$(jget d.id); PERMS=$(jget "JSON.stringify(d.permissions)")
 [ "$PERMS" = '{"guardias":"ver","administracion":"editar"}' ] && ok "solo se guardan módulos y niveles válidos" || bad "permisos guardados" "$PERMS"
 check "login ana" 200 "$(req $P POST /auth/login '{"username":"ana","password":"prueba123"}')"
 check "/auth/me trae permisos" 200 "$(req $P GET /auth/me)"; [ "$(jget d.permissions.administracion)" = "editar" ] && ok "me.permissions.administracion = editar" || bad "me" "$(body)"
+check "inicio según permisos" 200 "$(req $P GET /inicio)"; [ "$(jget "!!d.administracion+':'+!!d.guardias+':'+!!d.sistema")" = "true:true:false" ] && ok "Inicio: Administración y Guardias, sin Sistemas" || bad "inicio" "$(body | head -c 200)"
+check "inicio del superadmin" 200 "$(req $A GET /inicio)"; [ "$(jget "d.sistema.db+':'+d.guardias.todosLosSectores")" = "ok:true" ] && ok "Inicio superadmin con Sistemas y todos los sectores" || bad "inicio super" "$(body | head -c 200)"
 check "ver guardias" 200 "$(req $P GET '/guardias?from=2026-10-01&to=2026-10-31')"
 check "con Ver NO carga guardias" 403 "$(req $P POST /guardias "{\"sectorId\":$GC,\"date\":\"2026-11-02\",\"startTime\":\"08:00\",\"endTime\":\"12:00\",\"professionalName\":\"Prueba Nivel\"}")"
 check "con Editar crea en Administración" 201 "$(req $P POST /administracion/items '{"titulo":"Item de Ana","fecha":"2026-11-10"}')"; AITEM=$(jget d.id)

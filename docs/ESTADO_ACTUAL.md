@@ -25,7 +25,10 @@
   «Pronto»; pantalla `apps/web/src/components/proximamente.tsx`). El código anterior de Inventario e Instructivos sigue en
   `pages/` y la API sigue existiendo: para habilitarlos, volver a poner su página en la ruta de `App.tsx` y sacarlos de
   `MODULOS_PROXIMAMENTE`.
-- «Resumen» pasó a llamarse **«Inicio»**.
+- **Inicio** (`pages/Inicio.tsx` + `GET /api/inicio`): se arma según los permisos de cada persona.
+  Frase del día, accesos rápidos según permisos, bloque de Administración (atrasados / hoy / semana, «A tu cargo»
+  por responsable, control fiscal), de Guardias (de guardia ahora y huecos en sus sectores), de Sistemas (solo superadmin:
+  base de datos, último backup, mantenimiento, usuarios del día), actividad reciente y gráficos.
 
 ## Infra
 
