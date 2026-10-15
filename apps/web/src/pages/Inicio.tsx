@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   ClipboardList,
   Database,
-  HardDriveDownload,
   ListTodo,
   Plus,
   Settings2,
@@ -52,8 +51,6 @@ type Datos = {
   };
   sistema?: {
     db: "ok" | "error";
-    ultimoBackup: { archivo: string; fecha: string; tamanoMb: number } | null;
-    backupsVisibles: boolean;
     mantenimiento: boolean;
     usuariosHoy: number;
     usuariosActivos: number;
@@ -310,23 +307,14 @@ function BloqueGuardias({ g }: { g: NonNullable<Datos["guardias"]> }) {
 }
 
 function BloqueSistema({ s }: { s: NonNullable<Datos["sistema"]> }) {
-  const horasBackup = s.ultimoBackup ? (Date.now() - new Date(s.ultimoBackup.fecha).getTime()) / 3600000 : null;
-  const backupOk = horasBackup !== null && horasBackup < 30;
   return (
     <section className="card ini-card">
       <Cabecera icono={<Settings2 size={17} />} titulo="Sistemas" sub="Solo lo ve el superadministrador" href="/configuracion" linkTxt="Configuración" />
       <ul className="ini-servicios">
         <li><span><Database size={15} aria-hidden="true" /> Base de datos</span><b className={s.db === "ok" ? "ok" : "mal"}>{s.db === "ok" ? "Operativa" : "Con problemas"}</b></li>
-        <li>
-          <span><HardDriveDownload size={15} aria-hidden="true" /> Último backup</span>
-          <b className={backupOk ? "ok" : "aviso"}>
-            {s.ultimoBackup ? `${hace(s.ultimoBackup.fecha)} · ${s.ultimoBackup.tamanoMb} MB` : s.backupsVisibles ? "No hay backups" : "Sin datos"}
-          </b>
-        </li>
         <li><span><Wrench size={15} aria-hidden="true" /> Mantenimiento</span><b className={s.mantenimiento ? "aviso" : "ok"}>{s.mantenimiento ? "Prendido" : "Apagado"}</b></li>
         <li><span><Users size={15} aria-hidden="true" /> Usuarios</span><b>{s.usuariosHoy} entraron hoy · {s.usuariosActivos} activos</b></li>
       </ul>
-      {!backupOk && s.backupsVisibles && <div className="ini-alerta"><AlertTriangle size={15} aria-hidden="true" /> Revisá los backups: el último tiene más de un día.</div>}
     </section>
   );
 }

@@ -16,7 +16,7 @@
 - **Resumen con gráficos**: horas por sector, cobertura de 7 días, vencimientos por semana.
 - **Búsqueda global (Ctrl + K)**, **plantillas de permisos**, **impresión con encabezado**, CSV con título.
 - **App instalable (PWA)** con respaldo sin conexión para "De guardia ahora".
-- **Migraciones automáticas** al arrancar la API y **backups diarios** (`docs/BACKUPS_Y_MIGRACIONES.md`).
+- **Migraciones automáticas** al arrancar la API (`docs/MIGRACIONES.md`). Los backups los hace el área de Sistemas con su propio programa.
 - **CI con pruebas** (`docs/CI.md`). Web como proyecto Vite normal (sin el armado por parches).
 
 ## Código presente pero no prioritario
@@ -28,7 +28,7 @@
 - **Inicio** (`pages/Inicio.tsx` + `GET /api/inicio`): se arma según los permisos de cada persona.
   Frase del día, accesos rápidos según permisos, bloque de Administración (atrasados / hoy / semana, «A tu cargo»
   por responsable, control fiscal), de Guardias (de guardia ahora y huecos en sus sectores), de Sistemas (solo superadmin:
-  base de datos, último backup, mantenimiento, usuarios del día), actividad reciente y gráficos.
+  base de datos, mantenimiento, usuarios del día), actividad reciente y gráficos.
 
 ## Infra
 

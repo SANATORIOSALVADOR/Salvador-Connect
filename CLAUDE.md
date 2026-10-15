@@ -11,7 +11,7 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 
 1. Leer este archivo + `docs/ESTADO_ACTUAL.md` + la skill del módulo si existe (`.claude/skills/`).
 2. **Un módulo por vez**. No mezclar Guardias + Inventario + fiscal en el mismo cambio.
-3. Orden técnico: **schema** (`packages/db`) → **migración SQL** en `packages/db/migrations/` (idempotente; la API la aplica al arrancar) → **API** (`apps/api`) → **UI** (`apps/web/src/pages/`). Ver `docs/BACKUPS_Y_MIGRACIONES.md`.
+3. Orden técnico: **schema** (`packages/db`) → **migración SQL** en `packages/db/migrations/` (idempotente; la API la aplica al arrancar) → **API** (`apps/api`) → **UI** (`apps/web/src/pages/`). Ver `docs/MIGRACIONES.md`.
 4. Probar (Docker o `dev:api` / `dev:web`) antes de cerrar.
 5. **No** commitear secretos, `.env`, tokens GitHub, ni contraseñas.
 
@@ -183,7 +183,7 @@ Skill: `.claude/skills/guardias-medicas/SKILL.md`
 | `docs/ALCANCE_MVP.md` | Alcance funcional original |
 | `docs/PRODUCCION.md` | Deploy Docker |
 | `docs/POSTGRES.md` | DB |
-| `docs/BACKUPS_Y_MIGRACIONES.md` | Migraciones automáticas y backups diarios |
+| `docs/MIGRACIONES.md` | Migraciones automáticas (los backups los hace Sistemas con su programa) |
 | `docs/MANTENIMIENTO.md` | Pantallas de sistema caído / mantenimiento (`scripts/mantenimiento.sh`) |
 | `docs/NOMBRE_LOCAL.md` | Acceso por nombre (sanatorio.salvador.connect) |
 | `AGENTS.md` | Resumen corto para cualquier agente |

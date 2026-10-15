@@ -28,8 +28,8 @@ Las migraciones de `packages/db/migrations/` las aplica la API al arrancar (no h
 
 ## Backups
 
-Servicio `backup` (diario 03 h, 14 días en `./backups`). `scripts/backup-now.sh`, `scripts/restore-backup.sh`.
-Ver `docs/BACKUPS_Y_MIGRACIONES.md`.
+No hay backups dentro del sistema: los hace el área de Sistemas con su propio programa (copias de la base y del servidor).
+Migraciones: `docs/MIGRACIONES.md`.
 
 ## Health
 

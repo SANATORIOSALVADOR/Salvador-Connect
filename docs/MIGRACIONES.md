@@ -1,4 +1,4 @@
-# Base de datos: migraciones y backups
+# Base de datos: migraciones
 
 ## Migraciones (automáticas)
 
@@ -20,17 +20,7 @@
 
 `pnpm run db:push` sigue sirviendo para bases de desarrollo descartables.
 
-## Backups (automáticos)
+## Backups
 
-- Servicio `backup` de `docker-compose.yml`: todos los días a partir de las `BACKUP_HOUR` (03 h)
-  guarda `backups/sanatorio_AAAA-MM-DD_HHMM.dump` (pg_dump comprimido) y borra los de más de
-  `BACKUP_KEEP_DAYS` días (14). Se configura en `.env`.
-- **Backup en el momento:** `bash scripts/backup-now.sh`
-- **Ver backups:** `bash scripts/restore-backup.sh`
-- **Restaurar:** `bash scripts/restore-backup.sh sanatorio_2026-10-14_0300.dump`
-  (pide escribir RESTAURAR; antes hace un backup del estado actual).
-
-### Recomendado
-
-Copiar la carpeta `backups/` a otro equipo o disco (por ejemplo con una tarea programada):
-si se rompe el disco del servidor, los backups que están en el mismo disco se pierden con él.
+El sistema no hace backups propios: las copias de la base de datos y del servidor las hace el área de
+Sistemas con su propio programa, por fuera del sistema. Los datos de Postgres están en el volumen Docker `pgdata`.

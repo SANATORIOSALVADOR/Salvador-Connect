@@ -13,7 +13,6 @@ import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horizonte, isoLocal, se
  */
 const router: IRouter = Router();
 
-const BACKUPS = process.env.BACKUP_PATH || "/backups";
 const ESTADO = process.env.ESTADO_PATH || "/estado";
 
 function minutosAhora(d = new Date()) {
@@ -133,22 +132,12 @@ router.get("/inicio", requireAuth, async (req, res): Promise<void> => {
       } catch {
         dbOk = false;
       }
-      let ultimoBackup: { archivo: string; fecha: string; tamanoMb: number } | null = null;
-      try {
-        const archivos = fs.readdirSync(BACKUPS).filter((f) => /^sanatorio_.*\.dump$/.test(f));
-        const conFecha = archivos.map((f) => ({ f, s: fs.statSync(path.join(BACKUPS, f)) })).sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
-        if (conFecha[0]) ultimoBackup = { archivo: conFecha[0].f, fecha: conFecha[0].s.mtime.toISOString(), tamanoMb: Math.round((conFecha[0].s.size / 1048576) * 10) / 10 };
-      } catch {
-        ultimoBackup = null;
-      }
       const inicioDia = new Date(ahora);
       inicioDia.setHours(0, 0, 0, 0);
       const [{ hoyN }] = await db.select({ hoyN: sql<number>`count(*)::int` }).from(usersTable).where(gte(usersTable.lastLoginAt, inicioDia));
       const [{ activos }] = await db.select({ activos: sql<number>`count(*)::int` }).from(usersTable).where(eq(usersTable.active, true));
       out.sistema = {
         db: dbOk ? "ok" : "error",
-        ultimoBackup,
-        backupsVisibles: fs.existsSync(BACKUPS),
         mantenimiento: fs.existsSync(path.join(ESTADO, "mantenimiento.json")),
         usuariosHoy: hoyN,
         usuariosActivos: activos,
