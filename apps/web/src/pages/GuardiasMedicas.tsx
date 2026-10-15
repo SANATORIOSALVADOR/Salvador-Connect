@@ -271,6 +271,8 @@ export default function GuardiasMedicas() {
   const [filterSector, setFilterSector] = useState(() => params?.get("sector") ?? "");
   const [filterTag, setFilterTag] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(() => isoOf(new Date()));
+  /** Ventana flotante con el detalle del día elegido en el calendario. */
+  const [dayOpen, setDayOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -525,6 +527,31 @@ export default function GuardiasMedicas() {
 
   const monthLabel = cursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   const dayDetail = selectedDay ? byDate.get(selectedDay) || [] : [];
+
+  function abrirDia(iso: string) {
+    setSelectedDay(iso);
+    setDayOpen(true);
+  }
+
+  /** Flechas de la ventana del día: si se pasa a otro mes, el calendario lo acompaña. */
+  function moverDia(delta: number) {
+    if (!selectedDay) return;
+    const iso = addDaysIso(selectedDay, delta);
+    if (iso.slice(0, 7) !== selectedDay.slice(0, 7)) setCursor(new Date(iso + "T12:00:00"));
+    setSelectedDay(iso);
+  }
+
+  useEffect(() => {
+    if (!dayOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (editing) return;
+      if (e.key === "Escape") setDayOpen(false);
+      else if (e.key === "ArrowLeft") moverDia(-1);
+      else if (e.key === "ArrowRight") moverDia(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   const stats = useMemo(() => {
     let list = items;
@@ -899,7 +926,7 @@ export default function GuardiasMedicas() {
                     const n = (byDate.get(c.iso!) || []).length;
                     if (!n && cov?.status !== "sin" && cov?.status !== "baja") return null;
                     return (
-                      <button key={c.iso} type="button" onClick={() => setSelectedDay(c.iso)} style={{ textAlign: "left", padding: "8px 10px", borderRadius: 10, border: `1px solid ${c.iso === selectedDay ? "hsl(var(--primary))" : "hsl(var(--border))"}`, background: "hsl(var(--card))", font: "inherit", color: "inherit", cursor: "pointer", ...(cov ? COVERAGE_STYLE[cov.status] : {}) }}>
+                      <button key={c.iso} type="button" onClick={() => abrirDia(c.iso!)} style={{ textAlign: "left", padding: "8px 10px", borderRadius: 10, border: `1px solid ${c.iso === selectedDay ? "hsl(var(--primary))" : "hsl(var(--border))"}`, background: "hsl(var(--card))", font: "inherit", color: "inherit", cursor: "pointer", ...(cov ? COVERAGE_STYLE[cov.status] : {}) }}>
                         <div style={{ fontWeight: 700, fontSize: 13, textTransform: "capitalize" }}>
                           {new Date(c.iso! + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric" })}
                           <span style={{ fontWeight: 600, color: "hsl(var(--muted-foreground))" }}> · {n} guardia{n === 1 ? "" : "s"}</span>
@@ -924,7 +951,7 @@ export default function GuardiasMedicas() {
                           type="button"
                           key={cell.iso}
                           className={`gm-cell${cell.iso === todayIso ? " is-today" : ""}${isSel ? " is-selected" : ""}`}
-                          onClick={() => setSelectedDay(cell.iso)}
+                          onClick={() => abrirDia(cell.iso!)}
                           title={coverageTitle(cov)}
                           style={{ ...(cov ? COVERAGE_STYLE[cov.status] : {}), opacity: cov?.status === "futuro" && !(byDate.get(cell.iso) || []).length ? 0.6 : 1 }}
                         >
@@ -983,52 +1010,6 @@ export default function GuardiasMedicas() {
                     </div>
                   ))}
                 </div>
-              </div>
-              <div className="card gm-day-panel">
-              <div className="section-kicker">Detalle del día</div>
-              <h2 className="section-title" style={{ marginTop: 6, textTransform: "capitalize" }}>
-                {selectedDay ? new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Seleccioná un día"}
-              </h2>
-              {!selectedDay && <p className="page-subtitle" style={{ marginTop: 12 }}>Tocá un día del calendario para ver quién está de guardia.</p>}
-              {selectedDay && (() => {
-                const cov = coverageByDay.get(selectedDay) || dayCoverage(dayDetail, selectedDay, expectedConfigs, horizon);
-                const faltan = cov.sectors.filter((s) => s.gaps.length > 0);
-                if (cov.status === "futuro" || faltan.length === 0) return null;
-                return (
-                  <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "#fee2e2", color: "#991b1b", fontSize: 12, fontWeight: 700 }}>
-                    {faltan.map((s) => <div key={s.sectorId}>{s.name}: {describeGaps(s)}</div>)}
-                  </div>
-                );
-              })()}
-              {selectedDay && dayDetail.length === 0 && (
-                <div className="empty-state" style={{ padding: "24px 8px" }}>
-                  <p>Sin guardias cargadas para este día.</p>
-                </div>
-              )}
-              {selectedDay && canWrite && (
-                <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => { setForm((f) => ({ ...f, date: selectedDay, endDate: selectedDay })); setTab("carga"); }}>Cargar guardia este día</button>
-              )}
-              {[...dayDetail].sort((a, b) => (a.sectorName || "").localeCompare(b.sectorName || "", "es") || a.startTime.localeCompare(b.startTime)).map((g) => (
-                <div key={g.id} style={{ ...DETAIL_CARD, borderLeft: `4px solid ${colorOf(g.sectorId).solid}` }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <span className={modalityClass(g.modality)} style={{ display: "inline-block" }}>{labelMod(g.modality)}</span>
-                    <span className="badge">{g.startTime} – {g.endTime}</span>
-                    <TagBadge label={g.tagLabel} color={g.tagColor} />
-                  </div>
-                  <div style={{ fontWeight: 700, marginTop: 8 }}>{g.professionalName}</div>
-                  <div className="page-subtitle" style={{ marginTop: 4 }}>
-                    {g.sectorName || "Sector"} · {formatDateAR(g.date)}
-                    {g.endDate && g.endDate !== g.date ? ` → ${formatDateAR(g.endDate)}` : ""}
-                  </div>
-                  {g.observations && <div style={{ marginTop: 6, fontSize: 13 }}>{g.observations}</div>}
-                  {canEdit(g) && (
-                    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                      <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => openEdit(g)}>Editar</button>
-                      {canDelete(g) && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>}
-                    </div>
-                  )}
-                </div>
-              ))}
               </div>
             </aside>
           </div>
@@ -1421,6 +1402,68 @@ export default function GuardiasMedicas() {
               <button type="submit" className="btn btn-primary" disabled={copyBusy}>{copyBusy ? "Copiando…" : "Copiar"}</button>
             </div>
           </form>
+        </div>
+      )}
+
+
+      {dayOpen && selectedDay && (
+        <div className="gm-modal-fondo" onClick={() => setDayOpen(false)}>
+          <section className="card gm-modal" role="dialog" aria-modal="true" aria-labelledby="gm-dia-titulo" onClick={(e) => e.stopPropagation()}>
+            <header className="gm-modal-cab">
+              <button type="button" className="btn btn-quiet gm-modal-flecha" aria-label="Día anterior" title="Día anterior (←)" onClick={() => moverDia(-1)}>←</button>
+              <div style={{ minWidth: 0, flex: 1, textAlign: "center" }}>
+                <div className="section-kicker">{dayDetail.length ? `${dayDetail.length} guardia${dayDetail.length === 1 ? "" : "s"}` : "Sin guardias"}{selectedDay === todayIso ? " · hoy" : ""}</div>
+                <h2 id="gm-dia-titulo" className="section-title" style={{ marginTop: 4, textTransform: "capitalize" }}>
+                  {new Date(selectedDay + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+                </h2>
+              </div>
+              <button type="button" className="btn btn-quiet gm-modal-flecha" aria-label="Día siguiente" title="Día siguiente (→)" onClick={() => moverDia(1)}>→</button>
+              <button type="button" className="gm-modal-cerrar" aria-label="Cerrar" title="Cerrar (Esc)" onClick={() => setDayOpen(false)}>×</button>
+            </header>
+            <div className="gm-modal-cuerpo">
+                    {selectedDay && (() => {
+                      const cov = coverageByDay.get(selectedDay) || dayCoverage(dayDetail, selectedDay, expectedConfigs, horizon);
+                      const faltan = cov.sectors.filter((s) => s.gaps.length > 0);
+                      if (cov.status === "futuro" || faltan.length === 0) return null;
+                      return (
+                        <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 10, background: "#fee2e2", color: "#991b1b", fontSize: 12, fontWeight: 700 }}>
+                          {faltan.map((s) => <div key={s.sectorId}>{s.name}: {describeGaps(s)}</div>)}
+                        </div>
+                      );
+                    })()}
+                    {selectedDay && dayDetail.length === 0 && (
+                      <div className="empty-state" style={{ padding: "24px 8px" }}>
+                        <p>Sin guardias cargadas para este día.</p>
+                      </div>
+                    )}
+                    {[...dayDetail].sort((a, b) => (a.sectorName || "").localeCompare(b.sectorName || "", "es") || a.startTime.localeCompare(b.startTime)).map((g) => (
+                      <div key={g.id} style={{ ...DETAIL_CARD, borderLeft: `4px solid ${colorOf(g.sectorId).solid}` }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <span className={modalityClass(g.modality)} style={{ display: "inline-block" }}>{labelMod(g.modality)}</span>
+                          <span className="badge">{g.startTime} – {g.endTime}</span>
+                          <TagBadge label={g.tagLabel} color={g.tagColor} />
+                        </div>
+                        <div style={{ fontWeight: 700, marginTop: 8 }}>{g.professionalName}</div>
+                        <div className="page-subtitle" style={{ marginTop: 4 }}>
+                          {g.sectorName || "Sector"} · {formatDateAR(g.date)}
+                          {g.endDate && g.endDate !== g.date ? ` → ${formatDateAR(g.endDate)}` : ""}
+                        </div>
+                        {g.observations && <div style={{ marginTop: 6, fontSize: 13 }}>{g.observations}</div>}
+                        {canEdit(g) && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                            <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => openEdit(g)}>Editar</button>
+                            {canDelete(g) && <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void onDelete(g.id)}>Eliminar</button>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+            </div>
+            {canWrite && (
+              <footer className="gm-modal-pie">
+                <button type="button" className="btn btn-primary" onClick={() => { setForm((f) => ({ ...f, date: selectedDay, endDate: selectedDay })); setDayOpen(false); setTab("carga"); }}>Cargar guardia este día</button>
+              </footer>
+            )}
+          </section>
         </div>
       )}
 
