@@ -956,8 +956,8 @@ export default function GuardiasMedicas() {
               </div>
             </div>
 
-            <aside style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, ...(isStacked ? { order: -1 } : { position: "sticky", top: 12, maxHeight: "calc(100vh - 24px)", overflowY: "auto" }) }}>
-              <div className="card" style={{ padding: 12, borderRadius: 14 }}>
+            <aside className={`gm-aside${isStacked ? " is-stacked" : ""}`}>
+              <div className="card gm-ahora" style={{ padding: 12, borderRadius: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                   <div className="section-kicker">De guardia ahora</div>
                   <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>{now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</span>
