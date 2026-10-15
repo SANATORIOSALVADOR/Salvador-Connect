@@ -1047,3 +1047,33 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { .gm-modal-fondo, .gm-modal { animation: none !important; } }
 @media print { .gm-modal-fondo { display: none !important; } }
+
+/* Inicio sin huecos: tarjetas de una misma fila con la misma altura y contenido repartido */
+.ini-fila-2, .ini-fila-3 { align-items: stretch !important; }
+.ini .ini-card { display: flex; flex-direction: column; }
+.ini-relleno { flex: 1 1 auto; min-height: 14px; }
+.ini-relleno + .ini-fiscal { margin-top: 0; }
+.ini-lista.ini-sectores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 8px; align-content: start; }
+.ini-cab-der { justify-content: flex-end; }
+/* Plata: filas (monto a la derecha, sin cortarse) */
+.ini-plata { grid-template-columns: 1fr !important; gap: 6px !important; }
+.ini-plata div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 8px 12px !important; }
+.ini-plata div small { grid-column: 1; grid-row: 1; font-size: 12.5px !important; color: hsl(var(--foreground)) !important; font-weight: 600; }
+.ini-plata div span { grid-column: 1; grid-row: 2; }
+.ini-plata div b { grid-column: 2; grid-row: 1 / span 2; margin: 0 !important; font-size: 16px !important; overflow: visible !important; text-overflow: clip !important; }
+/* Lo urgente más compacto */
+.ini .ini-urg { padding: 7px 12px; }
+.ini .ini-urg-ico { width: 26px; height: 26px; flex-basis: 26px; border-radius: 8px; }
+.ini .ini-card > .ini-nota:last-child { margin-top: auto; padding-top: 12px; }
+/* Tercera columna: Documentos arriba, Control fiscal ocupa el resto */
+.ini-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ini-col > .ini-card:last-child { flex: 1 1 auto; }
+.ini-col .ini-kpis { margin-bottom: 0; }
+.ini-col .ini-fiscal { margin-top: 0; }
+/* Sistemas en franja + actividad en dos columnas */
+.ini-fila-1 { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+.ini-servicios { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.ini-servicios li + li { border-top: 0; }
+.ini-servicios li { border-left: 1px solid hsl(var(--border)); margin-left: -1px; border-top: 1px solid hsl(var(--border)); margin-top: -1px; }
+.ini-act-grilla { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); column-gap: 24px; row-gap: 2px; }
+.ini .ini-card > .ini-lista.ini-sectores { flex: 1 1 auto; align-content: stretch; }

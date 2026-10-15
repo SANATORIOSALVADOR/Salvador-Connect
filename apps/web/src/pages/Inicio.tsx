@@ -12,7 +12,6 @@ import {
   FileClock,
   ListTodo,
   Plus,
-  Search,
   Settings2,
   ShieldCheck,
   Siren,
@@ -194,7 +193,6 @@ export default function Inicio() {
   const nombre = datos?.usuario.nombre.split(" ")[0] ?? "";
   const ac = datos?.accesos;
   const puedeAdm = ac?.administracion === "editar" || ac?.administracion === "total" || ac?.superadmin;
-  const abrirBuscador = () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }));
   let i = 0;
 
   return (
@@ -206,11 +204,6 @@ export default function Inicio() {
           <p className="ini-frase">{datos ? fraseDelDia(datos) : error ? "" : "Armando tu día…"}</p>
         </div>
         <div className="ini-cab-der">
-          <button type="button" className="ini-buscar" onClick={abrirBuscador}>
-            <Search size={16} aria-hidden="true" />
-            <span>Buscar en el sistema…</span>
-            <kbd>Ctrl K</kbd>
-          </button>
           {datos && (
             <div className="ini-acciones">
               {puedeAdm && <Accion href="/administracion?nuevo=1" icon={<Plus size={16} />} texto="Nuevo vencimiento" primaria />}
@@ -288,18 +281,20 @@ export default function Inicio() {
         <div className="ini-fila-3">
           {datos.guardias && <BloqueMios a={datos.administracion} hoy={datos.hoy} i={i++} />}
           <BloquePlata a={datos.administracion} hoy={datos.hoy} i={i++} />
-          <BloqueDocumentos a={datos.administracion} hoy={datos.hoy} i={i++} />
-          {!datos.guardias && <BloqueFiscal a={datos.administracion} i={i++} />}
+          <div className="ini-col">
+            <BloqueDocumentos a={datos.administracion} hoy={datos.hoy} i={i++} />
+            <BloqueFiscal a={datos.administracion} i={i++} />
+          </div>
         </div>
       )}
 
       {datos && (datos.sistema || actividad.length > 0) && (
-        <div className="ini-fila-2">
+        <div className="ini-fila-1">
           {datos.sistema && <BloqueSistema s={datos.sistema} i={i++} />}
           {actividad.length > 0 && (
             <section className="card ini-card ini-entrar" style={entrada(i++)}>
               <Cabecera icono={<UserCheck size={17} />} titulo="Actividad reciente" sub="Últimos movimientos en tus módulos" />
-              <ul className="ini-lista">
+              <ul className="ini-lista ini-act-grilla">
                 {actividad.map((a) => (
                   <li key={`${a.id}-${a.createdAt}`} className="ini-act">
                     <span className="ini-act-punto" aria-hidden="true" />
@@ -381,7 +376,7 @@ function BloqueGuardias({ g, i }: { g: NonNullable<Datos["guardias"]>; i: number
       {g.porSector.length === 0 ? (
         <div className="ini-ok">Todavía no hay sectores de guardia configurados.</div>
       ) : (
-        <ul className="ini-lista">
+        <ul className="ini-lista ini-sectores">
           {g.porSector.map((s) => (
             <li key={s.sector} className={`ini-sector ${s.ahora.length ? "" : "vacio"}`}>
               <div className="ini-sector-cab">
@@ -464,7 +459,6 @@ function BloqueDocumentos({ a, hoy, i }: { a: NonNullable<Datos["administracion"
         <div className="ini-ok"><CheckCircle2 size={16} aria-hidden="true" /> Ningún documento vence en los próximos 45 días.</div>
       )}
       {a.documentosTotal > a.documentos.length && <div className="ini-nota">y {a.documentosTotal - a.documentos.length} más.</div>}
-      {a.fiscal.obligaciones > 0 && <BloqueFiscalMini a={a} />}
     </section>
   );
 }
@@ -473,10 +467,10 @@ function BloqueFiscalMini({ a }: { a: NonNullable<Datos["administracion"]> }) {
   const pct = a.fiscal.total ? Math.round((a.fiscal.cumplidos / a.fiscal.total) * 100) : 0;
   return (
     <Link href="/administracion?tab=fiscal" className="ini-fiscal">
-      <span>Control fiscal del mes <b>{a.fiscal.cumplidos}/{a.fiscal.total}</b></span>
+      <span>Avance del mes <b>{a.fiscal.cumplidos}/{a.fiscal.total} · {pct} %</b></span>
       <Barra pct={pct} tono="ok" />
       <small>
-        {a.fiscal.vencidos ? `${a.fiscal.vencidos} vencidos · ` : ""}
+        
         {a.fiscal.verificadas < a.fiscal.obligaciones ? `${a.fiscal.obligaciones - a.fiscal.verificadas} fechas sin verificar` : "Fechas verificadas"}
       </small>
     </Link>
@@ -487,7 +481,13 @@ function BloqueFiscal({ a, i }: { a: NonNullable<Datos["administracion"]>; i: nu
   if (!a.fiscal.obligaciones) return null;
   return (
     <section className="card ini-card ini-entrar" style={entrada(i)}>
-      <Cabecera icono={<ClipboardList size={17} />} titulo="Fiscal del mes" href="/administracion?tab=fiscal" />
+      <Cabecera icono={<ClipboardList size={17} />} titulo="Control fiscal del mes" sub="Obligaciones de este mes" href="/administracion?tab=fiscal" linkTxt="Fiscal" />
+      <div className="ini-kpis">
+        <Kpi valor={a.fiscal.cumplidos} label="Cumplidos" tono="ok" href="/administracion?tab=fiscal" />
+        <Kpi valor={Math.max(0, a.fiscal.total - a.fiscal.cumplidos - a.fiscal.vencidos)} label="Pendientes" href="/administracion?tab=fiscal" />
+        <Kpi valor={a.fiscal.vencidos} label="Vencidos" tono={a.fiscal.vencidos ? "mal" : undefined} href="/administracion?tab=fiscal" />
+      </div>
+      <div className="ini-relleno" />
       <BloqueFiscalMini a={a} />
     </section>
   );
