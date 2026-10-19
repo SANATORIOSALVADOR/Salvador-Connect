@@ -55,6 +55,7 @@ const publicUser = (user: NonNullable<Express.Request["authUser"]>) => ({
   mustChangePassword: user.mustChangePassword,
   modules: user.modules,
   permissions: user.permissions,
+  scopes: user.scopes,
   sectorIds: user.sectorIds,
 });
 

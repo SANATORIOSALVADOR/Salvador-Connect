@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { asc, eq } from "drizzle-orm";
-import { db, sectorsTable } from "@salvador/db";
+import { asc, eq, sql } from "drizzle-orm";
+import { db, sectorsTable, userModulesTable } from "@salvador/db";
 import { requireAuth, requireSuperadmin } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -63,6 +63,15 @@ router.delete("/sectores/:id", requireSuperadmin, async (req, res): Promise<void
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {
       res.status(400).json({ message: "ID inválido." });
+      return;
+    }
+    // Si está a cargo de alguien, no se borra: al quitarlo, esa persona podría pasar a ver todos los sectores.
+    const [asignado] = await db
+      .select({ n: sql<number>`count(distinct ${userModulesTable.userId})::int` })
+      .from(userModulesTable)
+      .where(sql`${id} = any(${userModulesTable.sectorIds})`);
+    if (Number(asignado?.n ?? 0) > 0) {
+      res.status(409).json({ message: `El sector está a cargo de ${asignado.n} usuario(s): quitáselo en sus permisos o desactivá el sector.` });
       return;
     }
     await db.delete(sectorsTable).where(eq(sectorsTable.id, id));

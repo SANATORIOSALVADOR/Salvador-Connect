@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, count, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import {
   db,
   agendaItemsTable,
@@ -24,7 +24,7 @@ import {
   UpdateAgendaItemParams,
   UpdateAgendaItemResponse,
 } from "@salvador/api-zod";
-import { hasModule, requireAuth, type AuthUser } from "../lib/auth";
+import { visibleSectorIds, hasModule, requireAuth, type AuthUser } from "../lib/auth";
 
 const router: IRouter = Router();
 router.use(["/dashboard", "/sectors", "/me", "/agenda"], requireAuth);
@@ -48,6 +48,13 @@ type ActivityEntry = {
   kind: "agenda" | "guardia" | "inventario" | "instructivo" | "sistema";
 };
 
+/** Guardias de los sectores que la persona puede ver (undefined = todos). */
+function sectoresVisibles(user: AuthUser) {
+  const ids = visibleSectorIds(user, "guardias");
+  if (!ids) return undefined;
+  return ids.length ? inArray(guardiasTable.sectorId, ids) : sql`false`;
+}
+
 /** Últimos movimientos reales (guardias y administración) de los módulos que el usuario puede ver. */
 async function recentActivity(user: AuthUser, limit: number): Promise<ActivityEntry[]> {
   const since = new Date(Date.now() - ACTIVITY_DAYS * 24 * 60 * 60 * 1000);
@@ -59,7 +66,7 @@ async function recentActivity(user: AuthUser, limit: number): Promise<ActivityEn
       .from(guardiasTable)
       .leftJoin(sectorsTable, eq(guardiasTable.sectorId, sectorsTable.id))
       .leftJoin(usersTable, eq(guardiasTable.createdByUserId, usersTable.id))
-      .where(gte(guardiasTable.createdAt, since))
+      .where(and(gte(guardiasTable.createdAt, since), sectoresVisibles(user)))
       .orderBy(desc(guardiasTable.createdAt))
       .limit(limit);
     for (const r of rows) {
@@ -127,7 +134,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       const [row] = await db
         .select({ n: count() })
         .from(guardiasTable)
-        .where(and(lte(guardiasTable.date, today), sql`coalesce(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${today}`));
+        .where(and(lte(guardiasTable.date, today), sql`coalesce(${guardiasTable.endDate}, ${guardiasTable.date}) >= ${today}`, sectoresVisibles(user)));
       pendingGuardias = Number(row?.n ?? 0);
     }
 

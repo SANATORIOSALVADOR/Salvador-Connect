@@ -5,6 +5,10 @@ import { CreateUserBody, ResetUserPasswordBody, ResetUserPasswordResponse, Updat
 import {
   PERMISSION_MODULES,
   buildPermissions,
+  buildScopes,
+  isSectorModule,
+  normalizeScope,
+  type ModuleScope,
   allPermissions,
   hashPassword,
   normalizeLevel,
@@ -55,15 +59,43 @@ async function validSectorIds(ids: unknown): Promise<number[]> {
   return clean.filter((id) => ok.has(id));
 }
 
-async function savePermissions(tx: Tx, userId: number, permissions: Record<string, Level>) {
-  await tx.delete(userModulesTable).where(eq(userModulesTable.userId, userId));
-  const rows = Object.entries(permissions).map(([moduleKey, level]) => ({ userId, moduleKey, level }));
-  if (rows.length) await tx.insert(userModulesTable).values(rows);
+/**
+ * Alcance por módulo pedido → mapa válido (solo módulos con sectores y sectores que existen).
+ * Acepta `scopes: { modulo: { alcance, sectorIds } }` o, por compatibilidad, `sectorIds: [..]`
+ * (lo de antes: ve todo y carga en esos sectores, en cada módulo con sectores).
+ */
+async function parseScopes(body: Record<string, unknown>, permissions: Record<string, Level>): Promise<Record<string, ModuleScope> | undefined> {
+  const out: Record<string, ModuleScope> = {};
+  if (body.scopes && typeof body.scopes === "object") {
+    for (const [mod, raw] of Object.entries(body.scopes as Record<string, { alcance?: unknown; sectorIds?: unknown }>)) {
+      if (!permissions[mod] || !isSectorModule(mod)) continue;
+      const sc = normalizeScope(mod, raw?.alcance, await validSectorIds(raw?.sectorIds));
+      if (sc.alcance !== "todos") out[mod] = sc;
+    }
+    return out;
+  }
+  if (Array.isArray(body.sectorIds)) {
+    const ids = await validSectorIds(body.sectorIds);
+    for (const mod of Object.keys(permissions)) {
+      const sc = normalizeScope(mod, "carga", ids);
+      if (sc.alcance !== "todos") out[mod] = sc;
+    }
+    return out;
+  }
+  return undefined;
 }
 
-async function saveSectors(tx: Tx, userId: number, sectorIds: number[]) {
+async function savePermissions(tx: Tx, userId: number, permissions: Record<string, Level>, scopes: Record<string, ModuleScope>) {
+  await tx.delete(userModulesTable).where(eq(userModulesTable.userId, userId));
+  const rows = Object.entries(permissions).map(([moduleKey, level]) => {
+    const sc = scopes[moduleKey] ?? { alcance: "todos", sectorIds: [] };
+    return { userId, moduleKey, level, alcance: sc.alcance, sectorIds: sc.sectorIds };
+  });
+  if (rows.length) await tx.insert(userModulesTable).values(rows);
+  // Tabla vieja: queda con todos los sectores a cargo (solo como referencia).
+  const all = [...new Set(Object.values(scopes).flatMap((sc) => sc.sectorIds))];
   await tx.delete(userSectorsTable).where(eq(userSectorsTable.userId, userId));
-  if (sectorIds.length) await tx.insert(userSectorsTable).values(sectorIds.map((sectorId) => ({ userId, sectorId })));
+  if (all.length) await tx.insert(userSectorsTable).values(all.map((sectorId) => ({ userId, sectorId })));
 }
 
 async function serializeUsers(ids?: number[]) {
@@ -74,12 +106,11 @@ async function serializeUsers(ids?: number[]) {
     .orderBy(asc(usersTable.name));
   if (!users.length) return [];
   const userIds = users.map((u) => u.id);
-  const [mods, secs] = await Promise.all([
-    db.select().from(userModulesTable).where(inArray(userModulesTable.userId, userIds)),
-    db.select().from(userSectorsTable).where(inArray(userSectorsTable.userId, userIds)),
-  ]);
+  const mods = await db.select().from(userModulesTable).where(inArray(userModulesTable.userId, userIds));
   return users.map((u) => {
-    const permissions = u.role === "superadmin" ? allPermissions() : buildPermissions(u.role, mods.filter((m) => m.userId === u.id));
+    const propios = mods.filter((m) => m.userId === u.id);
+    const permissions = u.role === "superadmin" ? allPermissions() : buildPermissions(u.role, propios);
+    const scopes = u.role === "superadmin" ? {} : buildScopes(propios.filter((m) => permissions[m.moduleKey]));
     return {
       id: u.id,
       username: u.username,
@@ -91,7 +122,8 @@ async function serializeUsers(ids?: number[]) {
       mustChangePassword: u.mustChangePassword,
       permissions,
       modules: Object.keys(permissions),
-      sectorIds: secs.filter((s) => s.userId === u.id).map((s) => s.sectorId),
+      scopes,
+      sectorIds: [...new Set(Object.values(scopes).flatMap((sc) => sc.sectorIds))].sort((a, b) => a - b),
       createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : u.createdAt,
       lastLoginAt: u.lastLoginAt instanceof Date ? u.lastLoginAt.toISOString() : u.lastLoginAt,
     };
@@ -119,9 +151,9 @@ router.get("/users/modulos", (_req, res): void => {
 });
 
 // ---------- plantillas de permisos (ej. "Jefe de guardia") ----------
-// Se guardan en app_settings["plantillas_permisos"]: [{ nombre, permissions, sectorIds }].
+// Se guardan en app_settings["plantillas_permisos"]: [{ nombre, permissions, scopes }].
 
-type Plantilla = { nombre: string; permissions: Record<string, Level>; sectorIds: number[] };
+type Plantilla = { nombre: string; permissions: Record<string, Level>; scopes: Record<string, ModuleScope>; sectorIds?: number[] };
 const PLANTILLAS_KEY = "plantillas_permisos";
 
 async function leerPlantillas(): Promise<Plantilla[]> {
@@ -150,11 +182,8 @@ router.put("/users/plantillas", async (req, res): Promise<void> => {
     const nombre = String(raw?.nombre ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
     if (!nombre || vistas.has(nombre.toLowerCase())) continue;
     vistas.add(nombre.toLowerCase());
-    limpias.push({
-      nombre,
-      permissions: parsePermissions({ permissions: raw?.permissions ?? {} }) ?? {},
-      sectorIds: await validSectorIds(raw?.sectorIds),
-    });
+    const permissions = parsePermissions({ permissions: raw?.permissions ?? {} }) ?? {};
+    limpias.push({ nombre, permissions, scopes: (await parseScopes(raw ?? {}, permissions)) ?? {} });
   }
   try {
     await db
@@ -202,7 +231,7 @@ router.post("/users", async (req, res): Promise<void> => {
     }
     const role = normalizeRole(data.role);
     const permissions = role === "superadmin" ? {} : (parsePermissions(req.body ?? {}) ?? { dashboard: "ver" as Level });
-    const sectorIds = await validSectorIds(req.body?.sectorIds);
+    const scopes = (await parseScopes(req.body ?? {}, permissions)) ?? {};
     const passwordHash = await hashPassword(data.password);
 
     const id = await db.transaction(async (tx) => {
@@ -210,8 +239,7 @@ router.post("/users", async (req, res): Promise<void> => {
         .insert(usersTable)
         .values({ username, name, email: data.email?.trim() || null, passwordHash, role, active: data.active ?? true, mustChangePassword: true })
         .returning({ id: usersTable.id });
-      await savePermissions(tx, created.id, permissions);
-      await saveSectors(tx, created.id, sectorIds);
+      await savePermissions(tx, created.id, permissions, scopes);
       return created.id;
     });
     const [out] = await serializeUsers([id]);
@@ -273,8 +301,12 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
         return;
       }
     }
-    const permissions = parsePermissions(req.body ?? {});
-    const sectorIds = req.body?.sectorIds !== undefined ? await validSectorIds(req.body.sectorIds) : undefined;
+    const pedidos = parsePermissions(req.body ?? {});
+    const filas = await db.select().from(userModulesTable).where(eq(userModulesTable.userId, id));
+    // Sin permisos en el pedido: se mantienen los actuales (y se fijan los de un "responsable" viejo que pasa a "usuario").
+    const permissions =
+      pedidos ?? (req.body?.scopes !== undefined || req.body?.sectorIds !== undefined || (current.role !== nextRole && nextRole === "usuario") ? buildPermissions(current.role, filas) : undefined);
+    const scopes = permissions ? ((await parseScopes(req.body ?? {}, permissions)) ?? buildScopes(filas.filter((f) => permissions[f.moduleKey]))) : undefined;
 
     await db.transaction(async (tx) => {
       await tx
@@ -287,13 +319,7 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
           active: nextActive,
         })
         .where(eq(usersTable.id, id));
-      // Al pasar un "responsable" viejo a "usuario" sin mandar permisos, se fijan los que tenía.
-      if (permissions) await savePermissions(tx, id, nextRole === "superadmin" ? {} : permissions);
-      else if (current.role !== nextRole && nextRole === "usuario") {
-        const rows = await tx.select().from(userModulesTable).where(eq(userModulesTable.userId, id));
-        await savePermissions(tx, id, buildPermissions(current.role, rows));
-      }
-      if (sectorIds) await saveSectors(tx, id, sectorIds);
+      if (permissions && scopes) await savePermissions(tx, id, nextRole === "superadmin" ? {} : permissions, nextRole === "superadmin" ? {} : scopes);
     });
     // Cambios de permisos o desactivación: cerrar sus sesiones para que tomen efecto ya.
     if (!nextActive) await revokeUserSessions(id);

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scrypt as nodeScrypt, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { and, eq, gt, lt, ne } from "drizzle-orm";
-import { db, sessionsTable, userModulesTable, userSectorsTable, usersTable } from "@salvador/db";
+import { db, sessionsTable, userModulesTable, usersTable } from "@salvador/db";
 import { logger } from "./logger";
 
 const scrypt = (password: string, salt: string, keyLength: number, options: { cost: number; blockSize: number; parallelization: number }) =>
@@ -104,6 +104,31 @@ export const PERMISSION_MODULES: Record<string, readonly Level[]> = {
   liquidacion: ["ver"],
 };
 
+/** Módulos cuya información se separa por sector (en ellos cada permiso define su alcance). */
+export const SECTOR_MODULES = ["guardias", "inventario", "instructivos"] as const;
+
+/**
+ * Alcance de un permiso en un módulo con sectores:
+ *  - todos:  ve y trabaja en todos los sectores
+ *  - carga:  ve todo, pero carga / modifica / elimina solo en sus sectores
+ *  - sector: ve y trabaja solo en sus sectores
+ */
+export const ALCANCES = ["todos", "carga", "sector"] as const;
+export type Alcance = (typeof ALCANCES)[number];
+export type ModuleScope = { alcance: Alcance; sectorIds: number[] };
+
+export function isSectorModule(moduleKey: string): boolean {
+  return (SECTOR_MODULES as readonly string[]).includes(moduleKey);
+}
+
+/** Alcance válido: sin sectores elegidos (o en un módulo sin sectores) es siempre "todos". */
+export function normalizeScope(moduleKey: string, alcance: unknown, sectorIds: unknown): ModuleScope {
+  const ids = Array.isArray(sectorIds) ? [...new Set(sectorIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))].sort((a, b) => a - b) : [];
+  const a = String(alcance ?? "") as Alcance;
+  if (!isSectorModule(moduleKey) || !ids.length || !(ALCANCES as readonly string[]).includes(a) || a === "todos") return { alcance: "todos", sectorIds: [] };
+  return { alcance: a, sectorIds: ids };
+}
+
 export function levelRank(level: Level | null | undefined): number {
   return level ? LEVELS.indexOf(level) + 1 : 0;
 }
@@ -134,6 +159,9 @@ export type AuthUser = {
   modules: string[];
   /** Nivel por módulo. */
   permissions: Record<string, Level>;
+  /** Alcance por módulo con sectores (los que no figuran = todos los sectores). */
+  scopes: Record<string, ModuleScope>;
+  /** Todos los sectores a cargo, sumando módulos (compatibilidad con pantallas viejas). */
   sectorIds: number[];
 };
 
@@ -160,6 +188,16 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return derived.length === expected.length && timingSafeEqual(derived, expected);
 }
 
+/** Alcance por módulo a partir de las filas de user_modules (solo los que limitan algo). */
+export function buildScopes(rows: { moduleKey: string; alcance?: string | null; sectorIds?: number[] | null }[]): Record<string, ModuleScope> {
+  const out: Record<string, ModuleScope> = {};
+  for (const r of rows) {
+    const sc = normalizeScope(r.moduleKey, r.alcance, r.sectorIds);
+    if (sc.alcance !== "todos") out[r.moduleKey] = sc;
+  }
+  return out;
+}
+
 /** Arma el mapa módulo → nivel a partir de las filas de user_modules. */
 export function buildPermissions(role: string, rows: { moduleKey: string; level: string }[]): Record<string, Level> {
   const out: Record<string, Level> = {};
@@ -174,11 +212,13 @@ export function buildPermissions(role: string, rows: { moduleKey: string; level:
 export async function getUserWithPermissions(userId: number): Promise<AuthUser | null> {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user || !user.active) return null;
-  const [modules, sectors] = await Promise.all([
-    db.select({ moduleKey: userModulesTable.moduleKey, level: userModulesTable.level }).from(userModulesTable).where(eq(userModulesTable.userId, userId)),
-    db.select({ sectorId: userSectorsTable.sectorId }).from(userSectorsTable).where(eq(userSectorsTable.userId, userId)),
-  ]);
-  const permissions = user.role === "superadmin" ? allPermissions() : buildPermissions(user.role, modules);
+  const modules = await db
+    .select({ moduleKey: userModulesTable.moduleKey, level: userModulesTable.level, alcance: userModulesTable.alcance, sectorIds: userModulesTable.sectorIds })
+    .from(userModulesTable)
+    .where(eq(userModulesTable.userId, userId));
+  const superadmin = user.role === "superadmin";
+  const permissions = superadmin ? allPermissions() : buildPermissions(user.role, modules);
+  const scopes = superadmin ? {} : buildScopes(modules.filter((m) => permissions[m.moduleKey]));
   return {
     id: user.id,
     username: user.username,
@@ -189,7 +229,8 @@ export async function getUserWithPermissions(userId: number): Promise<AuthUser |
     mustChangePassword: user.mustChangePassword,
     modules: Object.keys(permissions),
     permissions,
-    sectorIds: sectors.map((item) => item.sectorId),
+    scopes,
+    sectorIds: [...new Set(Object.values(scopes).flatMap((sc) => sc.sectorIds))].sort((a, b) => a - b),
   };
 }
 
@@ -285,6 +326,36 @@ export function hasLevel(user: AuthUser | null | undefined, moduleKey: string, m
 
 export function hasModule(user: AuthUser | null | undefined, moduleKey: string): boolean {
   return hasLevel(user, moduleKey, "ver");
+}
+
+// ---------- alcance por sector ----------
+
+export function scopeOf(user: AuthUser | null | undefined, moduleKey: string): ModuleScope {
+  if (!user || user.role === "superadmin") return { alcance: "todos", sectorIds: [] };
+  return user.scopes?.[moduleKey] ?? { alcance: "todos", sectorIds: [] };
+}
+
+/** Sectores que la persona puede VER en el módulo; null = todos. */
+export function visibleSectorIds(user: AuthUser | null | undefined, moduleKey: string): number[] | null {
+  const sc = scopeOf(user, moduleKey);
+  return sc.alcance === "sector" ? sc.sectorIds : null;
+}
+
+/** Sectores a cargo (para cargar / modificar y para lo que se le muestra como "lo suyo"); null = todos. */
+export function ownSectorIds(user: AuthUser | null | undefined, moduleKey: string): number[] | null {
+  const sc = scopeOf(user, moduleKey);
+  return sc.alcance === "todos" ? null : sc.sectorIds;
+}
+
+export function canSeeSector(user: AuthUser | null | undefined, moduleKey: string, sectorId: number): boolean {
+  const ids = visibleSectorIds(user, moduleKey);
+  return !ids || ids.includes(sectorId);
+}
+
+export function canWriteSector(user: AuthUser | null | undefined, moduleKey: string, sectorId: number): boolean {
+  if (!user) return false;
+  const ids = ownSectorIds(user, moduleKey);
+  return !ids || ids.includes(sectorId);
 }
 
 const LEVEL_MESSAGE: Record<Level, string> = {

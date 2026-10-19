@@ -27,7 +27,15 @@ description: Configuración → Usuarios y Sectores del Sanatorio del Salvador �
 
 - `dashboard` y `liquidacion` solo admiten `ver` (un nivel mayor se recorta).
 - Filas viejas sin `level`: rol `responsable`/`nivel2`/`nivel3` → `total`; resto → `ver`.
-- Sectores a cargo: en Guardias limitan dónde carga/modifica. Ninguno = todos.
+- **Alcance por módulo** (solo módulos con sectores: `SECTOR_MODULES` = guardias, inventario, instructivos):
+  `todos` | `carga` (ve todo, carga / modifica / elimina en sus sectores) | `sector` (ve y trabaja solo en sus sectores).
+  Columnas `user_modules.alcance` y `user_modules.sector_ids` (migración `0006`). Sin sectores elegidos = `todos`.
+  La API acepta `scopes: { modulo: { alcance, sectorIds } }`; por compatibilidad, `sectorIds: [..]` = `carga` en cada módulo con sectores.
+  `user_sectors` queda solo como referencia (unión de todos los sectores a cargo).
+- Helpers en `lib/auth.ts`: `visibleSectorIds` (qué ve; null = todo), `ownSectorIds` (dónde trabaja / "lo suyo"),
+  `canSeeSector`, `canWriteSector`. Cualquier endpoint que devuelva datos con sector tiene que filtrar con `visibleSectorIds`
+  (hoy: guardias, config, auditoría, profesionales/lista, Inicio, notificaciones, gráficos, actividad, buscador).
+- No se puede eliminar un sector que está a cargo de alguien (409): si no, esa persona pasaría a ver todos.
 - Las descripciones de cada nivel por módulo están en `MODULES` de `Configuracion.tsx`;
   si cambia un control en la API, actualizar ese texto.
 

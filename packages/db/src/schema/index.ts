@@ -43,6 +43,9 @@ export const userModulesTable = pgTable("user_modules", {
   moduleKey: text("module_key").notNull(),
   // Nivel en el módulo: ver | editar | total. Vacío = fila vieja (se deduce del rol del usuario).
   level: text("level").notNull().default(""),
+  // Alcance en módulos con sectores: todos | carga (ve todo, carga en sus sectores) | sector (solo sus sectores).
+  alcance: text("alcance").notNull().default("todos"),
+  sectorIds: integer("sector_ids").array().notNull().default([]),
 });
 
 export const sessionsTable = pgTable("sessions", {

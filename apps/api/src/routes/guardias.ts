@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 import {
   db,
   guardiaEtiquetasTable,
@@ -10,7 +10,18 @@ import {
   sectorsTable,
   type CoberturaFranja,
 } from "@salvador/db";
-import { hasLevel, requireAuth, requireLevel, requireModuleAccess, requireSuperadmin, type AuthUser } from "../lib/auth";
+import {
+  canSeeSector,
+  canWriteSector as puedeEscribir,
+  hasLevel,
+  ownSectorIds,
+  requireAuth,
+  requireLevel,
+  requireModuleAccess,
+  requireSuperadmin,
+  visibleSectorIds,
+  type AuthUser,
+} from "../lib/auth";
 
 const router: IRouter = Router();
 router.use("/guardias", requireAuth, requireModuleAccess("guardias"));
@@ -58,11 +69,16 @@ function rangesOverlap(a: { start: number; end: number }, b: { start: number; en
   return a.start < b.end && b.start < a.end;
 }
 
-/** Responsable con sectores asignados: solo escribe en esos. Sin sectores asignados: en todos. */
+/** Carga / modifica / elimina solo en sus sectores a cargo de Guardias (sin sectores a cargo: en todos). */
 function canWriteSector(user: AuthUser | undefined, sectorId: number): boolean {
-  if (!user) return false;
-  if (user.role === "superadmin" || user.sectorIds.length === 0) return true;
-  return user.sectorIds.includes(sectorId);
+  return puedeEscribir(user, "guardias", sectorId);
+}
+
+/** Condición SQL para ver solo los sectores permitidos (undefined = todos). */
+function soloVisibles(user: AuthUser | undefined) {
+  const ids = visibleSectorIds(user, "guardias");
+  if (!ids) return undefined;
+  return ids.length ? inArray(guardiasTable.sectorId, ids) : sql`false`;
 }
 
 function mapRow(row: typeof guardiasTable.$inferSelect, sectorName?: string | null, sectorShort?: string | null) {
@@ -269,7 +285,7 @@ function parseFranjas(value: unknown): CoberturaFranja[] | null {
   return out.slice(0, 100);
 }
 
-router.get("/guardias/config", async (_req, res): Promise<void> => {
+router.get("/guardias/config", async (req, res): Promise<void> => {
   try {
     const [sectors, configs] = await Promise.all([
       db.select().from(sectorsTable).orderBy(asc(sectorsTable.name)),
@@ -279,7 +295,7 @@ router.get("/guardias/config", async (_req, res): Promise<void> => {
     const hasConfig = configs.length > 0;
     res.json(
       sectors
-        .filter((s) => s.active)
+        .filter((s) => s.active && canSeeSector(req.authUser, "guardias", s.id))
         .map((s) => {
           const c = byId.get(s.id);
           const byName = DEFAULT_GUARDIA_SECTORS.some((n) => personKey(s.name).includes(n));
@@ -502,9 +518,11 @@ router.get("/guardias/profesionales", async (_req, res): Promise<void> => {
   }
 });
 
-router.get("/guardias/profesionales/lista", async (_req, res): Promise<void> => {
+router.get("/guardias/profesionales/lista", async (req, res): Promise<void> => {
   try {
     await syncProfesionales();
+    const vis = visibleSectorIds(req.authUser, "guardias");
+    const filtro = vis ? (vis.length ? sql` and ${guardiasTable.sectorId} in (${sql.join(vis.map((v) => sql`${v}`), sql`, `)})` : sql` and false`) : sql``;
     const rows = await db
       .select({
         id: profesionalesTable.id,
@@ -512,7 +530,7 @@ router.get("/guardias/profesionales/lista", async (_req, res): Promise<void> => 
         matricula: profesionalesTable.matricula,
         especialidad: profesionalesTable.especialidad,
         active: profesionalesTable.active,
-        guardias: sql<number>`(select count(*)::int from ${guardiasTable} where ${guardiasTable.professionalId} = ${profesionalesTable.id})`,
+        guardias: sql<number>`(select count(*)::int from ${guardiasTable} where ${guardiasTable.professionalId} = ${profesionalesTable.id}${filtro})`,
       })
       .from(profesionalesTable)
       .orderBy(asc(profesionalesTable.name));
@@ -529,6 +547,18 @@ router.patch("/guardias/profesionales/:id", requireLevel("guardias", "total"), a
     if (!id || Number.isNaN(id)) {
       res.status(400).json({ message: "ID inválido." });
       return;
+    }
+    const propios = ownSectorIds(req.authUser, "guardias");
+    if (propios) {
+      const [ajena] = await db
+        .select({ id: guardiasTable.id })
+        .from(guardiasTable)
+        .where(and(eq(guardiasTable.professionalId, id), propios.length ? sql`${guardiasTable.sectorId} not in (${sql.join(propios.map((v) => sql`${v}`), sql`, `)})` : sql`true`))
+        .limit(1);
+      if (ajena) {
+        res.status(403).json({ message: "Este profesional también hace guardias en otros sectores: los cambios en sus datos los hace el área de Sistemas o alguien a cargo de todos los sectores." });
+        return;
+      }
     }
     const body = req.body ?? {};
     const patch: Partial<typeof profesionalesTable.$inferInsert> = {};
@@ -579,12 +609,19 @@ router.get("/guardias/auditoria", async (req, res): Promise<void> => {
       return;
     }
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const vis = visibleSectorIds(req.authUser, "guardias");
     const rows = await db
       .select()
       .from(guardiasAuditoriaTable)
       .orderBy(desc(guardiasAuditoriaTable.createdAt))
-      .limit(limit);
-    res.json(rows);
+      .limit(vis ? 1000 : limit);
+    const visibles = vis
+      ? rows.filter((r) => {
+          const g = (r.after ?? r.before) as { sectorId?: number } | null;
+          return Boolean(g?.sectorId && vis.includes(g.sectorId));
+        })
+      : rows;
+    res.json(visibles.slice(0, limit));
   } catch (err) {
     console.error("[guardias.auditoria]", err);
     res.status(500).json({ message: "Error al leer el registro de cambios." });
@@ -607,6 +644,8 @@ router.get("/guardias", async (req, res): Promise<void> => {
     if (sectorId && !Number.isNaN(sectorId)) {
       conditions.push(eq(guardiasTable.sectorId, sectorId));
     }
+    const alcance = soloVisibles(req.authUser);
+    if (alcance) conditions.push(alcance);
 
     const rows = await db
       .select({ g: guardiasTable, sectorName: sectorsTable.name, sectorShort: sectorsTable.shortName })
@@ -653,8 +692,8 @@ router.post("/guardias", async (req, res): Promise<void> => {
       const overlap = await findOverlap(data.professionalName, data.date, data.endDate, data.startTime, data.endTime);
       if (overlap) {
         res.status(409).json({
-          message: `El profesional ya tiene otra guardia que se solapa (${overlap.date} ${overlap.startTime}–${overlap.endTime}). Marcá "permitir solape" si es intencional.`,
-          overlap,
+          message: `El profesional ya tiene otra guardia que se solapa (${overlap.date} ${overlap.startTime}–${overlap.endTime}${canSeeSector(req.authUser, "guardias", overlap.sectorId) ? "" : ", en otro sector"}). Marcá "permitir solape" si es intencional.`,
+          overlap: canSeeSector(req.authUser, "guardias", overlap.sectorId) ? overlap : { date: overlap.date, startTime: overlap.startTime, endTime: overlap.endTime },
         });
         return;
       }
@@ -718,6 +757,8 @@ router.post("/guardias/copiar", async (req, res): Promise<void> => {
 
     const conditions = [gte(guardiasTable.date, fromStart), lte(guardiasTable.date, fromEnd)];
     if (sectorId) conditions.push(eq(guardiasTable.sectorId, sectorId));
+    const alcance = soloVisibles(req.authUser);
+    if (alcance) conditions.push(alcance);
     const source = await db
       .select({ g: guardiasTable, sectorName: sectorsTable.name, sectorShort: sectorsTable.shortName })
       .from(guardiasTable)
@@ -811,8 +852,8 @@ router.patch("/guardias/:id", async (req, res): Promise<void> => {
       const overlap = await findOverlap(data.professionalName, data.date, data.endDate, data.startTime, data.endTime, id);
       if (overlap) {
         res.status(409).json({
-          message: `El profesional ya tiene otra guardia que se solapa (${overlap.date} ${overlap.startTime}–${overlap.endTime}).`,
-          overlap,
+          message: `El profesional ya tiene otra guardia que se solapa (${overlap.date} ${overlap.startTime}–${overlap.endTime}${canSeeSector(req.authUser, "guardias", overlap.sectorId) ? "" : ", en otro sector"}).`,
+          overlap: canSeeSector(req.authUser, "guardias", overlap.sectorId) ? overlap : { date: overlap.date, startTime: overlap.startTime, endTime: overlap.endTime },
         });
         return;
       }

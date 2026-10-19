@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { admItemsTable, db, guardiasAuditoriaTable } from "@salvador/db";
-import { hasLevel, hasModule, requireAuth } from "../lib/auth";
+import { hasLevel, hasModule, ownSectorIds, requireAuth, visibleSectorIds } from "../lib/auth";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horasEnRango, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
 // Campanita y gráficos del Resumen. Todo se calcula en el momento según los módulos de cada persona.
@@ -54,7 +54,9 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
     }
 
     if (hasModule(user, "guardias")) {
-      const misSectores = user.role === "superadmin" || user.sectorIds.length === 0 ? null : new Set(user.sectorIds);
+      // Sus sectores a cargo de Guardias (sin sectores a cargo: todos).
+      const propios = ownSectorIds(user, "guardias");
+      const misSectores = propios ? new Set(propios) : null;
       const sectores = (await sectoresDeGuardia()).filter((s) => !misSectores || misSectores.has(s.sectorId));
       const hasta = addDaysIso(hoy, 6);
       const tope = await horizonte();
@@ -129,7 +131,8 @@ router.get("/dashboard/graficos", requireAuth, async (req, res): Promise<void> =
     if (hasModule(user, "guardias")) {
       const desde = isoLocal(new Date(ahora.getFullYear(), ahora.getMonth(), 1));
       const hasta = isoLocal(new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0));
-      const sectores = await sectoresDeGuardia();
+      const vis = visibleSectorIds(user, "guardias");
+      const sectores = (await sectoresDeGuardia()).filter((s) => !vis || vis.includes(s.sectorId));
       const guardias = await guardiasEntre(desde, addDaysIso(hoy, 7) > hasta ? addDaysIso(hoy, 7) : hasta);
       const nombre = new Map(sectores.map((s) => [s.sectorId, s.name]));
       const acc = new Map<number, { activas: number; pasivas: number }>();

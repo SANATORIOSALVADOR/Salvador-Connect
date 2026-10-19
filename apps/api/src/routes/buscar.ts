@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { asc, desc, eq } from "drizzle-orm";
-import { admContactosTable, admItemsTable, db, profesionalesTable, sectorsTable, usersTable } from "@salvador/db";
-import { hasModule, requireAuth } from "../lib/auth";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { admContactosTable, admItemsTable, db, guardiasTable, profesionalesTable, sectorsTable, usersTable } from "@salvador/db";
+import { hasModule, requireAuth, visibleSectorIds } from "../lib/auth";
 
 // Búsqueda global (Ctrl + K): profesionales, vencimientos, usuarios y sectores según los permisos.
 
@@ -24,8 +24,18 @@ router.get("/buscar", requireAuth, async (req, res): Promise<void> => {
   const coincide = (...campos: (string | null | undefined)[]) => campos.some((c) => clave(c ?? "").includes(q));
   const out: Resultado[] = [];
   try {
+    const vis = hasModule(user, "guardias") ? visibleSectorIds(user, "guardias") : null;
     if (hasModule(user, "guardias")) {
-      const profs = await db.select().from(profesionalesTable).orderBy(asc(profesionalesTable.name));
+      let profs = await db.select().from(profesionalesTable).orderBy(asc(profesionalesTable.name));
+      // Con alcance "solo sus sectores": solo profesionales que hacen guardias en esos sectores.
+      if (vis) {
+        const ids = vis.length
+          ? new Set(
+              (await db.selectDistinct({ id: guardiasTable.professionalId }).from(guardiasTable).where(and(inArray(guardiasTable.sectorId, vis)))).map((r) => r.id),
+            )
+          : new Set<number | null>();
+        profs = profs.filter((p) => ids.has(p.id));
+      }
       for (const p of profs.filter((p) => coincide(p.name, p.matricula, p.especialidad)).slice(0, 6)) {
         out.push({
           tipo: "profesional",
@@ -52,7 +62,7 @@ router.get("/buscar", requireAuth, async (req, res): Promise<void> => {
         out.push({ tipo: "usuario", titulo: u.name, detalle: `@${u.username}${u.active ? "" : " · inactivo"}`, link: "/configuracion" });
       }
     }
-    const sectores = await db.select().from(sectorsTable).where(eq(sectorsTable.active, true));
+    const sectores = (await db.select().from(sectorsTable).where(eq(sectorsTable.active, true))).filter((s) => !vis || vis.includes(s.id));
     for (const s of sectores.filter((s) => coincide(s.name, s.shortName)).slice(0, 4)) {
       out.push({ tipo: "sector", titulo: s.name, detalle: s.shortName, link: hasModule(user, "guardias") ? `/guardias?sector=${s.id}` : "/dashboard" });
     }

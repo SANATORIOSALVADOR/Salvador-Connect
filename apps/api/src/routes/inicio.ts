@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { admItemsTable, admObligacionesTable, db, guardiasTable, sectorsTable, usersTable } from "@salvador/db";
-import { hasLevel, hasModule, levelOf, requireAuth } from "../lib/auth";
+import { ownSectorIds, hasLevel, hasModule, levelOf, requireAuth } from "../lib/auth";
 import { aplicaEnMes, calendarioDelAnio, isoDate } from "../lib/administracion";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
@@ -168,7 +168,9 @@ router.get("/inicio", requireAuth, async (req, res): Promise<void> => {
 
     // ----- Guardias: de guardia ahora, quién sigue y cobertura, en los sectores de la persona -----
     if (hasModule(user, "guardias")) {
-      const misSectores = user.role === "superadmin" || user.sectorIds.length === 0 ? null : new Set(user.sectorIds);
+      // Sus sectores a cargo de Guardias (sin sectores a cargo: todos).
+      const propios = ownSectorIds(user, "guardias");
+      const misSectores = propios ? new Set(propios) : null;
       const sectores = (await sectoresDeGuardia()).filter((s) => !misSectores || misSectores.has(s.sectorId));
       const ids = new Set(sectores.map((s) => s.sectorId));
       const filas = (

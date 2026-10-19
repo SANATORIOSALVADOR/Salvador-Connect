@@ -87,7 +87,10 @@ docker compose up -d --force-recreate
 
 - Ver = consultar (GET). Cargar y editar = crear / modificar. Control total = eliminar y configurar el módulo.
 - API: `requireModuleAccess("<modulo>")` en cada router; acciones de configuración con `requireLevel("<modulo>", "total")`.
-- Sectores a cargo del usuario limitan dónde escribe en Guardias (ninguno = todos).
+- **Alcance por sector, por módulo** (módulos con sectores: guardias, inventario, instructivos):
+  `todos` · `carga` (ve todo, trabaja en sus sectores) · `sector` (ve y trabaja solo en sus sectores).
+  Se guarda en `user_modules.alcance` + `user_modules.sector_ids`. API: `visibleSectorIds`, `ownSectorIds`,
+  `canSeeSector`, `canWriteSector` en `lib/auth.ts`. **Toda lectura** de datos con sector debe filtrar por `visibleSectorIds`.
 
 Skill: `.claude/skills/usuarios/SKILL.md`
 

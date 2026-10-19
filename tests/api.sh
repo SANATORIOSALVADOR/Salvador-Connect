@@ -130,6 +130,42 @@ check "eliminar etiqueta sin uso" 204 "$(req $A DELETE /guardias/etiquetas/$ET)"
 check "Control total configura el horario de su sector" 200 "$(req $R PUT /guardias/config/$GC '{"active":true,"cobertura":[]}')"
 check "responsable NO crea sectores (solo superadmin)" 403 "$(req $R POST /sectores '{"name":"Sector X","shortName":"SX"}')"
 
+echo "== Alcance por sector (por módulo)"
+req $A GET /users >/dev/null
+SC=$(jget "JSON.stringify(d.find(u=>u.username==='respgc').scopes)"); [ "$SC" = "{\"guardias\":{\"alcance\":\"carga\",\"sectorIds\":[$GC]}}" ] && ok "formato viejo (sectorIds) → ve todo, carga en GC ($SC)" || bad "compat sectorIds" "$SC"
+check "crear encargado UTI (solo su sector)" 201 "$(req $A POST /users "{\"name\":\"Enc UTI\",\"username\":\"encuti\",\"password\":\"prueba123\",\"permissions\":{\"guardias\":\"total\"},\"scopes\":{\"guardias\":{\"alcance\":\"sector\",\"sectorIds\":[$UTI]},\"administracion\":{\"alcance\":\"sector\",\"sectorIds\":[$UTI]}}}")"
+SC=$(jget "JSON.stringify(d.scopes)"); [ "$SC" = "{\"guardias\":{\"alcance\":\"sector\",\"sectorIds\":[$UTI]}}" ] && ok "guarda el alcance solo en módulos con sectores ($SC)" || bad "scopes" "$SC"
+check "crear con alcance sin sectores = todos" 201 "$(req $A POST /users '{"name":"Sin sec","username":"sinsec","password":"prueba123","permissions":{"guardias":"ver"},"scopes":{"guardias":{"alcance":"sector","sectorIds":[]}}}')"
+SC=$(jget "JSON.stringify(d.scopes)"); [ "$SC" = "{}" ] && ok "sin sectores elegidos queda en todos" || bad "vacío" "$SC"
+C=$T/ck_enc; check "login encargado UTI" 200 "$(req $C POST /auth/login '{"username":"encuti","password":"prueba123"}')"
+check "me trae el alcance" 200 "$(req $C GET /auth/me)"
+SC=$(jget "d.scopes.guardias.alcance"); [ "$SC" = "sector" ] && ok "auth/me: alcance $SC" || bad "auth/me" "$SC"
+check "encargado lee guardias" 200 "$(req $C GET '/guardias?from=2026-10-01&to=2026-11-30')"
+OTROS=$(jget "d.filter(g=>g.sectorId!==$UTI).length"); N=$(jget "d.length")
+[ "$OTROS" = "0" ] && [ "$N" -gt 0 ] && ok "solo ve guardias de UTI ($N)" || bad "lectura por sector" "otros=$OTROS total=$N"
+check "config de sectores" 200 "$(req $C GET /guardias/config)"
+IDS=$(jget "d.map(s=>s.sectorId).join(',')"); [ "$IDS" = "$UTI" ] && ok "config: solo su sector" || bad "config" "$IDS"
+check "auditoría (encargado)" 200 "$(req $C GET '/guardias/auditoria?limit=200')"
+OTROS=$(jget "d.filter(a=>((a.after||a.before)||{}).sectorId!==$UTI).length"); [ "$OTROS" = "0" ] && ok "auditoría: solo su sector" || bad "auditoría" "otros=$OTROS"
+check "NO carga en otro sector" 403 "$(req $C POST /guardias "{\"sectorId\":$GC,\"date\":\"2026-11-10\",\"startTime\":\"08:00\",\"endTime\":\"16:00\",\"professionalName\":\"Luna Sofía\"}")"
+check "carga en su sector" 201 "$(req $C POST /guardias "{\"sectorId\":$UTI,\"date\":\"2026-11-10\",\"startTime\":\"08:00\",\"endTime\":\"16:00\",\"professionalName\":\"Luna Sofía\"}")"
+GU=$(jget d.id)
+check "NO modifica guardias de otro sector" 403 "$(req $C PATCH /guardias/$G1 "{\"sectorId\":$GC,\"date\":\"2026-10-05\",\"startTime\":\"20:00\",\"endTime\":\"08:00\",\"professionalName\":\"Pérez Juan Carlos\"}")"
+check "NO configura otro sector" 403 "$(req $C PUT /guardias/config/$GC '{"active":true,"cobertura":[]}')"
+check "solape con otro sector: sin detalle" 409 "$(req $A POST /guardias "{\"sectorId\":$GC,\"date\":\"2026-11-10\",\"startTime\":\"10:00\",\"endTime\":\"12:00\",\"professionalName\":\"Luna Sofía\"}")"
+check "buscador: no muestra sectores ajenos" 200 "$(req $C GET '/buscar?q=guardia')"
+X=$(jget "d.filter(r=>r.tipo==='sector').map(r=>r.titulo).join(',')"); [ -z "$X" ] && ok "buscador sin sectores ajenos" || bad "buscador" "$X"
+check "crear 've todo, trabaja en UTI'" 201 "$(req $A POST /users "{\"name\":\"Ve todo\",\"username\":\"vetodo\",\"password\":\"prueba123\",\"permissions\":{\"guardias\":\"editar\"},\"scopes\":{\"guardias\":{\"alcance\":\"carga\",\"sectorIds\":[$UTI]}}}")"
+V=$T/ck_vt; req $V POST /auth/login '{"username":"vetodo","password":"prueba123"}' >/dev/null
+check "ve todo: lee guardias" 200 "$(req $V GET '/guardias?from=2026-10-01&to=2026-10-31')"
+OTROS=$(jget "d.filter(g=>g.sectorId!==$UTI).length"); [ "$OTROS" -gt 0 ] && ok "ve también otros sectores ($OTROS)" || bad "ve todo" "$OTROS"
+check "ve todo: NO carga en GC" 403 "$(req $V POST /guardias "{\"sectorId\":$GC,\"date\":\"2026-11-11\",\"startTime\":\"08:00\",\"endTime\":\"16:00\",\"professionalName\":\"Luna Sofía\"}")"
+EID=$(req $A GET /users >/dev/null; jget "d.find(u=>u.username==='encuti').id")
+check "cambiar permisos sin mandar alcance lo conserva" 200 "$(req $A PATCH /users/$EID '{"permissions":{"guardias":"editar"}}')"
+SC=$(jget "JSON.stringify(d.scopes)"); [ "$SC" = "{\"guardias\":{\"alcance\":\"sector\",\"sectorIds\":[$UTI]}}" ] && ok "alcance conservado" || bad "conserva" "$SC"
+check "no se borra un sector asignado a alguien" 409 "$(req $A DELETE /sectores/$UTI)"
+check "borrar guardia propia" 204 "$(req $A DELETE /guardias/$GU)"
+
 echo "== Administración: ítems"
 E=$T/ck_admed
 check "crear usuario Administración=editar" 201 "$(req $A POST /users '{"name":"Laura Adm","username":"laura","password":"prueba123","permissions":{"administracion":"editar"}}')"

@@ -40,8 +40,11 @@ Estilos de estado en línea: el CSS del build fija `background` / `border` de `.
 
 ## Permisos
 
-- Carga/edición: `superadmin` o `responsable`
-- Responsable con sectores asignados: solo carga/edita/borra en esos sectores (sin sectores asignados = todos)
+- Nivel en el módulo (Ver / Cargar y editar / Control total) + **alcance por sector** del permiso de Guardias:
+  todos · ve todo y trabaja en sus sectores · solo sus sectores (no ve nada de otros sectores).
+- Profesionales: la lista de nombres es común (se necesita para cargar); el contador de guardias cuenta solo lo visible y
+  no se puede renombrar a alguien que hace guardias fuera de los sectores propios.
+- Solape con una guardia de un sector que no ve: avisa "en otro sector" sin dar el detalle.
 
 ## Reglas de datos
 

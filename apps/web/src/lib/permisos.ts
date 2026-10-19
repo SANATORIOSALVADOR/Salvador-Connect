@@ -10,8 +10,25 @@ export const LEVEL_COLOR: Record<Level, { bg: string; fg: string }> = {
   total: { bg: "hsl(155 55% 88%)", fg: "hsl(155 60% 24%)" },
 };
 
+/**
+ * Alcance en módulos con sectores (debe coincidir con la API: lib/auth.ts → ALCANCES).
+ *  todos: ve y trabaja en todos · carga: ve todo y trabaja en sus sectores · sector: solo sus sectores.
+ */
+export type Alcance = "todos" | "carga" | "sector";
+export type ModuleScope = { alcance: Alcance; sectorIds: number[] };
+export const ALCANCE_LABEL: Record<Alcance, string> = {
+  todos: "Todos los sectores",
+  carga: "Ve todo, trabaja en sus sectores",
+  sector: "Solo sus sectores",
+};
+export const ALCANCE_AYUDA: Record<Alcance, string> = {
+  todos: "Ve y trabaja con la información de todos los sectores.",
+  carga: "Ve la información de todos los sectores, pero carga, modifica y elimina solo en los suyos.",
+  sector: "Ve y trabaja únicamente con la información de sus sectores: el resto no le aparece.",
+};
+
 /** Qué permite cada nivel en cada módulo (debe coincidir con los controles de la API). */
-export const MODULES: { key: string; label: string; levels: Level[]; can: Partial<Record<Level, string>> }[] = [
+export const MODULES: { key: string; label: string; levels: Level[]; can: Partial<Record<Level, string>>; sectores?: boolean }[] = [
   { key: "dashboard", label: "Inicio", levels: ["ver"], can: { ver: "Ver la pantalla de inicio con lo de su día según sus módulos." } },
   {
     key: "administracion",
@@ -27,6 +44,7 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
     key: "guardias",
     label: "Guardias Médicas",
     levels: ["ver", "editar", "total"],
+    sectores: true,
     can: {
       ver: "Ver calendario, quién está de guardia ahora, registro y estadísticas; exportar CSV.",
       editar: "Además: cargar y modificar guardias, copiar semana o mes, ver el historial de cambios.",
@@ -37,12 +55,14 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
     key: "inventario",
     label: "Inventario (próximamente)",
     levels: ["ver", "editar", "total"],
+    sectores: true,
     can: { ver: "Ver activos y movimientos.", editar: "Además: dar de alta y modificar activos.", total: "Además: eliminar activos." },
   },
   {
     key: "instructivos",
     label: "Instructivos (próximamente)",
     levels: ["ver", "editar", "total"],
+    sectores: true,
     can: { ver: "Ver y consultar instructivos.", editar: "Además: publicar y modificar instructivos.", total: "Además: eliminar instructivos." },
   },
   { key: "liquidacion", label: "Liquidación (próximamente)", levels: ["ver"], can: { ver: "Ver el módulo cuando esté disponible." } },

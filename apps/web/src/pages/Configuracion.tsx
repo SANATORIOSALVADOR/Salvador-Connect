@@ -1,7 +1,7 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { confirmar } from "@/components/feedback";
 import AparienciaConfig from "./shared/AparienciaConfig";
-import { LEVEL_COLOR, LEVEL_LABEL, MODULES, type Level } from "@/lib/permisos";
+import { ALCANCE_AYUDA, ALCANCE_LABEL, LEVEL_COLOR, LEVEL_LABEL, MODULES, type Alcance, type Level, type ModuleScope } from "@/lib/permisos";
 import { CoberturaEditor, TAG_COLORS, TagBadge, franjasResumen, type Etiqueta } from "./guardias/compartido";
 import type { Franja, SectorConfig } from "./guardias/logic";
 
@@ -24,6 +24,7 @@ type UserRow = {
   active: boolean;
   mustChangePassword: boolean;
   permissions: Record<string, Level>;
+  scopes?: Record<string, ModuleScope>;
   sectorIds: number[];
   lastLoginAt: string | null;
   createdAt: string;
@@ -60,7 +61,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
 }
 
-type Plantilla = { nombre: string; permissions: Record<string, Level>; sectorIds: number[] };
+type Plantilla = { nombre: string; permissions: Record<string, Level>; scopes?: Record<string, ModuleScope>; sectorIds?: number[] };
 
 type UserForm = {
   name: string;
@@ -70,11 +71,45 @@ type UserForm = {
   active: boolean;
   role: "superadmin" | "usuario";
   permissions: Record<string, Level>;
-  sectorIds: number[];
+  /** Alcance por módulo con sectores (los que no figuran = todos los sectores). */
+  scopes: Record<string, ModuleScope>;
 };
 
 function emptyUserForm(): UserForm {
-  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, sectorIds: [] };
+  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, scopes: {} };
+}
+
+/** Alcance de una plantilla o usuario viejo que solo tenía "sectores a cargo" (lo de antes = ve todo, carga en esos). */
+function scopesDe(x: { permissions: Record<string, Level>; scopes?: Record<string, ModuleScope>; sectorIds?: number[] }): Record<string, ModuleScope> {
+  if (x.scopes) return JSON.parse(JSON.stringify(x.scopes));
+  const out: Record<string, ModuleScope> = {};
+  if (x.sectorIds?.length) for (const m of MODULES) if (m.sectores && x.permissions[m.key]) out[m.key] = { alcance: "carga", sectorIds: [...x.sectorIds] };
+  return out;
+}
+
+/** Resumen corto del alcance de un usuario, para la tabla. */
+function AlcanceResumen({ u, sectorName }: { u: UserRow; sectorName: Map<number, string> }) {
+  if (u.role === "superadmin") return <span style={MUTED}>Todos</span>;
+  const sc = scopesDe(u);
+  const filas = MODULES.filter((m) => m.sectores && u.permissions[m.key]).map((m) => ({ m, s: sc[m.key] }));
+  if (!filas.length) return <span style={MUTED}>—</span>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {filas.map(({ m, s }) => (
+        <span key={m.key} style={{ fontSize: 12.5 }}>
+          <strong>{m.label.replace(" (próximamente)", "")}:</strong>{" "}
+          {!s || s.alcance === "todos" ? (
+            <span style={MUTED}>todos</span>
+          ) : (
+            <>
+              {s.sectorIds.map((id) => sectorName.get(id) || `#${id}`).join(", ")}{" "}
+              <span style={MUTED}>({s.alcance === "sector" ? "solo sus sectores" : "ve todo"})</span>
+            </>
+          )}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function PermChips({ u }: { u: UserRow }) {
@@ -190,7 +225,7 @@ export default function ConfiguracionPage() {
   }
 
   function openEditUser(u: UserRow) {
-    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, sectorIds: [...u.sectorIds] });
+    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, scopes: scopesDe(u) });
     setUerror(null);
     setEditor({ mode: "edit", user: u });
   }
@@ -200,7 +235,27 @@ export default function ConfiguracionPage() {
       const permissions = { ...f.permissions };
       if (level) permissions[moduleKey] = level;
       else delete permissions[moduleKey];
-      return { ...f, permissions };
+      const scopes = { ...f.scopes };
+      if (!level) delete scopes[moduleKey];
+      return { ...f, permissions, scopes };
+    });
+  }
+
+  function setAlcance(moduleKey: string, alcance: Alcance) {
+    setUform((f) => {
+      const scopes = { ...f.scopes };
+      if (alcance === "todos") delete scopes[moduleKey];
+      else scopes[moduleKey] = { alcance, sectorIds: f.scopes[moduleKey]?.sectorIds ?? [] };
+      return { ...f, scopes };
+    });
+  }
+
+  function toggleSectorAlcance(moduleKey: string, sectorId: number, on: boolean) {
+    setUform((f) => {
+      const sc = f.scopes[moduleKey];
+      if (!sc) return f;
+      const sectorIds = on ? [...new Set([...sc.sectorIds, sectorId])] : sc.sectorIds.filter((x) => x !== sectorId);
+      return { ...f, scopes: { ...f.scopes, [moduleKey]: { ...sc, sectorIds } } };
     });
   }
 
@@ -215,6 +270,11 @@ export default function ConfiguracionPage() {
       setUerror("La contraseña inicial debe tener al menos 6 caracteres.");
       return;
     }
+    const sinSectores = MODULES.find((m) => m.sectores && uform.permissions[m.key] && uform.scopes[m.key] && uform.scopes[m.key].alcance !== "todos" && !uform.scopes[m.key].sectorIds.length);
+    if (uform.role === "usuario" && sinSectores) {
+      setUerror(`${sinSectores.label}: marcá al menos un sector o elegí "Todos los sectores".`);
+      return;
+    }
     if (uform.role === "usuario" && Object.keys(uform.permissions).length === 0 && !(await confirmar({ titulo: "Sin acceso a módulos", mensaje: "El usuario no va a tener acceso a ningún módulo. ¿Guardar igual?", accion: "Guardar igual" }))) return;
     setUsaving(true);
     try {
@@ -225,7 +285,7 @@ export default function ConfiguracionPage() {
         active: uform.active,
         role: uform.role,
         permissions: uform.role === "superadmin" ? {} : uform.permissions,
-        sectorIds: uform.sectorIds,
+        scopes: uform.role === "superadmin" ? {} : Object.fromEntries(Object.entries(uform.scopes).filter(([k]) => uform.permissions[k])),
         ...(editor?.mode === "create" ? { password: uform.password } : {}),
       };
       if (editor?.mode === "create") {
@@ -258,7 +318,7 @@ export default function ConfiguracionPage() {
     if (!nombre) return;
     const existe = plantillas.some((p) => p.nombre.toLowerCase() === nombre.toLowerCase());
     if (existe && !(await confirmar({ titulo: `Reemplazar la plantilla "${nombre}"?`, accion: "Reemplazar" }))) return;
-    const nueva: Plantilla = { nombre, permissions: { ...uform.permissions }, sectorIds: [...uform.sectorIds] };
+    const nueva: Plantilla = { nombre, permissions: { ...uform.permissions }, scopes: JSON.parse(JSON.stringify(uform.scopes)) };
     await guardarPlantillas([...plantillas.filter((p) => p.nombre.toLowerCase() !== nombre.toLowerCase()), nueva], `Plantilla "${nombre}" guardada.`);
     setNombrePlantilla(null);
   }
@@ -498,7 +558,7 @@ export default function ConfiguracionPage() {
                       <td>{u.role === "superadmin" ? <span style={CHIP("hsl(270 60% 92%)", "hsl(270 50% 32%)")}>Superadmin</span> : "Usuario"}</td>
                       <td style={{ maxWidth: 360 }}><PermChips u={u} /></td>
                       <td style={{ fontSize: 12 }}>
-                        {u.role === "superadmin" || u.sectorIds.length === 0 ? <span style={MUTED}>Todos</span> : u.sectorIds.map((id) => sectorName.get(id) || `#${id}`).join(", ")}
+                        <AlcanceResumen u={u} sectorName={sectorName} />
                       </td>
                       <td>
                         {!u.active ? <span style={CHIP("hsl(0 0% 90%)", "hsl(0 0% 35%)")}>Inactivo</span> : u.mustChangePassword ? <span style={CHIP("hsl(40 90% 90%)", "hsl(35 70% 30%)")}>Primer acceso</span> : <span style={CHIP("hsl(155 55% 88%)", "hsl(155 60% 24%)")}>Activo</span>}
@@ -649,7 +709,7 @@ export default function ConfiguracionPage() {
                       value=""
                       onChange={(e) => {
                         const src = users.find((u) => u.id === Number(e.target.value));
-                        if (src) setUform((f) => ({ ...f, permissions: { ...src.permissions }, sectorIds: [...src.sectorIds] }));
+                        if (src) setUform((f) => ({ ...f, permissions: { ...src.permissions }, scopes: scopesDe(src) }));
                       }}
                     >
                       <option value="">Copiar de un usuario…</option>
@@ -663,7 +723,7 @@ export default function ConfiguracionPage() {
                         aria-label="Aplicar plantilla de permisos"
                         onChange={(e) => {
                           const pl = plantillas.find((p) => p.nombre === e.target.value);
-                          if (pl) setUform((f) => ({ ...f, permissions: { ...pl.permissions }, sectorIds: [...pl.sectorIds] }));
+                          if (pl) setUform((f) => ({ ...f, permissions: { ...pl.permissions }, scopes: scopesDe(pl) }));
                         }}
                       >
                         <option value="">Aplicar plantilla…</option>
@@ -705,8 +765,11 @@ export default function ConfiguracionPage() {
                     <tbody>
                       {MODULES.map((m) => {
                         const cur = uform.permissions[m.key] ?? null;
+                        const sc = uform.scopes[m.key];
+                        const alcance: Alcance = sc?.alcance ?? "todos";
                         return (
-                          <tr key={m.key}>
+                          <Fragment key={m.key}>
+                          <tr>
                             <td>
                               <div className="agenda-title">{m.label}</div>
                               <div style={{ ...MUTED, maxWidth: 300, whiteSpace: "normal" }}>{cur ? m.can[cur] : "No ve el módulo en el menú."}</div>
@@ -722,29 +785,37 @@ export default function ConfiguracionPage() {
                               </td>
                             ))}
                           </tr>
+                          {m.sectores && cur && (
+                            <tr>
+                              <td colSpan={5} style={{ background: "hsl(var(--muted) / .35)", paddingTop: 10, paddingBottom: 12 }}>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                                  <span className="field-label" style={{ margin: 0 }}>Sectores</span>
+                                  <select className="select" style={{ width: 290, fontSize: 13 }} value={alcance} onChange={(e) => setAlcance(m.key, e.target.value as Alcance)} aria-label={`${m.label}: alcance por sector`}>
+                                    {(["todos", "carga", "sector"] as Alcance[]).map((a) => <option key={a} value={a}>{ALCANCE_LABEL[a]}</option>)}
+                                  </select>
+                                  <span style={{ ...MUTED, flex: "1 1 260px", whiteSpace: "normal" }}>{ALCANCE_AYUDA[alcance]}</span>
+                                </div>
+                                {alcance !== "todos" && (
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                                    {sectors.filter((s) => s.active || sc?.sectorIds.includes(s.id)).map((s) => {
+                                      const on = Boolean(sc?.sectorIds.includes(s.id));
+                                      return (
+                                        <label key={s.id} style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? "hsl(var(--primary))" : "hsl(var(--border))"}`, background: on ? "hsl(var(--primary) / .12)" : "hsl(var(--card))" }}>
+                                          <input type="checkbox" checked={on} onChange={(e) => toggleSectorAlcance(m.key, s.id, e.target.checked)} />
+                                          {s.name}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
                   </table>
-                </div>
-              </section>
-            )}
-
-            {uform.role === "usuario" && (
-              <section>
-                <div className="field-label" style={{ marginBottom: 4 }}>Sectores a cargo</div>
-                <div style={{ ...MUTED, marginBottom: 8 }}>En Guardias solo puede cargar y modificar en estos sectores. Si no marcás ninguno, puede trabajar en todos.</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 6 }}>
-                  {sectors.filter((s) => s.active || uform.sectorIds.includes(s.id)).map((s) => (
-                    <label key={s.id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
-                      <input
-                        type="checkbox"
-                        checked={uform.sectorIds.includes(s.id)}
-                        onChange={(e) => setUform((f) => ({ ...f, sectorIds: e.target.checked ? [...f.sectorIds, s.id] : f.sectorIds.filter((x) => x !== s.id) }))}
-                      />
-                      {s.name}
-                    </label>
-                  ))}
                 </div>
               </section>
             )}

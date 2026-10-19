@@ -219,7 +219,7 @@ export default function GuardiasMedicas() {
   const loadMeta = useCallback(async () => {
     try {
       const [me, secs, cfg, profs, tags] = await Promise.all([
-        apiJson<{ role?: string; sectorIds?: number[]; permissions?: Record<string, string> }>("/auth/me"),
+        apiJson<{ role?: string; sectorIds?: number[]; permissions?: Record<string, string>; scopes?: Record<string, { alcance: string; sectorIds: number[] }> }>("/auth/me"),
         apiJson<Sector[]>("/sectors"),
         apiJson<SectorConfig[]>("/guardias/config"),
         apiJson<string[]>("/guardias/profesionales"),
@@ -229,9 +229,12 @@ export default function GuardiasMedicas() {
       setCanWrite(levelRank(me, "guardias") >= 2);
       setCanTotal(levelRank(me, "guardias") >= 3);
       setIsSuperadmin(role === "superadmin");
-      const mine = Array.isArray(me.sectorIds) ? me.sectorIds : [];
-      setWritableSectorIds(role === "superadmin" || mine.length === 0 ? null : mine);
-      setSectors(Array.isArray(secs) ? secs : []);
+      // Alcance en Guardias: sectores donde trabaja y, si es "solo sus sectores", los únicos que ve.
+      const sc = role === "superadmin" ? undefined : me.scopes?.guardias;
+      const propios = sc && sc.alcance !== "todos" && sc.sectorIds.length ? sc.sectorIds : null;
+      const visibles = sc?.alcance === "sector" ? propios : null;
+      setWritableSectorIds(propios);
+      setSectors(Array.isArray(secs) ? (visibles ? secs.filter((x) => visibles.includes(x.id)) : secs) : []);
       setConfigs(Array.isArray(cfg) ? cfg : []);
       setProfesionales(Array.isArray(profs) ? profs : []);
       setEtiquetas(Array.isArray(tags) ? tags : []);
