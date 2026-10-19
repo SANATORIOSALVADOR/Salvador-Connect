@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
-import { admItemsTable, db, guardiasAuditoriaTable } from "@salvador/db";
+import { admItemsTable, db, guardiasAuditoriaTable, userModulesTable, usersTable } from "@salvador/db";
 import { can, hasModule, ownSectorIds, requireAuth, visibleSectorIds } from "../lib/auth";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horasEnRango, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
@@ -10,7 +10,7 @@ const router: IRouter = Router();
 
 type Notificacion = {
   id: string; // estable: la web recuerda cuáles ya se leyeron
-  modulo: "administracion" | "guardias";
+  modulo: "administracion" | "guardias" | "sistema";
   nivel: "alta" | "media" | "info";
   titulo: string;
   detalle: string;
@@ -104,6 +104,28 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
             link: "/guardias",
           });
         }
+      }
+    }
+
+    // Superadmin: accesos temporarios que vencen en los próximos 7 días.
+    if (user.role === "superadmin") {
+      const tope = addDaysIso(hoy, 7);
+      const fmt = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
+      const cuentas = await db
+        .select({ id: usersTable.id, name: usersTable.name, hasta: usersTable.accesoHasta })
+        .from(usersTable)
+        .where(and(eq(usersTable.active, true), gte(usersTable.accesoHasta, hoy), lte(usersTable.accesoHasta, tope)));
+      for (const c of cuentas) {
+        out.push({ id: `acc-${c.id}-${c.hasta}`, modulo: "sistema", nivel: c.hasta === hoy ? "alta" : "media", titulo: `Vence el acceso de ${c.name}`, detalle: `Puede entrar hasta el ${fmt(c.hasta!)}.`, fecha: c.hasta!, link: "/configuracion" });
+      }
+      const permisos = await db
+        .select({ id: usersTable.id, name: usersTable.name, modulo: userModulesTable.moduleKey, hasta: userModulesTable.hasta })
+        .from(userModulesTable)
+        .innerJoin(usersTable, eq(usersTable.id, userModulesTable.userId))
+        .where(and(eq(usersTable.active, true), gte(userModulesTable.hasta, hoy), lte(userModulesTable.hasta, tope)));
+      const MOD: Record<string, string> = { administracion: "Administración", guardias: "Guardias Médicas", inventario: "Inventario", instructivos: "Instructivos", dashboard: "Inicio", liquidacion: "Liquidación" };
+      for (const p of permisos) {
+        out.push({ id: `perm-${p.id}-${p.modulo}-${p.hasta}`, modulo: "sistema", nivel: "media", titulo: `Vence un permiso de ${p.name}`, detalle: `${MOD[p.modulo] ?? p.modulo}: temporario hasta el ${fmt(p.hasta!)}.`, fecha: p.hasta!, link: "/configuracion" });
       }
     }
 

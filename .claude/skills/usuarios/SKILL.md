@@ -70,6 +70,15 @@ depende del nivel del usuario en ese módulo (y de sus sectores a cargo).
   recurrentes, contactos, eliminar, calendario) en `Administracion.tsx → permisosDe`.
 - Estadísticas y exportar se controlan en pantalla (los datos son los mismos del calendario).
 
+## Vencimientos e historial
+
+- `users.acceso_hasta`: desde el día siguiente no entra (login 403 `codigo: "acceso_vencido"`; la sesión deja de valer).
+- `user_modules.hasta`: permiso temporario; vencido, `efectivos()` lo ignora (con perfil vuelve a lo del perfil). Con perfil,
+  solo se puede poner en excepciones. `serializeUsers` devuelve `vencimientos` (vigentes) y `vencidos`.
+- Notificaciones del superadmin: cuentas y permisos que vencen en 7 días.
+- `permisos_historial` (migración 0009): `registrarPermiso()` en `routes/users.ts` (alta, cambio, baja, clave, perfil_*) y
+  en `routes/auth.ts` ("ver_como"). `GET /api/users/historial?userId=` (superadmin). El detalle es texto legible (" · " separa líneas).
+
 ## Perfiles y "Ver como"
 
 - Tabla `perfiles` (nombre, descripción, `permisos` {modulo: nivel}, `alcances` {modulo: alcance}); `users.perfil_id`.

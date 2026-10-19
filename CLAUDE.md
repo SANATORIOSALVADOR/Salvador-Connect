@@ -97,6 +97,10 @@ docker compose up -d --force-recreate
 - **Perfiles** (`perfiles`, migración 0007): módulos + nivel + tipo de alcance. `users.perfil_id` vincula; la persona hereda
   los cambios. En `user_modules` con perfil: `level = 'perfil'` (hereda, guarda sus sectores), `'ninguno'` o un nivel (excepción).
   Permisos efectivos: `efectivos()` en `lib/auth.ts`.
+- **Vencimientos**: `users.acceso_hasta` (vencida = no entra) y `user_modules.hasta` (permiso temporario; vencido se ignora y,
+  si era excepción de un perfil, vuelve a lo del perfil). Aviso al superadmin 7 días antes (notificaciones).
+- **Historial de permisos** (`permisos_historial`): toda alta, cambio, baja, clave, perfil y "Ver como" con detalle legible
+  (`describirCambios` en `routes/users.ts`). Configuración → Historial.
 - **Ver como** (solo superadmin, solo lectura): cookie `sanatorio_ver_como`; `requireAuth` reemplaza `authUser` y rechaza todo
   lo que no sea GET (salvo salir / logout). `req.verComoDe` = el superadmin real.
 

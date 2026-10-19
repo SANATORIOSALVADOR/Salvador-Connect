@@ -36,6 +36,8 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // Perfil de permisos vinculado (null = permisos a medida). FK en la migración 0007.
   perfilId: integer("perfil_id"),
+  // Acceso temporario: desde el día siguiente no puede entrar (null = sin vencimiento).
+  accesoHasta: date("acceso_hasta", { mode: "string" }),
 });
 
 /** Perfiles de permisos (Configuración → Perfiles). La persona vinculada hereda sus cambios. */
@@ -64,6 +66,22 @@ export const userModulesTable = pgTable("user_modules", {
   sectorIds: integer("sector_ids").array().notNull().default([]),
   // Acciones a medida (null = las típicas del nivel). Ver apps/api/src/lib/acciones.ts.
   acciones: text("acciones").array(),
+  // Permiso temporario: vencido, se ignora (null = sin vencimiento).
+  hasta: date("hasta", { mode: "string" }),
+});
+
+/** Historial de cambios de permisos (Configuración → Historial). */
+export const permisosHistorialTable = pgTable("permisos_historial", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+  userNombre: text("user_nombre").notNull().default(""),
+  perfilId: integer("perfil_id"),
+  perfilNombre: text("perfil_nombre").notNull().default(""),
+  actorId: integer("actor_id"),
+  actorNombre: text("actor_nombre").notNull().default(""),
+  accion: text("accion").notNull(),
+  detalle: text("detalle").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const sessionsTable = pgTable("sessions", {

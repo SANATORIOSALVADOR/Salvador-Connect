@@ -234,6 +234,35 @@ check "excepción: además puede copiar" 200 "$(req $A PATCH /users/$AT "{\"perf
 X="$(jget "d.acciones.guardias.join(',')")|$(jget "d.excepciones.join(',')")"; [ "$X" = "ver,cargar,copiar|guardias" ] && ok "acción extra como excepción ($X)" || bad "excepción acción" "$X"
 check "borrar la guardia de prueba" 204 "$(req $A DELETE /guardias/$GA)"
 
+echo "== Accesos con vencimiento e historial de permisos"
+AYER=$(node -e "const d=new Date();d.setDate(d.getDate()-1);console.log(d.toLocaleDateString('sv-SE'))")
+MANANA=$(node -e "const d=new Date();d.setDate(d.getDate()+1);console.log(d.toLocaleDateString('sv-SE'))")
+EN3=$(node -e "const d=new Date();d.setDate(d.getDate()+3);console.log(d.toLocaleDateString('sv-SE'))")
+check "cuenta temporaria (ya vencida)" 201 "$(req $A POST /users "{\"name\":\"Temp Uno\",\"username\":\"tempuno\",\"password\":\"prueba123\",\"permissions\":{\"guardias\":\"ver\"},\"accesoHasta\":\"$AYER\"}")"
+TU=$(jget d.id); X="$(jget d.accesoVencido)"; [ "$X" = "true" ] && ok "marcada como vencida" || bad "vencida" "$X"
+check "cuenta vencida no puede entrar" 403 "$(req $T/ck_tu POST /auth/login '{"username":"tempuno","password":"prueba123"}')"
+C=$(jget d.codigo); [ "$C" = "acceso_vencido" ] && ok "avisa que venció el acceso" || bad "codigo vencido" "$C"
+check "renovar el acceso hasta mañana" 200 "$(req $A PATCH /users/$TU "{\"accesoHasta\":\"$MANANA\"}")"
+check "ahora entra" 200 "$(req $T/ck_tu POST /auth/login '{"username":"tempuno","password":"prueba123"}')"
+check "permiso temporario vencido" 200 "$(req $A PATCH /users/$TU "{\"permissions\":{\"guardias\":\"ver\",\"administracion\":\"editar\"},\"vencimientos\":{\"administracion\":\"$AYER\"}}")"
+X="$(jget "Object.keys(d.permissions).join(',')")|$(jget "d.vencidos.map(v=>v.modulo).join(',')")"; [ "$X" = "guardias|administracion" ] && ok "el permiso vencido no cuenta ($X)" || bad "permiso vencido" "$X"
+req $T/ck_tu GET /auth/me >/dev/null; X=$(jget "d.permissions.administracion||'sin'"); [ "$X" = "sin" ] && ok "la sesión ya no lo tiene" || bad "sesión vencido" "$X"
+check "permiso temporario vigente" 200 "$(req $A PATCH /users/$TU "{\"permissions\":{\"guardias\":\"ver\",\"administracion\":\"editar\"},\"vencimientos\":{\"administracion\":\"$EN3\"}}")"
+X="$(jget d.permissions.administracion)|$(jget d.vencimientos.administracion)"; [ "$X" = "editar|$EN3" ] && ok "vigente hasta $EN3" || bad "vigente" "$X"
+check "superadmin ve el aviso de vencimiento" 200 "$(req $A GET /notificaciones)"
+X=$(jget "d.filter(n=>n.titulo.startsWith('Vence un permiso de Temp Uno')).length"); [ "$X" = "1" ] && ok "aviso de permiso por vencer" || bad "aviso" "$X"
+check "perfil base para excepción temporaria" 201 "$(req $A POST /users/perfiles '{"nombre":"Solo ver guardias","permisos":{"guardias":"ver"}}')"
+PB=$(jget d.id)
+check "excepción temporaria vencida" 201 "$(req $A POST /users "{\"name\":\"Temp Dos\",\"username\":\"tempdos\",\"password\":\"prueba123\",\"perfilId\":$PB,\"permissions\":{\"guardias\":\"editar\"},\"vencimientos\":{\"guardias\":\"$AYER\"}}")"
+X="$(jget d.permissions.guardias)|$(jget "d.excepciones.length")"; [ "$X" = "ver|0" ] && ok "vencida, vuelve a lo del perfil ($X)" || bad "vuelve al perfil" "$X"
+check "historial de la persona" 200 "$(req $A GET "/users/historial?userId=$TU")"
+X=$(jget "d.map(h=>h.accion).join(',')"); case "$X" in *cambio*alta*) ok "registra alta y cambios ($X)";; *) bad "historial" "$X";; esac
+X=$(jget "d.some(h=>h.detalle.includes('Administración: sin acceso → Cargar y editar'))"); [ "$X" = "true" ] && ok "detalle legible del cambio" || bad "detalle" "$(jget "d.map(h=>h.detalle).join(' || ')" | head -c 300)"
+X=$(jget "d.every(h=>h.actorNombre==='Sistemas')"); [ "$X" = "true" ] && ok "registra quién lo hizo" || bad "actor" "$X"
+check "historial general" 200 "$(req $A GET /users/historial)"
+X="$(jget "d.some(h=>h.accion==='ver_como')")|$(jget "d.some(h=>h.accion==='perfil_alta')")|$(jget "d.some(h=>h.accion==='perfil_baja')")"; [ "$X" = "true|true|true" ] && ok "registra Ver como y perfiles" || bad "historial general" "$X"
+check "responsable NO ve el historial" 403 "$(req $R GET /users/historial)"
+
 echo "== Administración: ítems"
 E=$T/ck_admed
 check "crear usuario Administración=editar" 201 "$(req $A POST /users '{"name":"Laura Adm","username":"laura","password":"prueba123","permissions":{"administracion":"editar"}}')"

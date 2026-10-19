@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, sectorsTable, usersTable } from "@salvador/db";
+import { db, permisosHistorialTable, sectorsTable, usersTable } from "@salvador/db";
 import { ChangePasswordBody, LoginBody } from "@salvador/api-zod";
 import {
   VER_COMO_COOKIE,
@@ -12,6 +12,7 @@ import {
   purgeExpiredSessions,
   requireAuth,
   revokeUserSessions,
+  vencido,
   verifyPassword,
 } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -88,6 +89,11 @@ router.post("/auth/login", async (request, response): Promise<void> => {
       return;
     }
     failedLogins.delete(key);
+    if (vencido(user.accesoHasta)) {
+      const [y, m, d] = String(user.accesoHasta).split("-");
+      response.status(403).json({ message: `Tu acceso venció el ${d}/${m}/${y}. Si necesitás seguir usando el sistema, pedíselo al área de Sistemas.`, codigo: "acceso_vencido" });
+      return;
+    }
     await purgeExpiredSessions();
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
     await createSession(user.id, response);
@@ -135,6 +141,10 @@ router.post("/auth/ver-como", async (request, response): Promise<void> => {
   }
   response.cookie(VER_COMO_COOKIE, String(otro.id), { httpOnly: true, sameSite: "lax", secure: process.env.COOKIE_SECURE === "true", path: "/" });
   logger.info({ superadmin: real.username, verComo: otro.username }, "Ver como");
+  await db
+    .insert(permisosHistorialTable)
+    .values({ userId: otro.id, userNombre: otro.name, actorId: real.id, actorNombre: real.name, accion: "ver_como", detalle: `Vio el sistema como ${otro.name} (solo lectura)` })
+    .catch(() => undefined);
   response.json({ ok: true, name: otro.name });
 });
 

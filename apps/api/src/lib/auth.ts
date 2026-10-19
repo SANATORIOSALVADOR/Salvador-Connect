@@ -17,6 +17,16 @@ export const SESSION_COOKIE = "sanatorio_session";
 export const VER_COMO_COOKIE = "sanatorio_ver_como";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
+/** Fecha de hoy (YYYY-MM-DD) en la zona horaria del servidor (TZ). */
+export function hoyIso(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** ¿Venció? (vence al terminar el día "hasta"). */
+export function vencido(hasta: string | null | undefined, hoy = hoyIso()): boolean {
+  return Boolean(hasta && hasta < hoy);
+}
+
 export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "inventario", "instructivos", "configuracion", "usuarios"] as const;
 
 const BOOTSTRAP_USERNAME = "sistemas";
@@ -171,6 +181,9 @@ export type AuthUser = {
   excepciones: string[];
   /** Acciones concretas por módulo (ver lib/acciones.ts). */
   acciones: Record<string, string[]>;
+  /** Acceso temporario: cuenta y permisos con fecha de vencimiento (YYYY-MM-DD). */
+  accesoHasta: string | null;
+  vencimientos: Record<string, string>;
 };
 
 function digestToken(token: string) {
@@ -207,7 +220,7 @@ export function buildScopes(rows: { moduleKey: string; alcance?: string | null; 
 }
 
 export type PerfilDef = { id: number; nombre: string; permisos: Record<string, string>; alcances: Record<string, string>; acciones?: Record<string, string[]> };
-type FilaModulo = { moduleKey: string; level: string; alcance?: string | null; sectorIds?: number[] | null; acciones?: string[] | null };
+type FilaModulo = { moduleKey: string; level: string; alcance?: string | null; sectorIds?: number[] | null; acciones?: string[] | null; hasta?: string | null };
 
 /** Acciones de un módulo: las a medida (si hay) o las del nivel. */
 function accionesDe(moduleKey: string, level: Level, propias: string[] | null | undefined): string[] {
@@ -229,14 +242,22 @@ export function efectivos(
   role: string,
   perfil: PerfilDef | null,
   rows: FilaModulo[],
-): { permissions: Record<string, Level>; scopes: Record<string, ModuleScope>; excepciones: string[]; acciones: Record<string, string[]> } {
-  if (role === "superadmin") return { permissions: allPermissions(), scopes: {}, excepciones: [], acciones: todasLasAcciones() };
+): { permissions: Record<string, Level>; scopes: Record<string, ModuleScope>; excepciones: string[]; acciones: Record<string, string[]>; vencimientos: Record<string, string> } {
+  if (role === "superadmin") return { permissions: allPermissions(), scopes: {}, excepciones: [], acciones: todasLasAcciones(), vencimientos: {} };
+  // Permisos temporarios vencidos: como si no estuvieran (con perfil, vuelve a lo del perfil).
+  const hoy = hoyIso();
+  const vencimientos: Record<string, string> = {};
+  rows = rows.filter((r) => {
+    if (vencido(r.hasta, hoy)) return false;
+    if (r.hasta && r.level !== "perfil") vencimientos[r.moduleKey] = r.hasta;
+    return true;
+  });
   if (!perfil) {
     const propias = rows.filter((r) => r.level !== "perfil" && r.level !== "ninguno");
     const permissions = buildPermissions(role, propias);
     const acciones: Record<string, string[]> = {};
     for (const [mod, lvl] of Object.entries(permissions)) acciones[mod] = accionesDe(mod, lvl, propias.find((r) => r.moduleKey === mod)?.acciones);
-    return { permissions, scopes: buildScopes(propias.filter((r) => permissions[r.moduleKey])), excepciones: [], acciones };
+    return { permissions, scopes: buildScopes(propias.filter((r) => permissions[r.moduleKey])), excepciones: [], acciones, vencimientos };
   }
   const permissions: Record<string, Level> = {};
   const alcance: Record<string, string> = {};
@@ -273,7 +294,7 @@ export function efectivos(
     if (!isSectorModule(mod) || !(ALCANCES as readonly string[]).includes(a) || a === "todos") continue;
     scopes[mod] = { alcance: a, sectorIds: [...new Set(sectores[mod] ?? [])].sort((x, y) => x - y) };
   }
-  return { permissions, scopes, excepciones, acciones };
+  return { permissions, scopes, excepciones, acciones, vencimientos };
 }
 
 export async function leerPerfil(id: number | null | undefined): Promise<PerfilDef | null> {
@@ -295,13 +316,20 @@ export function buildPermissions(role: string, rows: { moduleKey: string; level:
 
 export async function getUserWithPermissions(userId: number): Promise<AuthUser | null> {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (!user || !user.active) return null;
+  if (!user || !user.active || vencido(user.accesoHasta)) return null;
   const modules = await db
-    .select({ moduleKey: userModulesTable.moduleKey, level: userModulesTable.level, alcance: userModulesTable.alcance, sectorIds: userModulesTable.sectorIds, acciones: userModulesTable.acciones })
+    .select({
+      moduleKey: userModulesTable.moduleKey,
+      level: userModulesTable.level,
+      alcance: userModulesTable.alcance,
+      sectorIds: userModulesTable.sectorIds,
+      acciones: userModulesTable.acciones,
+      hasta: userModulesTable.hasta,
+    })
     .from(userModulesTable)
     .where(eq(userModulesTable.userId, userId));
   const perfil = user.role === "superadmin" ? null : await leerPerfil(user.perfilId);
-  const { permissions, scopes, excepciones, acciones } = efectivos(user.role, perfil, modules);
+  const { permissions, scopes, excepciones, acciones, vencimientos } = efectivos(user.role, perfil, modules);
   return {
     id: user.id,
     username: user.username,
@@ -317,6 +345,8 @@ export async function getUserWithPermissions(userId: number): Promise<AuthUser |
     perfil: perfil ? { id: perfil.id, nombre: perfil.nombre } : null,
     excepciones,
     acciones,
+    accesoHasta: user.accesoHasta ?? null,
+    vencimientos,
   };
 }
 

@@ -8,8 +8,8 @@ import type { Franja, SectorConfig } from "./guardias/logic";
 // Configuración (solo superadmin): Usuarios (ABM + permisos por módulo), Sectores (y su participación en
 // Guardias con el horario requerido), Etiquetas de Guardias y Apariencia.
 
-type Seccion = "usuarios" | "perfiles" | "sectores" | "etiquetas" | "apariencia";
-const SECCIONES: Seccion[] = ["usuarios", "perfiles", "sectores", "etiquetas", "apariencia"];
+type Seccion = "usuarios" | "perfiles" | "sectores" | "etiquetas" | "historial" | "apariencia";
+const SECCIONES: Seccion[] = ["usuarios", "perfiles", "sectores", "etiquetas", "historial", "apariencia"];
 
 const API = "/api";
 
@@ -32,6 +32,11 @@ type UserRow = {
   excepciones?: string[];
   /** Acciones efectivas por módulo. */
   acciones?: Record<string, string[]>;
+  /** Acceso temporario de la cuenta y de permisos puntuales. */
+  accesoHasta?: string | null;
+  accesoVencido?: boolean;
+  vencimientos?: Record<string, string>;
+  vencidos?: { modulo: string; hasta: string }[];
   lastLoginAt: string | null;
   createdAt: string;
 };
@@ -95,10 +100,26 @@ type UserForm = {
   perfilId: number | null;
   /** Acciones a medida por módulo (los que no figuran = las típicas de su nivel). */
   acciones: Record<string, string[]>;
+  /** Acceso de la cuenta hasta (YYYY-MM-DD, "" = sin vencimiento) y permisos temporarios por módulo. */
+  accesoHasta: string;
+  vencimientos: Record<string, string>;
 };
 
+type Movimiento = { id: number; userId: number | null; userNombre: string; perfilId: number | null; perfilNombre: string; actorNombre: string; accion: string; detalle: string; createdAt: string };
+const ACCION_HISTORIAL: Record<string, { txt: string; bg: string; fg: string }> = {
+  alta: { txt: "Alta", bg: "hsl(155 55% 88%)", fg: "hsl(155 60% 24%)" },
+  cambio: { txt: "Cambio", bg: "hsl(215 80% 92%)", fg: "hsl(215 70% 32%)" },
+  baja: { txt: "Baja", bg: "hsl(0 70% 92%)", fg: "hsl(0 60% 35%)" },
+  clave: { txt: "Clave", bg: "hsl(40 90% 90%)", fg: "hsl(35 70% 30%)" },
+  ver_como: { txt: "Ver como", bg: "hsl(35 90% 88%)", fg: "hsl(30 70% 28%)" },
+  perfil_alta: { txt: "Perfil nuevo", bg: "hsl(270 60% 92%)", fg: "hsl(270 50% 32%)" },
+  perfil_cambio: { txt: "Perfil", bg: "hsl(270 60% 92%)", fg: "hsl(270 50% 32%)" },
+  perfil_baja: { txt: "Perfil eliminado", bg: "hsl(0 70% 92%)", fg: "hsl(0 60% 35%)" },
+};
+const fechaCorta = (iso?: string | null) => (iso ? iso.split("-").reverse().join("/") : "");
+
 function emptyUserForm(): UserForm {
-  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, scopes: {}, perfilId: null, acciones: {} };
+  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, scopes: {}, perfilId: null, acciones: {}, accesoHasta: "", vencimientos: {} };
 }
 
 /** Alcance de una plantilla o usuario viejo que solo tenía "sectores a cargo" (lo de antes = ve todo, carga en esos). */
@@ -254,6 +275,9 @@ export default function ConfiguracionPage() {
   const [perfilEditor, setPerfilEditor] = useState<{ mode: "create" | "edit"; perfil?: Perfil; desdeUsuario?: boolean } | null>(null);
   const [pform, setPform] = useState<PerfilForm>({ nombre: "", descripcion: "", permisos: {}, alcances: {}, acciones: {} });
   const [perror, setPerror] = useState<string | null>(null);
+  const [historial, setHistorial] = useState<Movimiento[] | null>(null);
+  const [histUsuario, setHistUsuario] = useState<number | null>(null);
+  const [histBuscar, setHistBuscar] = useState("");
 
   // sectores
   const [sectorEditor, setSectorEditor] = useState<{ mode: "create" | "edit"; sector?: Sector; guardiaIni: string } | null>(null);
@@ -299,6 +323,18 @@ export default function ConfiguracionPage() {
     void load();
   }, [load]);
 
+  // Historial de permisos: se trae al abrir la solapa (y al volver a ella).
+  useEffect(() => {
+    if (section !== "historial" || !isSuperadmin) return;
+    setHistorial(null);
+    apiJson<Movimiento[]>(`/users/historial?limit=400${histUsuario ? `&userId=${histUsuario}` : ""}`)
+      .then((r) => setHistorial(Array.isArray(r) ? r : []))
+      .catch((e) => {
+        setHistorial([]);
+        setError(e instanceof Error ? e.message : "No se pudo leer el historial");
+      });
+  }, [section, histUsuario, isSuperadmin]);
+
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 7000);
@@ -325,7 +361,7 @@ export default function ConfiguracionPage() {
   }
 
   function openEditUser(u: UserRow) {
-    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, scopes: scopesDe(u), perfilId: u.perfilId ?? null, acciones: accionesAMedida(u.permissions, u.acciones) });
+    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, scopes: scopesDe(u), perfilId: u.perfilId ?? null, acciones: accionesAMedida(u.permissions, u.acciones), accesoHasta: u.accesoHasta ?? "", vencimientos: { ...(u.vencimientos ?? {}) } });
     setUerror(null);
     setEditor({ mode: "edit", user: u });
   }
@@ -400,6 +436,8 @@ export default function ConfiguracionPage() {
         scopes: uform.role === "superadmin" ? {} : Object.fromEntries(Object.entries(uform.scopes).filter(([k]) => uform.permissions[k])),
         perfilId: uform.role === "superadmin" ? null : uform.perfilId,
         acciones: uform.role === "superadmin" ? {} : Object.fromEntries(Object.entries(uform.acciones).filter(([k]) => uform.permissions[k])),
+        accesoHasta: uform.accesoHasta || null,
+        vencimientos: uform.role === "superadmin" ? {} : Object.fromEntries(Object.entries(uform.vencimientos).filter(([k, v]) => v && uform.permissions[k] && (!uform.perfilId || esExcepcion(k)))),
         ...(editor?.mode === "create" ? { password: uform.password } : {}),
       };
       if (editor?.mode === "create") {
@@ -708,6 +746,7 @@ export default function ConfiguracionPage() {
           <button type="button" role="tab" aria-selected={section === "perfiles"} className={`gm-tab${section === "perfiles" ? " is-active" : ""}`} onClick={() => setSection("perfiles")}>Perfiles ({perfiles.length})</button>
           <button type="button" role="tab" aria-selected={section === "sectores"} className={`gm-tab${section === "sectores" ? " is-active" : ""}`} onClick={() => setSection("sectores")}>Sectores ({sectors.length})</button>
           <button type="button" role="tab" aria-selected={section === "etiquetas"} className={`gm-tab${section === "etiquetas" ? " is-active" : ""}`} onClick={() => setSection("etiquetas")}>Etiquetas ({etiquetas.filter((e) => e.activa).length})</button>
+          <button type="button" role="tab" aria-selected={section === "historial"} className={`gm-tab${section === "historial" ? " is-active" : ""}`} onClick={() => setSection("historial")}>Historial</button>
           <button type="button" role="tab" aria-selected={section === "apariencia"} className={`gm-tab${section === "apariencia" ? " is-active" : ""}`} onClick={() => setSection("apariencia")}>Apariencia</button>
         </div>
       </div>
@@ -759,7 +798,10 @@ export default function ConfiguracionPage() {
                         <AlcanceResumen u={u} sectorName={sectorName} />
                       </td>
                       <td>
-                        {!u.active ? <span style={CHIP("hsl(0 0% 90%)", "hsl(0 0% 35%)")}>Inactivo</span> : u.mustChangePassword ? <span style={CHIP("hsl(40 90% 90%)", "hsl(35 70% 30%)")}>Primer acceso</span> : <span style={CHIP("hsl(155 55% 88%)", "hsl(155 60% 24%)")}>Activo</span>}
+                        {u.accesoVencido ? <span style={CHIP("hsl(0 70% 92%)", "hsl(0 60% 35%)")} title={`Venció el ${fechaCorta(u.accesoHasta)}`}>Acceso vencido</span> : !u.active ? <span style={CHIP("hsl(0 0% 90%)", "hsl(0 0% 35%)")}>Inactivo</span> : u.mustChangePassword ? <span style={CHIP("hsl(40 90% 90%)", "hsl(35 70% 30%)")}>Primer acceso</span> : <span style={CHIP("hsl(155 55% 88%)", "hsl(155 60% 24%)")}>Activo</span>}
+                      {u.accesoHasta && !u.accesoVencido && <div style={{ ...MUTED, marginTop: 4 }}>Hasta el {fechaCorta(u.accesoHasta)}</div>}
+                        {Object.entries(u.vencimientos ?? {}).map(([k, v]) => <div key={k} style={{ ...MUTED, marginTop: 2 }}>{MODULES.find((x) => x.key === k)?.label.replace(" (próximamente)", "")}: hasta {fechaCorta(v)}</div>)}
+                        {(u.vencidos ?? []).map((v) => <div key={v.modulo} style={{ fontSize: 11.5, marginTop: 2, color: "hsl(0 60% 40%)" }}>Venció {MODULES.find((x) => x.key === v.modulo)?.label.replace(" (próximamente)", "")} ({fechaCorta(v.hasta)})</div>)}
                       </td>
                       <td style={{ textAlign: "right", minWidth: 190 }}>
                         <div className="usr-acciones">
@@ -786,6 +828,48 @@ export default function ConfiguracionPage() {
             {(["ver", "editar", "total"] as Level[]).map((l) => <span key={l}><span style={CHIP(LEVEL_COLOR[l].bg, LEVEL_COLOR[l].fg)}>{LEVEL_LABEL[l]}</span></span>)}
             <span>Desactivar conserva el historial; eliminar solo es posible si el usuario no cargó registros.</span>
           </div>
+        </div>
+      ) : section === "historial" ? (
+        <div className="card" style={CARD}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 14 }}>
+            <p className="page-subtitle" style={{ margin: 0, flex: "1 1 360px" }}>Quién dio, cambió o quitó permisos, y a quién. También registra cambios de clave, perfiles y cada vez que se usó «Ver como».</p>
+            <select className="select" style={{ width: 220 }} value={histUsuario ?? ""} onChange={(e) => setHistUsuario(e.target.value ? Number(e.target.value) : null)} aria-label="Filtrar por persona">
+              <option value="">Todas las personas</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <input className="input" style={{ width: 220 }} placeholder="Buscar en el detalle…" value={histBuscar} onChange={(e) => setHistBuscar(e.target.value)} />
+          </div>
+          {historial === null ? (
+            <div className="skeleton" style={{ height: 160 }} />
+          ) : (
+            (() => {
+              const q = histBuscar.trim().toLowerCase();
+              const lista = historial.filter((h) => !q || `${h.detalle} ${h.userNombre} ${h.perfilNombre} ${h.actorNombre}`.toLowerCase().includes(q));
+              if (!lista.length) return <div className="empty-state" style={{ padding: "28px 8px" }}><p>No hay movimientos{q || histUsuario ? " con ese filtro" : " todavía"}.</p></div>;
+              return (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {lista.map((h) => {
+                    const a = ACCION_HISTORIAL[h.accion] ?? { txt: h.accion, bg: "hsl(var(--muted))", fg: "hsl(var(--foreground))" };
+                    return (
+                      <div key={h.id} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 150px) minmax(0, 1fr)", gap: 12, padding: "12px 4px", borderTop: "1px solid hsl(var(--border))" }}>
+                        <div style={MUTED}>{new Date(h.createdAt).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                            <span style={CHIP(a.bg, a.fg)}>{a.txt}</span>
+                            <strong style={{ fontSize: 13.5 }}>{h.userNombre || h.perfilNombre || "—"}</strong>
+                            <span style={MUTED}>por {h.actorNombre || "el sistema"}</span>
+                          </div>
+                          <div style={{ fontSize: 13, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+                            {h.detalle.split(" · ").filter(Boolean).map((linea, k) => <span key={k}>{linea}</span>)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
+          )}
         </div>
       ) : section === "perfiles" ? (
         <div className="card" style={CARD}>
@@ -913,6 +997,11 @@ export default function ConfiguracionPage() {
             <div>
               <div className="eyebrow">{editor.mode === "create" ? "Nuevo acceso" : "Editar usuario"}</div>
               <h2 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 700 }}>{editor.mode === "create" ? "Crear usuario" : editor.user?.name}</h2>
+              {editor.user && (
+                <button type="button" onClick={() => { setHistUsuario(editor.user!.id); setSection("historial"); setEditor(null); }} style={{ border: "none", background: "transparent", padding: 0, marginTop: 4, fontSize: 12, fontWeight: 600, color: "hsl(var(--primary))", cursor: "pointer" }}>
+                  Ver el historial de permisos de esta persona
+                </button>
+              )}
               {editor.user?.legacyRole && <div style={{ ...MUTED, marginTop: 4 }}>Tenía el rol anterior "{editor.user.legacyRole}"; al guardar se convierte a permisos por módulo.</div>}
             </div>
             {uerror && <div className="form-error">{uerror}</div>}
@@ -933,6 +1022,11 @@ export default function ConfiguracionPage() {
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 13 }}>
                 <input type="checkbox" checked={uform.active} disabled={editor.user?.id === me?.id} onChange={(e) => setUform({ ...uform, active: e.target.checked })} />
                 Usuario activo
+              </label>
+              <label className="field">
+                <span className="field-label">Acceso hasta (opcional)</span>
+                <input className="input" type="date" value={uform.accesoHasta} onChange={(e) => setUform({ ...uform, accesoHasta: e.target.value })} disabled={editor.user?.id === me?.id} />
+                <span style={MUTED}>Para temporarios o reemplazos: desde el día siguiente no puede entrar. Vacío = sin vencimiento.</span>
               </label>
             </section>
 
@@ -1011,6 +1105,12 @@ export default function ConfiguracionPage() {
                                 )}
                               </div>
                               <div style={{ ...MUTED, maxWidth: 300, whiteSpace: "normal" }}>{cur ? m.can[cur] : "No ve el módulo en el menú."}</div>
+                              {cur && (!uform.perfilId || esExcepcion(m.key)) && (
+                                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: "hsl(var(--muted-foreground))" }} title="Permiso temporario: al vencer se corta solo (si es una excepción de un perfil, vuelve a lo del perfil)">
+                                  Temporario hasta
+                                  <input type="date" className="input" style={{ width: 150, padding: "3px 8px", fontSize: 12 }} value={uform.vencimientos[m.key] ?? ""} onChange={(e) => setUform((f) => ({ ...f, vencimientos: { ...f.vencimientos, [m.key]: e.target.value } }))} />
+                                </label>
+                              )}
                             </td>
                             <td style={{ textAlign: "center" }}><input type="radio" name={`perm-${m.key}`} checked={!cur} onChange={() => setLevel(m.key, null)} aria-label={`${m.label}: sin acceso`} /></td>
                             {(["ver", "editar", "total"] as Level[]).map((l) => (
