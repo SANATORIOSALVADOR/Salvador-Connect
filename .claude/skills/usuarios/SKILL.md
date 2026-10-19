@@ -38,10 +38,14 @@ description: Configuración → Usuarios y Sectores del Sanatorio del Salvador �
 - Desactivar o resetear clave cierra las sesiones del usuario.
 - Eliminar un usuario con registros cargados devuelve 409: desactivarlo.
 
-## Sectores y Guardias (todo solo superadmin)
+## Sectores y Guardias
+
+Regla: **crear** sectores y etiquetas = solo superadmin, desde Configuración. Lo que se hace dentro de cada módulo
+depende del nivel del usuario en ese módulo (y de sus sectores a cargo).
 
 - En el formulario de sector: "Participa de Guardias Médicas" + horario requerido (`CoberturaEditor`, en
-  `pages/guardias/compartido.tsx`). Se guarda con `PUT /api/guardias/config/:sectorId` (requireSuperadmin).
+  `pages/guardias/compartido.tsx`). Se guarda con `PUT /api/guardias/config/:sectorId`
+  (`requireLevel("guardias", "total")` + sectores a cargo: también lo usa Guardias → Configuración).
 - Etiquetas: tabla `guardia_etiquetas` (migración `0005`). API `GET /api/guardias/etiquetas` (cualquiera con Guardias),
   `POST / PATCH / DELETE` solo superadmin. Renombrar o cambiar el color actualiza `guardias.tag_label/tag_color`;
   eliminar solo si ninguna guardia la usa (409 → desactivar).

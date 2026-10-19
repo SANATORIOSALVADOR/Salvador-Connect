@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSPropertie
 import { confirmar } from "@/components/feedback";
 import { imprimir } from "@/components/print-header";
 import { useApariencia } from "./shared/apariencia";
-import { TagBadge, type Etiqueta } from "./guardias/compartido";
+import { CoberturaEditor, TagBadge, franjasResumen, type Etiqueta } from "./guardias/compartido";
 import {
   addDaysIso,
   computeStats,
@@ -23,6 +23,7 @@ import {
   profKey,
   requiredIntervals,
   type DayCoverage,
+  type Franja,
   type Guardia,
   type Sector,
   type SectorConfig,
@@ -200,6 +201,7 @@ export default function GuardiasMedicas() {
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
   const [copyForm, setCopyForm] = useState({ fromStart: "", fromEnd: "", toStart: "", sectorId: "" });
+  const [cfgDrafts, setCfgDrafts] = useState<Record<number, { active: boolean; cobertura: Franja[] }>>({});
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
   const [profDrafts, setProfDrafts] = useState<Record<number, Partial<Profesional>>>({});
   const isNarrow = useIsNarrow();
@@ -625,6 +627,19 @@ export default function GuardiasMedicas() {
       setError(err instanceof Error ? err.message : "Error al copiar");
     } finally {
       setCopyBusy(false);
+    }
+  }
+
+  async function saveConfig(sectorId: number) {
+    const draft = cfgDrafts[sectorId];
+    if (!draft) return;
+    try {
+      await apiJson(`/guardias/config/${sectorId}`, { method: "PUT", body: JSON.stringify(draft) });
+      setCfgDrafts(({ [sectorId]: _, ...rest }) => rest);
+      setNotice("Configuración del sector guardada.");
+      await loadMeta();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al guardar la configuración");
     }
   }
 
@@ -1197,18 +1212,51 @@ export default function GuardiasMedicas() {
 
       {tab === "config" && canTotal && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div className="card" style={{ ...PANEL, display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ minWidth: 0, flex: "1 1 360px" }}>
-              <div className="section-kicker">Sectores y etiquetas</div>
-              <h3 className="section-title" style={{ marginTop: 4, fontSize: 16 }}>Se administran desde Configuración</h3>
-              <p className="page-subtitle" style={{ marginTop: 4 }}>Qué sectores participan de Guardias, el horario que cada uno necesita cubierto y las etiquetas los configura el área de Sistemas.</p>
+          <div className="card" style={PANEL}>
+            <div className="section-kicker">Sectores de guardia</div>
+            <h3 className="section-title" style={{ marginTop: 4, fontSize: 16 }}>Horario que cada sector necesita cubierto</h3>
+            <p className="page-subtitle" style={{ marginTop: 4 }}>El calendario marca en amarillo o rojo solo los huecos de este horario. Sin horario fijo, se marca cuando un día no hay nadie.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 12, marginTop: 14, alignItems: "start" }}>
+              {configs.map((c) => {
+                const draft = cfgDrafts[c.sectorId];
+                const val = draft || { active: c.active, cobertura: c.cobertura };
+                const editable = canEditSector(c.sectorId);
+                const set = (patch: Partial<typeof val>) => setCfgDrafts((d) => ({ ...d, [c.sectorId]: { ...val, ...patch } }));
+                return (
+                  <div key={c.sectorId} style={{ border: "1px solid hsl(var(--border))", borderRadius: 12, padding: 12, opacity: val.active ? 1 : 0.75 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
+                        <input type="checkbox" checked={val.active} disabled={!editable} onChange={(e) => set({ active: e.target.checked })} />
+                        {c.name}
+                      </label>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "hsl(var(--muted-foreground))" }}>
+                        {val.active ? franjasResumen(val.cobertura) : "No participa de Guardias"}
+                        {val.active && editable && !draft && (
+                          <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => set({})}>Editar horario</button>
+                        )}
+                      </span>
+                    </div>
+                    {val.active && editable && draft && <div style={{ marginTop: 10 }}><CoberturaEditor value={val.cobertura} onChange={(cobertura) => set({ cobertura })} /></div>}
+                    {draft && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => void saveConfig(c.sectorId)}>Guardar</button>
+                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setCfgDrafts(({ [c.sectorId]: _, ...rest }) => rest)}>Descartar</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {!isSuperadmin && writableSectorIds && <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>Solo podés modificar los sectores que tenés asignados.</div>}
             </div>
-            {isSuperadmin && (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <a className="btn btn-quiet" href="/configuracion?seccion=sectores">Sectores de guardia</a>
-                <a className="btn btn-quiet" href="/configuracion?seccion=etiquetas">Etiquetas</a>
-              </div>
-            )}
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 14, paddingTop: 12, borderTop: "1px solid hsl(var(--border))", fontSize: 12, color: "hsl(var(--muted-foreground))" }}>
+              <span style={{ flex: "1 1 320px" }}>Los sectores nuevos y las etiquetas los crea el área de Sistemas desde Configuración.</span>
+              {isSuperadmin && (
+                <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <a className="btn btn-quiet" style={{ fontSize: 12 }} href="/configuracion?seccion=sectores">Sectores</a>
+                  <a className="btn btn-quiet" style={{ fontSize: 12 }} href="/configuracion?seccion=etiquetas">Etiquetas</a>
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="card gm-table-wrap">

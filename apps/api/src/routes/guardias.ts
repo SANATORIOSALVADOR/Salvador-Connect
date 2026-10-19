@@ -300,7 +300,7 @@ router.get("/guardias/config", async (_req, res): Promise<void> => {
   }
 });
 
-router.put("/guardias/config/:sectorId", requireSuperadmin, async (req, res): Promise<void> => {
+router.put("/guardias/config/:sectorId", requireLevel("guardias", "total"), async (req, res): Promise<void> => {
   try {
     const sectorId = Number(req.params.sectorId);
     if (!sectorId || Number.isNaN(sectorId)) {

@@ -127,7 +127,8 @@ check "desactivada: no se usa en guardias nuevas" 400 "$(req $A POST /guardias "
 check "al editar, la guardia conserva la que ya tenía" 200 "$(req $R PATCH /guardias/$GE "{\"sectorId\":$GC,\"date\":\"2026-11-02\",\"startTime\":\"09:00\",\"endTime\":\"16:00\",\"professionalName\":\"Ruiz Martín\",\"tagLabel\":\"NOCTURNA\"}")"
 check "quitar la etiqueta de la guardia" 200 "$(req $R PATCH /guardias/$GE "{\"sectorId\":$GC,\"date\":\"2026-11-02\",\"startTime\":\"09:00\",\"endTime\":\"16:00\",\"professionalName\":\"Ruiz Martín\",\"tagLabel\":\"\"}")"
 check "eliminar etiqueta sin uso" 204 "$(req $A DELETE /guardias/etiquetas/$ET)"
-check "Control total NO configura sectores de guardia (solo superadmin)" 403 "$(req $R PUT /guardias/config/$GC '{"active":true,"cobertura":[]}')"
+check "Control total configura el horario de su sector" 200 "$(req $R PUT /guardias/config/$GC '{"active":true,"cobertura":[]}')"
+check "responsable NO crea sectores (solo superadmin)" 403 "$(req $R POST /sectores '{"name":"Sector X","shortName":"SX"}')"
 
 echo "== Administración: ítems"
 E=$T/ck_admed

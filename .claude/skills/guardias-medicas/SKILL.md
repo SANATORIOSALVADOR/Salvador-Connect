@@ -32,8 +32,8 @@ Ver quién está de guardia por día/sector y cargar registros con horario.
 2. **Carga nueva** — formulario; mantiene sector y horario para cargar la siguiente
 3. **Registro** — tabla del mes, CSV, copiar semana / mes anterior, historial de cambios
 4. **Estadísticas** — productividad: horas activas / pasivas, nocturnas, extras, reemplazos, % del horario requerido cubierto
-5. **Configuración** (Control total) — datos de profesionales. Los sectores que participan, su horario requerido y las
-   etiquetas se administran en **Configuración del sistema** (solo superadmin), no en el módulo.
+5. **Configuración** (Control total) — sectores que participan y su horario requerido (solo en sus sectores a cargo)
+   y datos de profesionales. **Crear** sectores y etiquetas es del superadmin, en Configuración del sistema.
 
 Estilos de estado en línea: el CSS del build fija `background` / `border` de `.gm-cell` con `!important`
 (por eso el color de cobertura usa `box-shadow` inline).
