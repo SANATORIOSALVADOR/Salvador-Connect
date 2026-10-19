@@ -86,7 +86,10 @@ docker compose up -d --force-recreate
 | `usuario` | Un nivel por módulo: **Ver** · **Cargar y editar** · **Control total** (o sin acceso) |
 
 - Ver = consultar (GET). Cargar y editar = crear / modificar. Control total = eliminar y configurar el módulo.
-- API: `requireModuleAccess("<modulo>")` en cada router; acciones de configuración con `requireLevel("<modulo>", "total")`.
+- **Acciones concretas** por módulo (`apps/api/src/lib/acciones.ts`, espejo en `apps/web/src/lib/permisos.ts → ACCIONES`):
+  el nivel es un atajo que marca las acciones típicas; se pueden sumar o quitar (`user_modules.acciones`, `perfiles.acciones`).
+- API: Guardias y Administración usan `requireModuleAccess("<modulo>", { porRuta: true })` y **cada ruta de escritura**
+  declara `requireAccion("<modulo>", "<accion>")`. Al agregar una ruta nueva, agregarle su acción (y a ACCIONES si es nueva).
 - **Alcance por sector, por módulo** (módulos con sectores: guardias, inventario, instructivos):
   `todos` · `carga` (ve todo, trabaja en sus sectores) · `sector` (ve y trabaja solo en sus sectores).
   Se guarda en `user_modules.alcance` + `user_modules.sector_ids`. API: `visibleSectorIds`, `ownSectorIds`,

@@ -68,7 +68,7 @@ function Feriados() {
         Se usan para correr las fechas estimadas y los recurrentes al siguiente día hábil. Si un año no tiene feriados cargados se usan los fijados por ley (sin puentes ni feriados extraordinarios).
       </p>
       {error && <div className="form-error">{error}</div>}
-      {permisos.total && (
+      {permisos.calendario && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
           <button type="button" className="btn btn-quiet" style={{ alignSelf: "flex-start" }} onClick={importar} disabled={importando}>
             <CloudDownload size={15} /> {importando ? "Consultando…" : `Traer feriados oficiales de ${anio}`}
@@ -99,7 +99,7 @@ function Feriados() {
                 <span style={{ ...S.small, marginLeft: 6, textTransform: "capitalize" }}>{fechaLarga(f.fecha).split(" ")[0]}</span>
               </span>
               <Pill style={{ border: "1px solid hsl(var(--border))" }}>{TIPOS_FERIADO[f.tipo] ?? f.tipo}</Pill>
-              {permisos.total && (
+              {permisos.calendario && (
                 <button
                   type="button"
                   className="btn btn-quiet btn-icon"

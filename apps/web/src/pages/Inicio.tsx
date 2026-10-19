@@ -41,7 +41,7 @@ type Sector = {
 type Datos = {
   hoy: string;
   usuario: { nombre: string; rol: string };
-  accesos: { administracion: string | null; guardias: string | null; superadmin: boolean };
+  accesos: { administracion: string | null; guardias: string | null; superadmin: boolean; cargarAdministracion?: boolean };
   urgente: Urgente[];
   urgenteTotal: number;
   semana: Dia[];
@@ -192,7 +192,7 @@ export default function Inicio() {
   const ahora = new Date();
   const nombre = datos?.usuario.nombre.split(" ")[0] ?? "";
   const ac = datos?.accesos;
-  const puedeAdm = ac?.administracion === "editar" || ac?.administracion === "total" || ac?.superadmin;
+  const puedeAdm = ac?.cargarAdministracion ?? (ac?.administracion === "editar" || ac?.administracion === "total" || ac?.superadmin);
   let i = 0;
 
   return (

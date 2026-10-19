@@ -110,7 +110,7 @@ function ControlMes() {
             <div style={{ width: `${pct}%`, height: "100%", background: "#0ca30c" }} />
           </div>
         </div>
-        {permisos.editar && (
+        {permisos.verificar && (
           <div style={{ ...S.row }} className="no-print">
             {sinItem.length > 0 && <button type="button" className="btn btn-quiet" onClick={generar} disabled={generando}>{generando ? "Creando…" : `Crear ${sinItem.length} vencimiento${sinItem.length === 1 ? "" : "s"}`}</button>}
             {sinVerificar > 0 && <button type="button" className="btn btn-primary" onClick={verificar} disabled={verificando}><ShieldCheck size={16} /> {verificando ? "Guardando…" : "Verificar fechas del mes"}</button>}
@@ -141,7 +141,7 @@ function ControlMes() {
             {filas.length === 0 && (
               <tr><td colSpan={6} style={S.td}><Vacio titulo="No hay obligaciones para este mes" texto="Cargalas en la vista Obligaciones." /></td></tr>
             )}
-            {filas.map((f) => <FilaMes key={f.obligacion.id} f={f} hoy={hoy} puedeEditar={permisos.editar} onOpen={abrir} onCumplir={cumplir} />)}
+            {filas.map((f) => <FilaMes key={f.obligacion.id} f={f} hoy={hoy} puedeEditar={permisos.cumplir} onOpen={abrir} onCumplir={cumplir} />)}
             {(data?.sueltos ?? []).map((it) => (
               <tr key={`s${it.id}`}>
                 <td style={S.td}><button type="button" onClick={() => abrir(it.id)} style={linkBtn}>{it.titulo}</button><div style={S.small}>Cargado a mano</div></td>
@@ -149,7 +149,7 @@ function ControlMes() {
                 <td style={S.td}><Pill style={{ border: "1px solid hsl(var(--border))" }}>Manual</Pill></td>
                 <td style={S.td}><UrgenciaPill item={it} hoy={hoy} /></td>
                 <td style={S.td}>{it.comprobante}</td>
-                <td style={{ ...S.td, textAlign: "right" }}>{permisos.editar && it.estado === "pendiente" && <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => cumplir(it)}>Registrar</button>}</td>
+                <td style={{ ...S.td, textAlign: "right" }}>{permisos.cumplir && it.estado === "pendiente" && <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => cumplir(it)}>Registrar</button>}</td>
               </tr>
             ))}
           </tbody>
@@ -233,14 +233,14 @@ function CalendarioOficial() {
           <div style={{ fontWeight: 700, fontSize: 17, minWidth: 70, textAlign: "center" }}>{anio}</div>
           <button type="button" className="btn btn-quiet btn-icon" onClick={() => setAnio(anio + 1)} aria-label="Año siguiente"><ChevronRight size={18} /></button>
         </div>
-        {permisos.total && (
+        {permisos.calendario && (
           <button type="button" className="btn btn-primary" onClick={() => setImportar(true)}>
             <ClipboardPaste size={16} /> Pegar agenda completa
           </button>
         )}
         <p style={{ ...S.small, margin: 0, flex: "1 1 320px" }}>
           <strong style={{ color: cargadas < totalCeldas ? "var(--adm-warn)" : "var(--adm-ok)" }}>{cargadas} de {totalCeldas} fechas oficiales cargadas.</strong>{" "}
-          Cuando ARCA y Rentas publiquen el calendario del año, cargá las fechas de la terminación de CUIT {TERMINACION_CUIT}. Podés copiar la fila completa de una obligación desde la agenda o el PDF y pegarla con el botón «pegar» de cada fila. {permisos.total ? "Tocá una fecha para corregirla o cargar una prórroga." : "Solo Control total puede cambiar fechas."}
+          Cuando ARCA y Rentas publiquen el calendario del año, cargá las fechas de la terminación de CUIT {TERMINACION_CUIT}. Podés copiar la fila completa de una obligación desde la agenda o el PDF y pegarla con el botón «pegar» de cada fila. {permisos.calendario ? "Tocá una fecha para corregirla o cargar una prórroga." : "Solo Control total puede cambiar fechas."}
         </p>
       </div>
       {error && <div className="form-error">{error}</div>}
@@ -261,7 +261,7 @@ function CalendarioOficial() {
                       <div style={{ fontWeight: 600 }}>{o.nombre}</div>
                       <div style={S.small}>{ORGANISMOS[o.organismo] ?? o.organismo}</div>
                     </div>
-                    {permisos.total && <button type="button" className="btn btn-quiet btn-icon" title="Pegar fechas del año" aria-label={`Pegar fechas de ${o.nombre}`} onClick={() => setPegar(o)}><ClipboardPaste size={15} /></button>}
+                    {permisos.calendario && <button type="button" className="btn btn-quiet btn-icon" title="Pegar fechas del año" aria-label={`Pegar fechas de ${o.nombre}`} onClick={() => setPegar(o)}><ClipboardPaste size={15} /></button>}
                   </div>
                 </td>
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => {
@@ -272,10 +272,10 @@ function CalendarioOficial() {
                     <td key={mes} style={{ ...S.td, textAlign: "center", padding: 4 }}>
                       <button
                         type="button"
-                        disabled={!permisos.total}
+                        disabled={!permisos.calendario}
                         onClick={() => setEditar({ o, mes, c })}
                         title={`${c.origen === "estimada" ? "Estimada" : c.origen === "prorroga" ? "Prórroga" : "Oficial"}${c.verificado ? " · verificada" : ""}${c.norma ? ` · ${c.norma}` : ""}`}
-                        style={{ ...celdaStyle(c), width: "100%", padding: "5px 2px", borderRadius: 7, fontSize: 12.5, fontWeight: 700, cursor: permisos.total ? "pointer" : "default", opacity: pasado ? 0.55 : 1, fontVariantNumeric: "tabular-nums" }}
+                        style={{ ...celdaStyle(c), width: "100%", padding: "5px 2px", borderRadius: 7, fontSize: 12.5, fontWeight: 700, cursor: permisos.calendario ? "pointer" : "default", opacity: pasado ? 0.55 : 1, fontVariantNumeric: "tabular-nums" }}
                       >
                         {c.origen === "estimada" ? "≈" : ""}{c.fecha.slice(8, 10)}/{c.fecha.slice(5, 7)}
                         {c.verificado && c.origen !== "estimada" ? " ✓" : ""}
@@ -413,7 +413,7 @@ function Obligaciones() {
         <p style={{ ...S.small, margin: 0, maxWidth: 640 }}>
           Lo que el sanatorio tiene que presentar o pagar periódicamente. Revisalo con el estudio contable: agregá las que falten y desactivá las que no correspondan. El «día habitual» solo se usa para estimar cuando no hay fecha oficial cargada.
         </p>
-        {permisos.total && <button type="button" className="btn btn-primary" onClick={() => setEditando({ organismo: "arca", periodicidad: "mensual", diaEstimado: 20, desfasePeriodo: -1, presentacion: true, pago: true, alertDays: 7, activo: true })}><Plus size={15} /> Nueva obligación</button>}
+        {permisos.calendario && <button type="button" className="btn btn-primary" onClick={() => setEditando({ organismo: "arca", periodicidad: "mensual", diaEstimado: 20, desfasePeriodo: -1, presentacion: true, pago: true, alertDays: 7, activo: true })}><Plus size={15} /> Nueva obligación</button>}
       </div>
       {error && <div className="form-error">{error}</div>}
       <div className="card" style={{ ...S.card, padding: 0, overflowX: "auto" }}>
@@ -441,7 +441,7 @@ function Obligaciones() {
                 <td style={S.td}>{[o.presentacion && "Presentar", o.pago && "Pagar"].filter(Boolean).join(" y ") || "—"}</td>
                 <td style={S.td}>{o.responsable || <span style={S.muted}>—</span>}</td>
                 <td style={S.td}>{o.activo ? <Pill style={{ background: "#dcf3dc", color: "#155c15" }}>Activa</Pill> : <Pill style={{ border: "1px solid hsl(var(--border))" }}>Inactiva</Pill>}</td>
-                <td style={{ ...S.td, textAlign: "right" }}>{permisos.total && <button type="button" className="btn btn-quiet btn-icon" aria-label={`Editar ${o.nombre}`} onClick={() => setEditando(o)}><Pencil size={15} /></button>}</td>
+                <td style={{ ...S.td, textAlign: "right" }}>{permisos.calendario && <button type="button" className="btn btn-quiet btn-icon" aria-label={`Editar ${o.nombre}`} onClick={() => setEditando(o)}><Pencil size={15} /></button>}</td>
               </tr>
             ))}
           </tbody>

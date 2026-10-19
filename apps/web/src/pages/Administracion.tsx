@@ -30,12 +30,23 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
-/** Nivel del usuario en el módulo según /auth/me. */
-function permisosDe(me: { role?: string; permissions?: Record<string, string> } | null): Permisos {
-  if (!me) return { editar: false, total: false };
-  if (me.role === "superadmin") return { editar: true, total: true };
+/** Acciones de la persona en el módulo según /auth/me (si la API es vieja, se deducen del nivel). */
+function permisosDe(me: { role?: string; permissions?: Record<string, string>; acciones?: Record<string, string[]> } | null): Permisos {
+  const de = (lista: string[]): Permisos => ({
+    editar: lista.includes("cargar"),
+    cumplir: lista.includes("cumplir"),
+    verificar: lista.includes("verificar"),
+    recurrentes: lista.includes("recurrentes"),
+    contactos: lista.includes("contactos"),
+    eliminar: lista.includes("eliminar"),
+    calendario: lista.includes("calendario"),
+  });
+  if (!me) return de([]);
+  if (me.role === "superadmin") return de(["cargar", "cumplir", "verificar", "recurrentes", "contactos", "eliminar", "calendario"]);
+  if (me.acciones?.administracion) return de(me.acciones.administracion);
   const lvl = me.permissions?.administracion ?? "";
-  return { editar: lvl === "editar" || lvl === "total", total: lvl === "total" };
+  const editar = lvl === "editar" || lvl === "total" ? ["cargar", "cumplir", "verificar", "recurrentes", "contactos"] : [];
+  return de([...editar, ...(lvl === "total" ? ["eliminar", "calendario"] : [])]);
 }
 
 function leerParam(k: string): string | null {
@@ -48,7 +59,7 @@ export default function Administracion() {
     if (TABS.some((x) => x.key === t)) return t as TabKey;
     return leerParam("buscar") ? "agenda" : "resumen";
   });
-  const [me, setMe] = useState<{ role?: string; permissions?: Record<string, string> } | null>(null);
+  const [me, setMe] = useState<{ role?: string; permissions?: Record<string, string>; acciones?: Record<string, string[]> } | null>(null);
   const [responsables, setResponsables] = useState<string[]>([]);
   const [version, setVersion] = useState(0);
   const [hoy, setHoy] = useState(hoyIso);

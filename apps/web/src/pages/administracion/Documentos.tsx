@@ -75,7 +75,7 @@ export default function Documentos() {
                   <td style={S.td}>{d.datos?.entidad}</td>
                   <td style={S.td}>{d.responsable}</td>
                   <td style={S.td}><UrgenciaPill item={d} hoy={hoy} /></td>
-                  <td style={{ ...S.td, textAlign: "right" }}>{permisos.editar && d.estado === "pendiente" && <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => cumplir(d)}>Renovado</button>}</td>
+                  <td style={{ ...S.td, textAlign: "right" }}>{permisos.cumplir && d.estado === "pendiente" && <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => cumplir(d)}>Renovado</button>}</td>
                 </tr>
               ))}
             </tbody>

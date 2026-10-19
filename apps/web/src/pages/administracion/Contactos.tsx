@@ -23,7 +23,7 @@ export default function Contactos({ busquedaInicial }: { busquedaInicial: string
       <div style={{ ...S.row }}>
         <input className="input" style={{ flex: "1 1 220px", maxWidth: 340 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar nombre, rubro, CUIT…" aria-label="Buscar contacto" />
         <span style={S.small}>{lista.length} contacto{lista.length === 1 ? "" : "s"}</span>
-        {permisos.editar && <button type="button" className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={() => setEditando({})}><Plus size={15} /> Nuevo contacto</button>}
+        {permisos.contactos && <button type="button" className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={() => setEditando({})}><Plus size={15} /> Nuevo contacto</button>}
       </div>
       {error && <div className="form-error">{error}</div>}
       {data && lista.length === 0 ? (
@@ -37,7 +37,7 @@ export default function Contactos({ busquedaInicial }: { busquedaInicial: string
                   <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{c.nombre}</div>
                   <div style={S.small}>{[c.rubro, c.persona].filter(Boolean).join(" · ")}</div>
                 </div>
-                {permisos.editar && <button type="button" className="btn btn-quiet btn-icon" aria-label={`Editar ${c.nombre}`} onClick={() => setEditando(c)}><Pencil size={15} /></button>}
+                {permisos.contactos && <button type="button" className="btn btn-quiet btn-icon" aria-label={`Editar ${c.nombre}`} onClick={() => setEditando(c)}><Pencil size={15} /></button>}
               </div>
               {c.telefono && <a href={`tel:${c.telefono.replace(/[^\d+]/g, "")}`} style={{ ...S.row, fontSize: 13.5, color: "inherit" }}><Phone size={14} aria-hidden="true" /> {c.telefono}</a>}
               {c.email && <a href={`mailto:${c.email}`} style={{ ...S.row, fontSize: 13.5, color: "inherit", overflowWrap: "anywhere" }}><Mail size={14} aria-hidden="true" /> {c.email}</a>}
@@ -47,7 +47,7 @@ export default function Contactos({ busquedaInicial }: { busquedaInicial: string
           ))}
         </div>
       )}
-      {editando && <ContactoForm c={editando} puedeBorrar={permisos.total} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); refrescar(); }} />}
+      {editando && <ContactoForm c={editando} puedeBorrar={permisos.eliminar} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); refrescar(); }} />}
     </div>
   );
 }

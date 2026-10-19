@@ -1,7 +1,7 @@
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { confirmar } from "@/components/feedback";
 import AparienciaConfig from "./shared/AparienciaConfig";
-import { ALCANCE_AYUDA, ALCANCE_LABEL, LEVEL_COLOR, LEVEL_LABEL, MODULES, type Alcance, type Level, type ModuleScope } from "@/lib/permisos";
+import { ACCIONES, ALCANCE_AYUDA, ALCANCE_LABEL, LEVEL_COLOR, LEVEL_LABEL, MODULES, accionesDeNivel, mismasAcciones, ordenarAcciones, type Alcance, type Level, type ModuleScope } from "@/lib/permisos";
 import { CoberturaEditor, TAG_COLORS, TagBadge, franjasResumen, type Etiqueta } from "./guardias/compartido";
 import type { Franja, SectorConfig } from "./guardias/logic";
 
@@ -30,6 +30,8 @@ type UserRow = {
   perfilId?: number | null;
   perfilNombre?: string | null;
   excepciones?: string[];
+  /** Acciones efectivas por módulo. */
+  acciones?: Record<string, string[]>;
   lastLoginAt: string | null;
   createdAt: string;
 };
@@ -72,10 +74,12 @@ type Perfil = {
   descripcion: string;
   permisos: Record<string, Level>;
   alcances: Record<string, Alcance>;
+  /** Solo los módulos con acciones a medida. */
+  acciones: Record<string, string[]>;
   usuarios: number;
   sinSectores: string[];
 };
-type PerfilForm = { nombre: string; descripcion: string; permisos: Record<string, Level>; alcances: Record<string, Alcance> };
+type PerfilForm = { nombre: string; descripcion: string; permisos: Record<string, Level>; alcances: Record<string, Alcance>; acciones: Record<string, string[]> };
 
 type UserForm = {
   name: string;
@@ -89,10 +93,12 @@ type UserForm = {
   scopes: Record<string, ModuleScope>;
   /** Perfil vinculado (null = permisos a medida). */
   perfilId: number | null;
+  /** Acciones a medida por módulo (los que no figuran = las típicas de su nivel). */
+  acciones: Record<string, string[]>;
 };
 
 function emptyUserForm(): UserForm {
-  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, scopes: {}, perfilId: null };
+  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, scopes: {}, perfilId: null, acciones: {} };
 }
 
 /** Alcance de una plantilla o usuario viejo que solo tenía "sectores a cargo" (lo de antes = ve todo, carga en esos). */
@@ -101,6 +107,73 @@ function scopesDe(x: { permissions: Record<string, Level>; scopes?: Record<strin
   const out: Record<string, ModuleScope> = {};
   if (x.sectorIds?.length) for (const m of MODULES) if (m.sectores && x.permissions[m.key]) out[m.key] = { alcance: "carga", sectorIds: [...x.sectorIds] };
   return out;
+}
+
+/** Solo los módulos cuyas acciones difieren de las típicas de su nivel. */
+function accionesAMedida(permisos: Record<string, Level>, acciones?: Record<string, string[]>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [mod, lista] of Object.entries(acciones ?? {})) {
+    const nivel = permisos[mod];
+    if (!nivel) continue;
+    const ord = ordenarAcciones(mod, lista);
+    if (!mismasAcciones(ord, accionesDeNivel(mod, nivel))) out[mod] = ord;
+  }
+  return out;
+}
+
+const etiquetaAccion = (mod: string, k: string) => ACCIONES[mod]?.find((a) => a.key === k)?.label.toLowerCase() ?? k;
+
+/** Acciones de un módulo: por defecto las del nivel; se pueden sumar o quitar ("a medida"). */
+function AccionesEditor({ modulo, nivel, valor, onChange }: { modulo: string; nivel: Level; valor?: string[]; onChange: (v: string[] | undefined) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const lista = ACCIONES[modulo] ?? [];
+  if (lista.length <= 1) return null;
+  const base = accionesDeNivel(modulo, nivel);
+  const actual = valor ? ordenarAcciones(modulo, valor) : base;
+  const aMedida = !mismasAcciones(actual, base);
+  const suma = actual.filter((k) => !base.includes(k));
+  const resta = base.filter((k) => !actual.includes(k));
+  const toggle = (k: string, on: boolean) => {
+    const n = ordenarAcciones(modulo, on ? [...actual, k] : actual.filter((x) => x !== k));
+    onChange(mismasAcciones(n, base) ? undefined : n);
+  };
+  const link: CSSProperties = { border: "none", background: "transparent", padding: 0, fontSize: 12, fontWeight: 600, color: "hsl(var(--primary))", cursor: "pointer" };
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "baseline" }}>
+        <span className="field-label" style={{ margin: 0 }}>Acciones</span>
+        <span style={{ ...MUTED, flex: "1 1 260px", whiteSpace: "normal" }}>
+          {aMedida ? (
+            <>
+              <span style={CHIP("hsl(35 90% 90%)", "hsl(30 70% 30%)")}>A medida</span>{" "}
+              {suma.length > 0 && <>además puede: {suma.map((k) => etiquetaAccion(modulo, k)).join(", ")}. </>}
+              {resta.length > 0 && <>no puede: {resta.map((k) => etiquetaAccion(modulo, k)).join(", ")}.</>}
+            </>
+          ) : (
+            <>Las típicas de «{LEVEL_LABEL[nivel]}».</>
+          )}
+        </span>
+        <button type="button" style={link} onClick={() => setAbierto((v) => !v)}>{abierto ? "Ocultar" : "Personalizar"}</button>
+        {aMedida && <button type="button" style={link} onClick={() => onChange(undefined)}>Volver a las del nivel</button>}
+      </div>
+      {abierto && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 270px), 1fr))", gap: 6, marginTop: 8 }}>
+          {lista.map((a) => {
+            const on = actual.includes(a.key);
+            return (
+              <label key={a.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, padding: "6px 8px", borderRadius: 9, border: `1px solid ${on ? "hsl(var(--primary) / .45)" : "hsl(var(--border))"}`, background: on ? "hsl(var(--primary) / .08)" : "transparent", cursor: a.key === "ver" ? "default" : "pointer" }}>
+                <input type="checkbox" checked={on} disabled={a.key === "ver"} onChange={(e) => toggle(a.key, e.target.checked)} style={{ marginTop: 2 }} />
+                <span>
+                  {a.label}
+                  <span style={{ ...MUTED, display: "block", fontSize: 11 }}>Desde «{LEVEL_LABEL[a.nivel]}»</span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Resumen corto del alcance de un usuario, para la tabla. */
@@ -131,6 +204,7 @@ function AlcanceResumen({ u, sectorName }: { u: UserRow; sectorName: Map<number,
 function PermChips({ u }: { u: UserRow }) {
   if (u.role === "superadmin") return <span style={CHIP("hsl(270 60% 92%)", "hsl(270 50% 32%)")}>Todo + administración</span>;
   const list = MODULES.filter((m) => u.permissions[m.key]);
+  const aMedida = accionesAMedida(u.permissions, u.acciones);
   const exc = u.excepciones?.length ?? 0;
   const perfil = u.perfilNombre ? (
     <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
@@ -146,8 +220,8 @@ function PermChips({ u }: { u: UserRow }) {
         const lvl = u.permissions[m.key];
         const c = LEVEL_COLOR[lvl];
         return (
-          <span key={m.key} style={CHIP(c.bg, c.fg)} title={`${m.label}: ${LEVEL_LABEL[lvl]}`}>
-            {m.label} · {LEVEL_LABEL[lvl]}
+          <span key={m.key} style={CHIP(c.bg, c.fg)} title={`${m.label}: ${LEVEL_LABEL[lvl]}${aMedida[m.key] ? " (acciones a medida)" : ""}`}>
+            {m.label} · {LEVEL_LABEL[lvl]}{aMedida[m.key] ? " *" : ""}
           </span>
         );
       })}
@@ -178,7 +252,7 @@ export default function ConfiguracionPage() {
   const [resetPw, setResetPw] = useState("");
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilEditor, setPerfilEditor] = useState<{ mode: "create" | "edit"; perfil?: Perfil; desdeUsuario?: boolean } | null>(null);
-  const [pform, setPform] = useState<PerfilForm>({ nombre: "", descripcion: "", permisos: {}, alcances: {} });
+  const [pform, setPform] = useState<PerfilForm>({ nombre: "", descripcion: "", permisos: {}, alcances: {}, acciones: {} });
   const [perror, setPerror] = useState<string | null>(null);
 
   // sectores
@@ -251,7 +325,7 @@ export default function ConfiguracionPage() {
   }
 
   function openEditUser(u: UserRow) {
-    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, scopes: scopesDe(u), perfilId: u.perfilId ?? null });
+    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, scopes: scopesDe(u), perfilId: u.perfilId ?? null, acciones: accionesAMedida(u.permissions, u.acciones) });
     setUerror(null);
     setEditor({ mode: "edit", user: u });
   }
@@ -263,7 +337,19 @@ export default function ConfiguracionPage() {
       else delete permissions[moduleKey];
       const scopes = { ...f.scopes };
       if (!level) delete scopes[moduleKey];
-      return { ...f, permissions, scopes };
+      // Cambiar el nivel vuelve a las acciones típicas de ese nivel.
+      const acciones = { ...f.acciones };
+      delete acciones[moduleKey];
+      return { ...f, permissions, scopes, acciones };
+    });
+  }
+
+  function setAcciones(moduleKey: string, v: string[] | undefined) {
+    setUform((f) => {
+      const acciones = { ...f.acciones };
+      if (v) acciones[moduleKey] = v;
+      else delete acciones[moduleKey];
+      return { ...f, acciones };
     });
   }
 
@@ -313,6 +399,7 @@ export default function ConfiguracionPage() {
         permissions: uform.role === "superadmin" ? {} : uform.permissions,
         scopes: uform.role === "superadmin" ? {} : Object.fromEntries(Object.entries(uform.scopes).filter(([k]) => uform.permissions[k])),
         perfilId: uform.role === "superadmin" ? null : uform.perfilId,
+        acciones: uform.role === "superadmin" ? {} : Object.fromEntries(Object.entries(uform.acciones).filter(([k]) => uform.permissions[k])),
         ...(editor?.mode === "create" ? { password: uform.password } : {}),
       };
       if (editor?.mode === "create") {
@@ -345,7 +432,7 @@ export default function ConfiguracionPage() {
         const a = p.alcances[m.key];
         if (m.sectores && p.permisos[m.key] && a && a !== "todos") scopes[m.key] = { alcance: a, sectorIds: f.scopes[m.key]?.sectorIds ?? [] };
       }
-      return { ...f, perfilId: p.id, permissions: { ...p.permisos }, scopes };
+      return { ...f, perfilId: p.id, permissions: { ...p.permisos }, scopes, acciones: JSON.parse(JSON.stringify(p.acciones ?? {})) };
     });
   }
 
@@ -355,6 +442,8 @@ export default function ConfiguracionPage() {
     if (!p) return false;
     const m = MODULES.find((x) => x.key === moduleKey);
     if ((uform.permissions[moduleKey] ?? null) !== (p.permisos[moduleKey] ?? null)) return true;
+    const nivel = uform.permissions[moduleKey];
+    if (nivel && !mismasAcciones(uform.acciones[moduleKey] ?? accionesDeNivel(moduleKey, nivel), p.acciones?.[moduleKey] ?? accionesDeNivel(moduleKey, nivel))) return true;
     return Boolean(m?.sectores && uform.permissions[moduleKey] && (uform.scopes[moduleKey]?.alcance ?? "todos") !== (p.alcances[moduleKey] ?? "todos"));
   }
 
@@ -369,21 +458,25 @@ export default function ConfiguracionPage() {
       const a = p.alcances[moduleKey];
       if (a && a !== "todos" && p.permisos[moduleKey]) scopes[moduleKey] = { alcance: a, sectorIds: f.scopes[moduleKey]?.sectorIds ?? [] };
       else delete scopes[moduleKey];
-      return { ...f, permissions, scopes };
+      const acciones = { ...f.acciones };
+      if (p.acciones?.[moduleKey]) acciones[moduleKey] = [...p.acciones[moduleKey]];
+      else delete acciones[moduleKey];
+      return { ...f, permissions, scopes, acciones };
     });
   }
 
   function openPerfil(p?: Perfil, desdeUsuario = false) {
     setPerror(null);
-    if (p) setPform({ nombre: p.nombre, descripcion: p.descripcion, permisos: { ...p.permisos }, alcances: { ...p.alcances } });
+    if (p) setPform({ nombre: p.nombre, descripcion: p.descripcion, permisos: { ...p.permisos }, alcances: { ...p.alcances }, acciones: JSON.parse(JSON.stringify(p.acciones ?? {})) });
     else if (desdeUsuario)
       setPform({
         nombre: "",
         descripcion: "",
         permisos: { ...uform.permissions },
         alcances: Object.fromEntries(Object.entries(uform.scopes).filter(([k]) => uform.permissions[k]).map(([k, sc]) => [k, sc.alcance])),
+        acciones: Object.fromEntries(Object.entries(uform.acciones).filter(([k]) => uform.permissions[k])),
       });
-    else setPform({ nombre: "", descripcion: "", permisos: { dashboard: "ver" }, alcances: {} });
+    else setPform({ nombre: "", descripcion: "", permisos: { dashboard: "ver" }, alcances: {}, acciones: {} });
     setPerfilEditor({ mode: p ? "edit" : "create", perfil: p, desdeUsuario });
   }
 
@@ -392,7 +485,13 @@ export default function ConfiguracionPage() {
     if (!perfilEditor) return;
     setPerror(null);
     try {
-      const body = JSON.stringify({ nombre: pform.nombre.trim(), descripcion: pform.descripcion.trim(), permisos: pform.permisos, alcances: pform.alcances });
+      const body = JSON.stringify({
+        nombre: pform.nombre.trim(),
+        descripcion: pform.descripcion.trim(),
+        permisos: pform.permisos,
+        alcances: pform.alcances,
+        acciones: Object.fromEntries(Object.entries(pform.acciones).filter(([k]) => pform.permisos[k])),
+      });
       const guardado =
         perfilEditor.mode === "edit" && perfilEditor.perfil
           ? await apiJson<Perfil>(`/users/perfiles/${perfilEditor.perfil.id}`, { method: "PATCH", body })
@@ -718,6 +817,7 @@ export default function ConfiguracionPage() {
                           <span style={{ minWidth: 0 }}>{m.label.replace(" (próximamente)", "")}</span>
                           <span style={CHIP(LEVEL_COLOR[lvl].bg, LEVEL_COLOR[lvl].fg)}>{LEVEL_LABEL[lvl]}</span>
                           {m.sectores && <span style={MUTED}>· {ALCANCE_LABEL[a].toLowerCase()}</span>}
+                          {p.acciones?.[m.key] && <span style={CHIP("hsl(35 90% 90%)", "hsl(30 70% 30%)")} title={p.acciones[m.key].map((k) => etiquetaAccion(m.key, k)).join(", ")}>acciones a medida</span>}
                         </div>
                       );
                     })}
@@ -923,9 +1023,10 @@ export default function ConfiguracionPage() {
                               </td>
                             ))}
                           </tr>
-                          {m.sectores && cur && (
+                          {cur && (m.sectores || (ACCIONES[m.key]?.length ?? 0) > 1) && (
                             <tr>
                               <td colSpan={5} style={{ background: "hsl(var(--muted) / .35)", paddingTop: 10, paddingBottom: 12 }}>
+                                {m.sectores && (<>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                                   <span className="field-label" style={{ margin: 0 }}>Sectores</span>
                                   <select className="select" style={{ width: 290, fontSize: 13 }} value={alcance} onChange={(e) => setAlcance(m.key, e.target.value as Alcance)} aria-label={`${m.label}: alcance por sector`}>
@@ -946,6 +1047,8 @@ export default function ConfiguracionPage() {
                                     })}
                                   </div>
                                 )}
+                                </>)}
+                                <AccionesEditor modulo={m.key} nivel={cur} valor={uform.acciones[m.key]} onChange={(v) => setAcciones(m.key, v)} />
                               </td>
                             </tr>
                           )}
@@ -1083,12 +1186,14 @@ export default function ConfiguracionPage() {
                       setPform((f) => {
                         const permisos = { ...f.permisos };
                         const alcances = { ...f.alcances };
+                        const acciones = { ...f.acciones };
+                        delete acciones[m.key];
                         if (l) permisos[m.key] = l;
                         else {
                           delete permisos[m.key];
                           delete alcances[m.key];
                         }
-                        return { ...f, permisos, alcances };
+                        return { ...f, permisos, alcances, acciones };
                       });
                     const alc: Alcance = pform.alcances[m.key] ?? "todos";
                     return (
@@ -1105,9 +1210,10 @@ export default function ConfiguracionPage() {
                             </td>
                           ))}
                         </tr>
-                        {m.sectores && cur && (
+                        {cur && (m.sectores || (ACCIONES[m.key]?.length ?? 0) > 1) && (
                           <tr>
                             <td colSpan={5} style={{ background: "hsl(var(--muted) / .35)", paddingTop: 10, paddingBottom: 12 }}>
+                              {m.sectores && (
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                                 <span className="field-label" style={{ margin: 0 }}>Sectores</span>
                                 <select className="select" style={{ width: 290, fontSize: 13 }} value={alc} onChange={(e) => setPform((f) => ({ ...f, alcances: { ...f.alcances, [m.key]: e.target.value as Alcance } }))} aria-label={`${m.label}: alcance`}>
@@ -1115,6 +1221,20 @@ export default function ConfiguracionPage() {
                                 </select>
                                 <span style={{ ...MUTED, flex: "1 1 240px", whiteSpace: "normal" }}>{alc === "todos" ? ALCANCE_AYUDA.todos : `${ALCANCE_AYUDA[alc]} Los sectores se eligen en cada persona.`}</span>
                               </div>
+                              )}
+                              <AccionesEditor
+                                modulo={m.key}
+                                nivel={cur}
+                                valor={pform.acciones[m.key]}
+                                onChange={(v) =>
+                                  setPform((f) => {
+                                    const acciones = { ...f.acciones };
+                                    if (v) acciones[m.key] = v;
+                                    else delete acciones[m.key];
+                                    return { ...f, acciones };
+                                  })
+                                }
+                              />
                             </td>
                           </tr>
                         )}

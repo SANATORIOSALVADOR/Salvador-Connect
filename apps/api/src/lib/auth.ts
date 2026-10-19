@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { and, eq, gt, lt, ne } from "drizzle-orm";
 import { db, perfilesTable, sessionsTable, userModulesTable, usersTable } from "@salvador/db";
 import { logger } from "./logger";
+import { ACCIONES, accionesDeNivel, normalizarAcciones } from "./acciones";
 
 const scrypt = (password: string, salt: string, keyLength: number, options: { cost: number; blockSize: number; parallelization: number }) =>
   new Promise<Buffer>((resolve, reject) => {
@@ -168,6 +169,8 @@ export type AuthUser = {
   /** Perfil vinculado (null = permisos a medida) y módulos donde la persona tiene una excepción. */
   perfil: { id: number; nombre: string } | null;
   excepciones: string[];
+  /** Acciones concretas por módulo (ver lib/acciones.ts). */
+  acciones: Record<string, string[]>;
 };
 
 function digestToken(token: string) {
@@ -203,8 +206,18 @@ export function buildScopes(rows: { moduleKey: string; alcance?: string | null; 
   return out;
 }
 
-export type PerfilDef = { id: number; nombre: string; permisos: Record<string, string>; alcances: Record<string, string> };
-type FilaModulo = { moduleKey: string; level: string; alcance?: string | null; sectorIds?: number[] | null };
+export type PerfilDef = { id: number; nombre: string; permisos: Record<string, string>; alcances: Record<string, string>; acciones?: Record<string, string[]> };
+type FilaModulo = { moduleKey: string; level: string; alcance?: string | null; sectorIds?: number[] | null; acciones?: string[] | null };
+
+/** Acciones de un módulo: las a medida (si hay) o las del nivel. */
+function accionesDe(moduleKey: string, level: Level, propias: string[] | null | undefined): string[] {
+  return (propias ? normalizarAcciones(moduleKey, level, propias) : null) ?? accionesDeNivel(moduleKey, level);
+}
+
+/** El superadmin puede todas las acciones de todos los módulos. */
+export function todasLasAcciones(): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(ACCIONES).map(([k, lista]) => [k, lista.map((a) => a.key)]));
+}
 
 /**
  * Permisos efectivos de una persona: su perfil (si tiene) + sus filas propias.
@@ -212,20 +225,28 @@ type FilaModulo = { moduleKey: string; level: string; alcance?: string | null; s
  * o un nivel (excepción con ese nivel y su propio alcance).
  * Un alcance por sector sin sectores elegidos no da acceso a ningún sector (nunca a todos).
  */
-export function efectivos(role: string, perfil: PerfilDef | null, rows: FilaModulo[]): { permissions: Record<string, Level>; scopes: Record<string, ModuleScope>; excepciones: string[] } {
-  if (role === "superadmin") return { permissions: allPermissions(), scopes: {}, excepciones: [] };
+export function efectivos(
+  role: string,
+  perfil: PerfilDef | null,
+  rows: FilaModulo[],
+): { permissions: Record<string, Level>; scopes: Record<string, ModuleScope>; excepciones: string[]; acciones: Record<string, string[]> } {
+  if (role === "superadmin") return { permissions: allPermissions(), scopes: {}, excepciones: [], acciones: todasLasAcciones() };
   if (!perfil) {
     const propias = rows.filter((r) => r.level !== "perfil" && r.level !== "ninguno");
     const permissions = buildPermissions(role, propias);
-    return { permissions, scopes: buildScopes(propias.filter((r) => permissions[r.moduleKey])), excepciones: [] };
+    const acciones: Record<string, string[]> = {};
+    for (const [mod, lvl] of Object.entries(permissions)) acciones[mod] = accionesDe(mod, lvl, propias.find((r) => r.moduleKey === mod)?.acciones);
+    return { permissions, scopes: buildScopes(propias.filter((r) => permissions[r.moduleKey])), excepciones: [], acciones };
   }
   const permissions: Record<string, Level> = {};
   const alcance: Record<string, string> = {};
+  const acciones: Record<string, string[]> = {};
   for (const [mod, lvl] of Object.entries(perfil.permisos ?? {})) {
     const l = normalizeLevel(mod, lvl);
     if (!l) continue;
     permissions[mod] = l;
     alcance[mod] = String(perfil.alcances?.[mod] ?? "todos");
+    acciones[mod] = accionesDe(mod, l, perfil.acciones?.[mod]);
   }
   const sectores: Record<string, number[]> = {};
   const excepciones: string[] = [];
@@ -236,12 +257,14 @@ export function efectivos(role: string, perfil: PerfilDef | null, rows: FilaModu
     excepciones.push(r.moduleKey);
     if (r.level === "ninguno") {
       delete permissions[r.moduleKey];
+      delete acciones[r.moduleKey];
       continue;
     }
     const l = normalizeLevel(r.moduleKey, r.level || legacyLevel(role));
     if (l) {
       permissions[r.moduleKey] = l;
       alcance[r.moduleKey] = r.alcance || "todos";
+      acciones[r.moduleKey] = accionesDe(r.moduleKey, l, r.acciones);
     }
   }
   const scopes: Record<string, ModuleScope> = {};
@@ -250,13 +273,13 @@ export function efectivos(role: string, perfil: PerfilDef | null, rows: FilaModu
     if (!isSectorModule(mod) || !(ALCANCES as readonly string[]).includes(a) || a === "todos") continue;
     scopes[mod] = { alcance: a, sectorIds: [...new Set(sectores[mod] ?? [])].sort((x, y) => x - y) };
   }
-  return { permissions, scopes, excepciones };
+  return { permissions, scopes, excepciones, acciones };
 }
 
 export async function leerPerfil(id: number | null | undefined): Promise<PerfilDef | null> {
   if (!id) return null;
   const [p] = await db.select().from(perfilesTable).where(eq(perfilesTable.id, id)).limit(1);
-  return p ? { id: p.id, nombre: p.nombre, permisos: p.permisos ?? {}, alcances: p.alcances ?? {} } : null;
+  return p ? { id: p.id, nombre: p.nombre, permisos: p.permisos ?? {}, alcances: p.alcances ?? {}, acciones: p.acciones ?? {} } : null;
 }
 
 /** Arma el mapa módulo → nivel a partir de las filas de user_modules. */
@@ -274,11 +297,11 @@ export async function getUserWithPermissions(userId: number): Promise<AuthUser |
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user || !user.active) return null;
   const modules = await db
-    .select({ moduleKey: userModulesTable.moduleKey, level: userModulesTable.level, alcance: userModulesTable.alcance, sectorIds: userModulesTable.sectorIds })
+    .select({ moduleKey: userModulesTable.moduleKey, level: userModulesTable.level, alcance: userModulesTable.alcance, sectorIds: userModulesTable.sectorIds, acciones: userModulesTable.acciones })
     .from(userModulesTable)
     .where(eq(userModulesTable.userId, userId));
   const perfil = user.role === "superadmin" ? null : await leerPerfil(user.perfilId);
-  const { permissions, scopes, excepciones } = efectivos(user.role, perfil, modules);
+  const { permissions, scopes, excepciones, acciones } = efectivos(user.role, perfil, modules);
   return {
     id: user.id,
     username: user.username,
@@ -293,6 +316,7 @@ export async function getUserWithPermissions(userId: number): Promise<AuthUser |
     sectorIds: [...new Set(Object.values(scopes).flatMap((sc) => sc.sectorIds))].sort((a, b) => a - b),
     perfil: perfil ? { id: perfil.id, nombre: perfil.nombre } : null,
     excepciones,
+    acciones,
   };
 }
 
@@ -471,14 +495,43 @@ export const requireLevel = (moduleKey: string, min: Level): RequestHandler => (
 /** Acceso al módulo (nivel Ver). */
 export const requireModule = (moduleKey: string): RequestHandler => requireLevel(moduleKey, "ver");
 
+/** ¿Puede hacer esa acción en el módulo? (superadmin: todo). */
+export function can(user: AuthUser | null | undefined, moduleKey: string, accion: string): boolean {
+  if (!user) return false;
+  if (user.role === "superadmin") return true;
+  return Boolean(user.acciones?.[moduleKey]?.includes(accion));
+}
+
+const ACCION_MENSAJE: Record<string, string> = {
+  ver: "No tenés acceso a este módulo.",
+  cargar: "No tenés permiso para cargar o modificar en este módulo.",
+  eliminar: "No tenés permiso para eliminar en este módulo.",
+};
+
+/** Exige una acción concreta del módulo (superadmin siempre pasa). */
+export const requireAccion = (moduleKey: string, accion: string): RequestHandler => (request, response, next) => {
+  const user = request.authUser;
+  if (!user) {
+    response.status(401).json({ message: "Sesión no válida o vencida." });
+    return;
+  }
+  if (!can(user, moduleKey, accion)) {
+    response.status(403).json({ message: ACCION_MENSAJE[accion] ?? "Tu permiso en este módulo no incluye esta acción.", accion });
+    return;
+  }
+  next();
+};
+
 /**
  * Nivel según el método: consultar = Ver, crear / modificar = Cargar y editar, eliminar = Control total.
  * Las acciones de configuración piden "total" explícitamente en cada ruta.
  */
-export const requireModuleAccess = (moduleKey: string): RequestHandler => (request, response, next) => {
+export const requireModuleAccess = (moduleKey: string, opciones: { porRuta?: boolean } = {}): RequestHandler => (request, response, next) => {
   const m = request.method;
-  const min: Level = m === "GET" || m === "HEAD" || m === "OPTIONS" ? "ver" : m === "DELETE" ? "total" : "editar";
-  requireLevel(moduleKey, min)(request, response, next);
+  const lectura = m === "GET" || m === "HEAD" || m === "OPTIONS";
+  // porRuta: el módulo controla cada acción en su ruta (requireAccion); acá solo se exige acceso.
+  const accion = lectura || opciones.porRuta ? "ver" : m === "DELETE" ? "eliminar" : "cargar";
+  requireAccion(moduleKey, accion)(request, response, next);
 };
 
 declare global {

@@ -45,6 +45,7 @@ export const perfilesTable = pgTable("perfiles", {
   descripcion: text("descripcion").notNull().default(""),
   permisos: jsonb("permisos").$type<Record<string, string>>().notNull().default({}),
   alcances: jsonb("alcances").$type<Record<string, string>>().notNull().default({}),
+  acciones: jsonb("acciones").$type<Record<string, string[]>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -61,6 +62,8 @@ export const userModulesTable = pgTable("user_modules", {
   // Alcance en módulos con sectores: todos | carga (ve todo, carga en sus sectores) | sector (solo sus sectores).
   alcance: text("alcance").notNull().default("todos"),
   sectorIds: integer("sector_ids").array().notNull().default([]),
+  // Acciones a medida (null = las típicas del nivel). Ver apps/api/src/lib/acciones.ts.
+  acciones: text("acciones").array(),
 });
 
 export const sessionsTable = pgTable("sessions", {

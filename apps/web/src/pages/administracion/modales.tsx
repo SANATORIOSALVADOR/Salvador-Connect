@@ -19,7 +19,20 @@ import {
 } from "./logic";
 import { Campo, Modal, OrigenPill, Pill, S, TipoPill, UrgenciaPill } from "./ui";
 
-export type Permisos = { editar: boolean; total: boolean };
+/**
+ * Acciones de la persona en Administración (lib/permisos.ts → ACCIONES.administracion).
+ * editar = cargar y editar ítems · cumplir = registrar / marcar cumplido / reabrir / cancelar ·
+ * eliminar · calendario = obligaciones, calendario oficial y feriados.
+ */
+export type Permisos = {
+  editar: boolean;
+  cumplir: boolean;
+  verificar: boolean;
+  recurrentes: boolean;
+  contactos: boolean;
+  eliminar: boolean;
+  calendario: boolean;
+};
 
 const AVISOS = [
   { v: 0, l: "El mismo día" },
@@ -389,7 +402,7 @@ export function ItemDetalle({ id, permisos, hoy, onClose, onChanged, onEdit, onC
     ["Repite", it.recurrenteId ? "Sí (vencimiento recurrente)" : ""],
   ].filter(([, v]) => v) as [string, string][];
 
-  const puedeBorrar = permisos.total && !it.obligacionId;
+  const puedeBorrar = permisos.eliminar && !it.obligacionId;
 
   return (
     <Modal
@@ -397,7 +410,7 @@ export function ItemDetalle({ id, permisos, hoy, onClose, onChanged, onEdit, onC
       onClose={onClose}
       ancho={640}
       pie={
-        permisos.editar ? (
+        permisos.editar || permisos.cumplir || puedeBorrar ? (
           <>
             {puedeBorrar && (
               <button
@@ -419,14 +432,14 @@ export function ItemDetalle({ id, permisos, hoy, onClose, onChanged, onEdit, onC
                 Eliminar
               </button>
             )}
-            {it.estado === "pendiente" && !cancelando && (
+            {permisos.cumplir && it.estado === "pendiente" && !cancelando && (
               <button type="button" className="btn btn-quiet" onClick={() => setCancelando(true)}>Cancelar ítem</button>
             )}
-            {it.estado !== "pendiente" && (
+            {permisos.cumplir && it.estado !== "pendiente" && (
               <button type="button" className="btn btn-quiet" onClick={() => accion(() => adm.reabrir(it.id), "Volvió a pendiente.")}>Reabrir</button>
             )}
-            <button type="button" className="btn btn-quiet" onClick={() => onEdit(it)}>Editar</button>
-            {it.estado === "pendiente" && (
+            {permisos.editar && <button type="button" className="btn btn-quiet" onClick={() => onEdit(it)}>Editar</button>}
+            {permisos.cumplir && it.estado === "pendiente" && (
               <button type="button" className="btn btn-primary" onClick={() => onCumplir(it)}>
                 {it.requierePresentacion || it.requierePago ? "Registrar presentación / pago" : "Marcar cumplido"}
               </button>

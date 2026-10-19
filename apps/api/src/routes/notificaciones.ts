@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { admItemsTable, db, guardiasAuditoriaTable } from "@salvador/db";
-import { hasLevel, hasModule, ownSectorIds, requireAuth, visibleSectorIds } from "../lib/auth";
+import { can, hasModule, ownSectorIds, requireAuth, visibleSectorIds } from "../lib/auth";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horasEnRango, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
 // Campanita y gráficos del Resumen. Todo se calcula en el momento según los módulos de cada persona.
@@ -82,7 +82,7 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
       }
 
       // Cambios de otros en guardias de mis sectores (últimas 48 h), para quien carga guardias.
-      if (hasLevel(user, "guardias", "editar")) {
+      if (can(user, "guardias", "cargar")) {
         const desde = new Date(Date.now() - 48 * 3_600_000);
         const cambios = await db
           .select()

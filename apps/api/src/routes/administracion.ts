@@ -12,7 +12,7 @@ import {
   userModulesTable,
   usersTable,
 } from "@salvador/db";
-import { requireAuth, requireLevel, requireModuleAccess } from "../lib/auth";
+import { requireAccion, requireAuth, requireModuleAccess } from "../lib/auth";
 import {
   Feriados,
   FRECUENCIAS,
@@ -36,8 +36,10 @@ import {
 } from "../lib/administracion";
 
 const router: IRouter = Router();
-router.use("/administracion", requireAuth, requireModuleAccess("administracion"));
-const total = requireLevel("administracion", "total");
+// Cada ruta de escritura exige su acción concreta (lib/acciones.ts); acá solo el acceso al módulo.
+router.use("/administracion", requireAuth, requireModuleAccess("administracion", { porRuta: true }));
+/** Catálogo de obligaciones, calendario oficial y feriados. */
+const calendario = requireAccion("administracion", "calendario");
 
 export const TIPOS = ["fiscal", "vencimiento", "pago", "cheque", "documento", "tarea", "recordatorio"] as const;
 const ESTADOS = ["pendiente", "cumplido", "cancelado"] as const;
@@ -327,6 +329,7 @@ router.get(
 
 router.post(
   "/administracion/items",
+  requireAccion("administracion", "cargar"),
   h(async (req, res) => {
     const data = parseItemBody(req.body ?? {}, false);
     const [row] = await db
@@ -340,6 +343,7 @@ router.post(
 
 router.patch(
   "/administracion/items/:id",
+  requireAccion("administracion", "cargar"),
   h(async (req, res) => {
     const id = idParam(req);
     const [cur] = await db.select().from(admItemsTable).where(eq(admItemsTable.id, id)).limit(1);
@@ -364,6 +368,7 @@ router.patch(
 
 router.post(
   "/administracion/items/:id/cumplir",
+  requireAccion("administracion", "cumplir"),
   h(async (req, res) => {
     const id = idParam(req);
     const it = await getItem(id);
@@ -434,6 +439,7 @@ router.post(
 
 router.post(
   "/administracion/items/:id/reabrir",
+  requireAccion("administracion", "cumplir"),
   h(async (req, res) => {
     const id = idParam(req);
     const [row] = await db
@@ -452,6 +458,7 @@ router.post(
 
 router.post(
   "/administracion/items/:id/cancelar",
+  requireAccion("administracion", "cumplir"),
   h(async (req, res) => {
     const id = idParam(req);
     const motivo = str(req.body?.motivo, 500);
@@ -467,6 +474,7 @@ router.post(
 
 router.delete(
   "/administracion/items/:id",
+  requireAccion("administracion", "eliminar"),
   h(async (req, res) => {
     const id = idParam(req);
     const [cur] = await db.select().from(admItemsTable).where(eq(admItemsTable.id, id)).limit(1);
@@ -548,6 +556,7 @@ router.get(
 
 router.post(
   "/administracion/fiscal/generar",
+  requireAccion("administracion", "verificar"),
   h(async (req, res) => {
     const { anio, mes } = anioMes(req.body ?? {});
     const r = await asegurarFiscalMes(anio, mes, quien(req));
@@ -618,7 +627,7 @@ router.get(
 
 router.post(
   "/administracion/obligaciones",
-  total,
+  calendario,
   h(async (req, res) => {
     const data = parseObligacion(req.body ?? {}, false);
     const base = str(req.body?.codigo || data.nombre, 60)
@@ -638,7 +647,7 @@ router.post(
 
 router.patch(
   "/administracion/obligaciones/:id",
-  total,
+  calendario,
   h(async (req, res) => {
     const id = idParam(req);
     const data = parseObligacion(req.body ?? {}, true);
@@ -656,7 +665,7 @@ router.patch(
 
 router.delete(
   "/administracion/obligaciones/:id",
-  total,
+  calendario,
   h(async (req, res) => {
     const id = idParam(req);
     const [usada] = await db.select({ id: admItemsTable.id }).from(admItemsTable).where(eq(admItemsTable.obligacionId, id)).limit(1);
@@ -731,7 +740,7 @@ async function aplicarCalendario(anio: number, mes: number, user: { id: number; 
 
 router.put(
   "/administracion/calendario",
-  total,
+  calendario,
   h(async (req, res) => {
     const b = req.body ?? {};
     const obligacionId = int(b.obligacionId, 1, 2_147_483_647, 0);
@@ -749,7 +758,7 @@ router.put(
 
 router.post(
   "/administracion/calendario/lote",
-  total,
+  calendario,
   h(async (req, res) => {
     const b = req.body ?? {};
     const obligacionId = int(b.obligacionId, 1, 2_147_483_647, 0);
@@ -782,7 +791,7 @@ router.post(
  */
 router.post(
   "/administracion/calendario/importar",
-  total,
+  calendario,
   h(async (req, res) => {
     const b = req.body ?? {};
     const anio = int(b.anio, 2020, 2100, 0);
@@ -824,6 +833,7 @@ router.post(
 /** "Verifiqué el mes contra el calendario oficial": las fechas estimadas que coinciden pasan a oficiales. */
 router.post(
   "/administracion/calendario/verificar",
+  requireAccion("administracion", "verificar"),
   h(async (req, res) => {
     const { anio, mes } = anioMes(req.body ?? {});
     const fer = new Feriados();
@@ -878,7 +888,7 @@ router.get(
 
 router.post(
   "/administracion/feriados",
-  total,
+  calendario,
   h(async (req, res) => {
     const fecha = isoOk(req.body?.fecha);
     if (!fecha) fail("Fecha inválida.");
@@ -893,7 +903,7 @@ router.post(
 
 router.delete(
   "/administracion/feriados/:fecha",
-  total,
+  calendario,
   h(async (req, res) => {
     const fecha = isoOk(req.params.fecha);
     if (!fecha) fail("Fecha inválida.");
@@ -907,7 +917,7 @@ router.delete(
 /** Trae los feriados nacionales del año desde ArgentinaDatos (dato público). Necesita salida a internet. */
 router.post(
   "/administracion/feriados/importar",
-  total,
+  calendario,
   h(async (req, res) => {
     const anio = int(req.body?.anio, 2020, 2100, new Date().getFullYear());
     let lista: { fecha: string; nombre: string; tipo: string }[];
@@ -998,6 +1008,7 @@ router.get(
 
 router.post(
   "/administracion/recurrentes",
+  requireAccion("administracion", "recurrentes"),
   h(async (req, res) => {
     const data = parseRecurrente(req.body ?? {}, false);
     const [row] = await db.insert(admRecurrentesTable).values({ ...(data as typeof admRecurrentesTable.$inferInsert), createdByUserId: req.authUser?.id ?? null }).returning();
@@ -1009,6 +1020,7 @@ router.post(
 
 router.patch(
   "/administracion/recurrentes/:id",
+  requireAccion("administracion", "recurrentes"),
   h(async (req, res) => {
     const id = idParam(req);
     const data = parseRecurrente(req.body ?? {}, true);
@@ -1027,6 +1039,7 @@ router.patch(
 
 router.delete(
   "/administracion/recurrentes/:id",
+  requireAccion("administracion", "eliminar"),
   h(async (req, res) => {
     const id = idParam(req);
     await borrarItems((await pendientesFuturosDeRecurrente(id)).map((r) => r.id));
@@ -1063,6 +1076,7 @@ router.get(
 
 router.post(
   "/administracion/contactos",
+  requireAccion("administracion", "contactos"),
   h(async (req, res) => {
     const [row] = await db.insert(admContactosTable).values(parseContacto(req.body ?? {}, false) as typeof admContactosTable.$inferInsert).returning();
     res.status(201).json(row);
@@ -1071,6 +1085,7 @@ router.post(
 
 router.patch(
   "/administracion/contactos/:id",
+  requireAccion("administracion", "contactos"),
   h(async (req, res) => {
     const [row] = await db
       .update(admContactosTable)
@@ -1087,6 +1102,7 @@ router.patch(
 
 router.delete(
   "/administracion/contactos/:id",
+  requireAccion("administracion", "eliminar"),
   h(async (req, res) => {
     const [row] = await db.delete(admContactosTable).where(eq(admContactosTable.id, idParam(req))).returning({ id: admContactosTable.id });
     if (!row) {

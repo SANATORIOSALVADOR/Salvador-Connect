@@ -47,7 +47,7 @@ export default function Resumen() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {items.map((it) => (
-            <ItemFila key={it.id} item={it} hoy={hoy} onOpen={(x) => abrir(x.id)} onCheck={cumplir} puedeEditar={permisos.editar} />
+            <ItemFila key={it.id} item={it} hoy={hoy} onOpen={(x) => abrir(x.id)} onCheck={cumplir} puedeEditar={permisos.cumplir} />
           ))}
         </div>
       </div>
@@ -148,7 +148,7 @@ export default function Resumen() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {data.tareas.slice(0, 6).map((it) => (
-                  <ItemFila key={it.id} item={it} hoy={hoy} onOpen={(x) => abrir(x.id)} onCheck={cumplir} puedeEditar={permisos.editar} />
+                  <ItemFila key={it.id} item={it} hoy={hoy} onOpen={(x) => abrir(x.id)} onCheck={cumplir} puedeEditar={permisos.cumplir} />
                 ))}
               </div>
             )}

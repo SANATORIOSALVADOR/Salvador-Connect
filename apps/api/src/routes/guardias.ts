@@ -11,12 +11,12 @@ import {
   type CoberturaFranja,
 } from "@salvador/db";
 import {
+  can,
+  requireAccion,
   canSeeSector,
   canWriteSector as puedeEscribir,
-  hasLevel,
   ownSectorIds,
   requireAuth,
-  requireLevel,
   requireModuleAccess,
   requireSuperadmin,
   visibleSectorIds,
@@ -24,7 +24,8 @@ import {
 } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use("/guardias", requireAuth, requireModuleAccess("guardias"));
+// Cada ruta exige su acción concreta (lib/acciones.ts); acá solo el acceso al módulo.
+router.use("/guardias", requireAuth, requireModuleAccess("guardias", { porRuta: true }));
 
 const MODALITIES = ["activa", "pasiva"] as const;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -316,7 +317,7 @@ router.get("/guardias/config", async (req, res): Promise<void> => {
   }
 });
 
-router.put("/guardias/config/:sectorId", requireLevel("guardias", "total"), async (req, res): Promise<void> => {
+router.put("/guardias/config/:sectorId", requireAccion("guardias", "horarios"), async (req, res): Promise<void> => {
   try {
     const sectorId = Number(req.params.sectorId);
     if (!sectorId || Number.isNaN(sectorId)) {
@@ -541,7 +542,7 @@ router.get("/guardias/profesionales/lista", async (req, res): Promise<void> => {
   }
 });
 
-router.patch("/guardias/profesionales/:id", requireLevel("guardias", "total"), async (req, res): Promise<void> => {
+router.patch("/guardias/profesionales/:id", requireAccion("guardias", "profesionales"), async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {
@@ -604,7 +605,7 @@ router.patch("/guardias/profesionales/:id", requireLevel("guardias", "total"), a
 
 router.get("/guardias/auditoria", async (req, res): Promise<void> => {
   try {
-    if (!hasLevel(req.authUser, "guardias", "editar")) {
+    if (!can(req.authUser, "guardias", "historial")) {
       res.status(403).json({ message: "No tenés acceso al registro de cambios." });
       return;
     }
@@ -661,7 +662,7 @@ router.get("/guardias", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/guardias", async (req, res): Promise<void> => {
+router.post("/guardias", requireAccion("guardias", "cargar"), async (req, res): Promise<void> => {
   try {
     const parsed = parseBody(req.body ?? {});
     if (!parsed.ok) {
@@ -729,7 +730,7 @@ router.post("/guardias", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/guardias/copiar", async (req, res): Promise<void> => {
+router.post("/guardias/copiar", requireAccion("guardias", "copiar"), async (req, res): Promise<void> => {
   try {
     const body = req.body ?? {};
     const fromStart = String(body.fromStart ?? "").slice(0, 10);
@@ -810,7 +811,7 @@ router.post("/guardias/copiar", async (req, res): Promise<void> => {
   }
 });
 
-router.patch("/guardias/:id", async (req, res): Promise<void> => {
+router.patch("/guardias/:id", requireAccion("guardias", "cargar"), async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {
@@ -888,7 +889,7 @@ router.patch("/guardias/:id", async (req, res): Promise<void> => {
   }
 });
 
-router.delete("/guardias/:id", async (req, res): Promise<void> => {
+router.delete("/guardias/:id", requireAccion("guardias", "eliminar"), async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {

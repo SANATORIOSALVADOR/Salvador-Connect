@@ -67,3 +67,60 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   },
   { key: "liquidacion", label: "Liquidación (próximamente)", levels: ["ver"], can: { ver: "Ver el módulo cuando esté disponible." } },
 ];
+
+/**
+ * Acciones concretas de cada módulo (debe coincidir con la API: apps/api/src/lib/acciones.ts).
+ * El nivel es un atajo: marca las acciones de ese nivel; a una persona o perfil se le pueden sumar o quitar.
+ */
+export const ACCIONES: Record<string, { key: string; label: string; nivel: Level }[]> = {
+  dashboard: [{ key: "ver", label: "Ver la pantalla de inicio", nivel: "ver" }],
+  liquidacion: [{ key: "ver", label: "Ver el módulo", nivel: "ver" }],
+  guardias: [
+    { key: "ver", label: "Ver calendario, registro y quién está de guardia", nivel: "ver" },
+    { key: "estadisticas", label: "Ver estadísticas de productividad", nivel: "ver" },
+    { key: "exportar", label: "Exportar CSV e imprimir", nivel: "ver" },
+    { key: "cargar", label: "Cargar y modificar guardias", nivel: "editar" },
+    { key: "copiar", label: "Copiar semana o mes", nivel: "editar" },
+    { key: "historial", label: "Ver el historial de cambios", nivel: "editar" },
+    { key: "eliminar", label: "Eliminar guardias", nivel: "total" },
+    { key: "horarios", label: "Configurar sectores que participan y su horario", nivel: "total" },
+    { key: "profesionales", label: "Editar datos de los profesionales", nivel: "total" },
+  ],
+  administracion: [
+    { key: "ver", label: "Ver agenda, fiscal, cheques, documentos, tareas y contactos", nivel: "ver" },
+    { key: "cargar", label: "Cargar y editar vencimientos, pagos, cheques, documentos y tareas", nivel: "editar" },
+    { key: "cumplir", label: "Registrar presentaciones y pagos, marcar cumplido, reabrir o cancelar", nivel: "editar" },
+    { key: "verificar", label: "Verificar las fechas del mes y crear los vencimientos fiscales", nivel: "editar" },
+    { key: "recurrentes", label: "Configurar recurrentes", nivel: "editar" },
+    { key: "contactos", label: "Cargar y editar contactos", nivel: "editar" },
+    { key: "eliminar", label: "Eliminar ítems, recurrentes y contactos", nivel: "total" },
+    { key: "calendario", label: "Catálogo de obligaciones, calendario oficial y feriados", nivel: "total" },
+  ],
+  inventario: [
+    { key: "ver", label: "Ver activos y movimientos", nivel: "ver" },
+    { key: "cargar", label: "Dar de alta y modificar activos", nivel: "editar" },
+    { key: "eliminar", label: "Eliminar activos", nivel: "total" },
+  ],
+  instructivos: [
+    { key: "ver", label: "Ver y consultar instructivos", nivel: "ver" },
+    { key: "cargar", label: "Publicar y modificar instructivos", nivel: "editar" },
+    { key: "eliminar", label: "Eliminar instructivos", nivel: "total" },
+  ],
+};
+
+const RANGO: Record<Level, number> = { ver: 1, editar: 2, total: 3 };
+
+/** Acciones típicas de un nivel (el atajo). */
+export function accionesDeNivel(modulo: string, nivel: Level): string[] {
+  return (ACCIONES[modulo] ?? []).filter((a) => RANGO[a.nivel] <= RANGO[nivel]).map((a) => a.key);
+}
+
+/** Ordena según el catálogo y siempre incluye "ver". */
+export function ordenarAcciones(modulo: string, lista: string[]): string[] {
+  const set = new Set([...lista, "ver"]);
+  return (ACCIONES[modulo] ?? []).map((a) => a.key).filter((k) => set.has(k));
+}
+
+export function mismasAcciones(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}

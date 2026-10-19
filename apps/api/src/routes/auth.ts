@@ -61,6 +61,7 @@ const publicUser = (user: NonNullable<Express.Request["authUser"]>) => ({
   sectorIds: user.sectorIds,
   perfil: user.perfil,
   excepciones: user.excepciones,
+  acciones: user.acciones,
 });
 
 router.post("/auth/login", async (request, response): Promise<void> => {

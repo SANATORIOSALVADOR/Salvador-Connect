@@ -21,7 +21,7 @@ export default function Recurrentes() {
         <p style={{ ...S.small, margin: 0, maxWidth: 640 }}>
           Pagos y tareas que se repiten (servicios, alquileres, sueldos, controles). Se cargan una vez y el sistema crea solo cada vencimiento con dos meses de anticipación.
         </p>
-        {permisos.editar && <button type="button" className="btn btn-primary" onClick={() => setEditando({ tipo: "pago", frecuencia: "mensual", dia: 10, desde: desdeDefault, habiles: true, alertDays: 3, activo: true })}><Plus size={15} /> Nuevo recurrente</button>}
+        {permisos.recurrentes && <button type="button" className="btn btn-primary" onClick={() => setEditando({ tipo: "pago", frecuencia: "mensual", dia: 10, desde: desdeDefault, habiles: true, alertDays: 3, activo: true })}><Plus size={15} /> Nuevo recurrente</button>}
       </div>
       {error && <div className="form-error">{error}</div>}
       {data && data.length === 0 ? (
@@ -52,7 +52,7 @@ export default function Recurrentes() {
                     <td style={{ ...S.td, whiteSpace: "nowrap" }}>{r.proxima ? fechaAR(r.proxima) : <span style={S.muted}>—</span>}</td>
                     <td style={{ ...S.td, textAlign: "right", whiteSpace: "nowrap" }}>{r.monto ? (Number.isFinite(n) ? formatMonto(n) : r.monto) : ""}</td>
                     <td style={S.td}>{r.responsable}</td>
-                    <td style={{ ...S.td, textAlign: "right" }}>{permisos.editar && <button type="button" className="btn btn-quiet btn-icon" aria-label={`Editar ${r.titulo}`} onClick={() => setEditando(r)}><Pencil size={15} /></button>}</td>
+                    <td style={{ ...S.td, textAlign: "right" }}>{permisos.recurrentes && <button type="button" className="btn btn-quiet btn-icon" aria-label={`Editar ${r.titulo}`} onClick={() => setEditando(r)}><Pencil size={15} /></button>}</td>
                   </tr>
                 );
               })}
@@ -60,7 +60,7 @@ export default function Recurrentes() {
           </table>
         </div>
       )}
-      {editando && <RecurrenteForm r={editando} puedeBorrar={permisos.total} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); refrescar(); }} />}
+      {editando && <RecurrenteForm r={editando} puedeBorrar={permisos.eliminar} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); refrescar(); }} />}
     </div>
   );
 }

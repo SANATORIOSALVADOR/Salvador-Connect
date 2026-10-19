@@ -119,7 +119,7 @@ export default function Agenda({ busquedaInicial }: { busquedaInicial: string })
       {error && <div className="form-error">{error}</div>}
 
       {vista === "lista" ? (
-        <Lista items={items} hoy={hoy} cargando={cargando && !data} puedeEditar={permisos.editar} onOpen={(it) => abrir(it.id)} onCheck={cumplir} onNuevo={permisos.editar ? () => nuevo() : undefined} />
+        <Lista items={items} hoy={hoy} cargando={cargando && !data} puedeEditar={permisos.cumplir} onOpen={(it) => abrir(it.id)} onCheck={cumplir} onNuevo={permisos.editar ? () => nuevo() : undefined} />
       ) : (
         <Calendario
           items={items}
@@ -129,6 +129,7 @@ export default function Agenda({ busquedaInicial }: { busquedaInicial: string })
           dia={dia}
           setDia={setDia}
           puedeEditar={permisos.editar}
+          puedeCumplir={permisos.cumplir}
           onOpen={(it) => abrir(it.id)}
           onCheck={cumplir}
           onNuevo={(f) => nuevo(undefined, f)}
@@ -162,7 +163,7 @@ function Lista({ items, hoy, cargando, puedeEditar, onOpen, onCheck, onNuevo }: 
   );
 }
 
-function Calendario({ items, hoy, cursor, setCursor, dia, setDia, puedeEditar, onOpen, onCheck, onNuevo }: {
+function Calendario({ items, hoy, cursor, setCursor, dia, setDia, puedeEditar, puedeCumplir, onOpen, onCheck, onNuevo }: {
   items: Item[];
   hoy: string;
   cursor: { anio: number; mes: number };
@@ -170,6 +171,7 @@ function Calendario({ items, hoy, cursor, setCursor, dia, setDia, puedeEditar, o
   dia: string | null;
   setDia: (d: string | null) => void;
   puedeEditar: boolean;
+  puedeCumplir: boolean;
   onOpen: (it: Item) => void;
   onCheck: (it: Item) => void;
   onNuevo: (fecha: string) => void;
@@ -235,7 +237,7 @@ function Calendario({ items, hoy, cursor, setCursor, dia, setDia, puedeEditar, o
               <div style={S.small}>Nada cargado para este día.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {delDia.map((it) => <ItemFila key={it.id} item={it} hoy={hoy} onOpen={onOpen} onCheck={onCheck} mostrarFecha={false} puedeEditar={puedeEditar} />)}
+                {delDia.map((it) => <ItemFila key={it.id} item={it} hoy={hoy} onOpen={onOpen} onCheck={onCheck} mostrarFecha={false} puedeEditar={puedeCumplir} />)}
               </div>
             )}
           </>

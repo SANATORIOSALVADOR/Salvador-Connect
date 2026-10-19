@@ -207,6 +207,33 @@ req $A GET /users >/dev/null
 X="$(jget "d.find(u=>u.id===$GID).perfilId")|$(jget "d.find(u=>u.id===$GID).permissions.guardias")|$(jget "d.find(u=>u.id===$GID).scopes.guardias.sectorIds.join(',')")"
 [ "$X" = "null|editar|$GC" ] && ok "la persona conserva sus permisos y sectores ($X)" || bad "materializa" "$X"
 
+echo "== Acciones concretas por módulo"
+check "Ver + la acción 'cargar'" 201 "$(req $A POST /users "{\"name\":\"Acc Uno\",\"username\":\"accuno\",\"password\":\"prueba123\",\"permissions\":{\"guardias\":\"ver\"},\"acciones\":{\"guardias\":[\"ver\",\"cargar\"]}}")"
+X=$(jget "d.acciones.guardias.join(',')"); [ "$X" = "ver,cargar" ] && ok "acciones a medida guardadas ($X)" || bad "acciones" "$X"
+A1=$T/ck_a1; req $A1 POST /auth/login '{"username":"accuno","password":"prueba123"}' >/dev/null
+check "con 'cargar' carga aunque su nivel sea Ver" 201 "$(req $A1 POST /guardias "{\"sectorId\":$GC,\"date\":\"2026-11-25\",\"startTime\":\"08:00\",\"endTime\":\"16:00\",\"professionalName\":\"Paz Lía\"}")"
+GA=$(jget d.id)
+check "sin 'eliminar' no borra" 403 "$(req $A1 DELETE /guardias/$GA)"
+check "sin 'historial' no ve el historial" 403 "$(req $A1 GET /guardias/auditoria)"
+check "sin 'copiar' no copia" 403 "$(req $A1 POST /guardias/copiar '{"fromStart":"2026-11-01","fromEnd":"2026-11-07","toStart":"2026-12-01"}')"
+check "Control total sin 'eliminar'" 201 "$(req $A POST /users "{\"name\":\"Acc Dos\",\"username\":\"accdos\",\"password\":\"prueba123\",\"permissions\":{\"guardias\":\"total\",\"administracion\":\"editar\"},\"acciones\":{\"guardias\":[\"ver\",\"estadisticas\",\"exportar\",\"cargar\",\"copiar\",\"historial\",\"horarios\",\"profesionales\"],\"administracion\":[\"ver\",\"cargar\",\"verificar\",\"recurrentes\",\"contactos\"]}}")"
+A2=$T/ck_a2; req $A2 POST /auth/login '{"username":"accdos","password":"prueba123"}' >/dev/null
+check "Control total sin 'eliminar' no borra" 403 "$(req $A2 DELETE /guardias/$GA)"
+check "pero configura horarios" 200 "$(req $A2 PUT /guardias/config/$GC '{"active":true,"cobertura":[]}')"
+check "Administración: carga un ítem" 201 "$(req $A2 POST /administracion/items '{"titulo":"Prueba acciones","fecha":"2026-11-28","tipo":"pago"}')"
+AI=$(jget d.id)
+check "Administración: sin 'cumplir' no marca cumplido" 403 "$(req $A2 POST /administracion/items/$AI/cumplir '{}')"
+check "Administración: sin 'calendario' no toca feriados" 403 "$(req $A2 POST /administracion/feriados '{"fecha":"2026-12-24","nombre":"Prueba","tipo":"puente"}')"
+check "volver a las del nivel (sin acciones a medida)" 200 "$(req $A PATCH /users/$(req $A GET /users >/dev/null; jget "d.find(u=>u.username==='accuno').id") '{"permissions":{"guardias":"ver"},"acciones":{}}')"
+X=$(jget "d.acciones.guardias.join(',')"); [ "$X" = "ver,estadisticas,exportar" ] && ok "vuelve a las típicas de Ver ($X)" || bad "nivel" "$X"
+check "perfil con acciones a medida" 201 "$(req $A POST /users/perfiles '{"nombre":"Carga sin copiar","permisos":{"guardias":"editar"},"acciones":{"guardias":["ver","cargar"]}}')"
+PA=$(jget d.id); X=$(jget "d.acciones.guardias.join(',')"); [ "$X" = "ver,cargar" ] && ok "el perfil guarda sus acciones ($X)" || bad "perfil acciones" "$X"
+check "persona con ese perfil" 201 "$(req $A POST /users "{\"name\":\"Acc Tres\",\"username\":\"acctres\",\"password\":\"prueba123\",\"perfilId\":$PA}")"
+AT=$(jget d.id); X="$(jget "d.acciones.guardias.join(',')")|$(jget "d.excepciones.length")"; [ "$X" = "ver,cargar|0" ] && ok "hereda las acciones del perfil ($X)" || bad "hereda acciones" "$X"
+check "excepción: además puede copiar" 200 "$(req $A PATCH /users/$AT "{\"perfilId\":$PA,\"permissions\":{\"guardias\":\"editar\"},\"acciones\":{\"guardias\":[\"ver\",\"cargar\",\"copiar\"]}}")"
+X="$(jget "d.acciones.guardias.join(',')")|$(jget "d.excepciones.join(',')")"; [ "$X" = "ver,cargar,copiar|guardias" ] && ok "acción extra como excepción ($X)" || bad "excepción acción" "$X"
+check "borrar la guardia de prueba" 204 "$(req $A DELETE /guardias/$GA)"
+
 echo "== Administración: ítems"
 E=$T/ck_admed
 check "crear usuario Administración=editar" 201 "$(req $A POST /users '{"name":"Laura Adm","username":"laura","password":"prueba123","permissions":{"administracion":"editar"}}')"

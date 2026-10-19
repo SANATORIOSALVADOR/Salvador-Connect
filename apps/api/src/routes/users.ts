@@ -22,6 +22,7 @@ import {
   revokeUserSessions,
   type Level,
 } from "../lib/auth";
+import { accionesDeNivel, normalizarAcciones } from "../lib/acciones";
 
 const router: IRouter = Router();
 
@@ -53,6 +54,22 @@ function parsePermissions(body: Record<string, unknown>): Record<string, Level> 
     return out;
   }
   return undefined;
+}
+
+/** Acciones pedidas por módulo → solo las que difieren del nivel (las demás son las típicas del nivel). */
+function parseAcciones(body: Record<string, unknown>, permissions: Record<string, Level>): Record<string, string[]> | undefined {
+  if (!body.acciones || typeof body.acciones !== "object") return undefined;
+  const out: Record<string, string[]> = {};
+  for (const [mod, lista] of Object.entries(body.acciones as Record<string, unknown>)) {
+    if (!permissions[mod]) continue;
+    const n = normalizarAcciones(mod, permissions[mod], lista);
+    if (n) out[mod] = n;
+  }
+  return out;
+}
+
+function mismasAcciones(a: string[] | undefined, b: string[] | undefined): boolean {
+  return JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
 }
 
 async function validSectorIds(ids: unknown): Promise<number[]> {
@@ -95,12 +112,12 @@ async function parseScopes(body: Record<string, unknown>, permissions: Record<st
  * Con perfil: solo lo propio de la persona — sus sectores ("perfil") y sus excepciones (otro nivel,
  * otro alcance o "ninguno"). Así, si el perfil cambia, la persona lo hereda.
  */
-function filasDe(perfil: PerfilDef | null, permissions: Record<string, Level>, scopes: Record<string, ModuleScope>) {
-  const filas: { moduleKey: string; level: string; alcance: string; sectorIds: number[] }[] = [];
+function filasDe(perfil: PerfilDef | null, permissions: Record<string, Level>, scopes: Record<string, ModuleScope>, acciones: Record<string, string[]> = {}) {
+  const filas: { moduleKey: string; level: string; alcance: string; sectorIds: number[]; acciones: string[] | null }[] = [];
   if (!perfil) {
     for (const [moduleKey, level] of Object.entries(permissions)) {
       const sc = scopes[moduleKey] ?? { alcance: "todos", sectorIds: [] };
-      filas.push({ moduleKey, level, alcance: sc.alcance, sectorIds: sc.sectorIds });
+      filas.push({ moduleKey, level, alcance: sc.alcance, sectorIds: sc.sectorIds, acciones: normalizarAcciones(moduleKey, level, acciones[moduleKey]) });
     }
     return filas;
   }
@@ -111,19 +128,31 @@ function filasDe(perfil: PerfilDef | null, permissions: Record<string, Level>, s
     const sc = scopes[moduleKey] ?? { alcance: "todos" as Alcance, sectorIds: [] };
     const alcPerfil = isSectorModule(moduleKey) ? ((perfil.alcances?.[moduleKey] as Alcance) ?? "todos") : "todos";
     if (!quiere) {
-      filas.push({ moduleKey, level: "ninguno", alcance: "todos", sectorIds: [] });
-    } else if (quiere !== base.permissions[moduleKey] || (isSectorModule(moduleKey) && sc.alcance !== alcPerfil)) {
-      filas.push({ moduleKey, level: quiere, alcance: sc.alcance, sectorIds: sc.sectorIds });
+      filas.push({ moduleKey, level: "ninguno", alcance: "todos", sectorIds: [], acciones: null });
+      continue;
+    }
+    // Acciones que quiere: las pedidas o, si no, las del perfil (mismo nivel) o las típicas de su nivel.
+    const lista = acciones[moduleKey] ?? (quiere === base.permissions[moduleKey] ? base.acciones[moduleKey] : accionesDeNivel(moduleKey, quiere));
+    const final = normalizarAcciones(moduleKey, quiere, lista) ?? accionesDeNivel(moduleKey, quiere);
+    if (quiere !== base.permissions[moduleKey] || (isSectorModule(moduleKey) && sc.alcance !== alcPerfil) || !mismasAcciones(final, base.acciones[moduleKey])) {
+      filas.push({ moduleKey, level: quiere, alcance: sc.alcance, sectorIds: sc.sectorIds, acciones: normalizarAcciones(moduleKey, quiere, final) });
     } else if (sc.sectorIds.length) {
-      filas.push({ moduleKey, level: "perfil", alcance: sc.alcance, sectorIds: sc.sectorIds });
+      filas.push({ moduleKey, level: "perfil", alcance: sc.alcance, sectorIds: sc.sectorIds, acciones: null });
     }
   }
   return filas;
 }
 
-async function savePermissions(tx: Tx, userId: number, permissions: Record<string, Level>, scopes: Record<string, ModuleScope>, perfil: PerfilDef | null = null) {
+async function savePermissions(
+  tx: Tx,
+  userId: number,
+  permissions: Record<string, Level>,
+  scopes: Record<string, ModuleScope>,
+  perfil: PerfilDef | null = null,
+  acciones: Record<string, string[]> = {},
+) {
   await tx.delete(userModulesTable).where(eq(userModulesTable.userId, userId));
-  const rows = filasDe(perfil, permissions, scopes).map((f) => ({ userId, ...f }));
+  const rows = filasDe(perfil, permissions, scopes, acciones).map((f) => ({ userId, ...f }));
   if (rows.length) await tx.insert(userModulesTable).values(rows);
   // Tabla vieja: queda con todos los sectores a cargo (solo como referencia).
   const all = [...new Set(Object.values(scopes).flatMap((sc) => sc.sectorIds))];
@@ -143,11 +172,11 @@ async function serializeUsers(ids?: number[]) {
     db.select().from(userModulesTable).where(inArray(userModulesTable.userId, userIds)),
     db.select().from(perfilesTable),
   ]);
-  const perfilPorId = new Map(perfiles.map((p) => [p.id, { id: p.id, nombre: p.nombre, permisos: p.permisos ?? {}, alcances: p.alcances ?? {} } as PerfilDef]));
+  const perfilPorId = new Map(perfiles.map((p) => [p.id, { id: p.id, nombre: p.nombre, permisos: p.permisos ?? {}, alcances: p.alcances ?? {}, acciones: p.acciones ?? {} } as PerfilDef]));
   return users.map((u) => {
     const propios = mods.filter((m) => m.userId === u.id);
     const perfil = u.role === "superadmin" ? null : (perfilPorId.get(u.perfilId ?? -1) ?? null);
-    const { permissions, scopes, excepciones } = efectivos(u.role, perfil, propios);
+    const { permissions, scopes, excepciones, acciones } = efectivos(u.role, perfil, propios);
     return {
       id: u.id,
       username: u.username,
@@ -163,6 +192,7 @@ async function serializeUsers(ids?: number[]) {
       perfilId: perfil?.id ?? null,
       perfilNombre: perfil?.nombre ?? null,
       excepciones,
+      acciones,
       sectorIds: [...new Set(Object.values(scopes).flatMap((sc) => sc.sectorIds))].sort((a, b) => a - b),
       createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : u.createdAt,
       lastLoginAt: u.lastLoginAt instanceof Date ? u.lastLoginAt.toISOString() : u.lastLoginAt,
@@ -194,7 +224,9 @@ router.get("/users/modulos", (_req, res): void => {
 // Definen módulos, nivel y tipo de alcance. Las personas vinculadas heredan los cambios; los sectores
 // concretos y las excepciones se guardan en cada persona.
 
-function leerDefPerfil(body: Record<string, unknown>): { ok: true; nombre: string; descripcion: string; permisos: Record<string, Level>; alcances: Record<string, Alcance> } | { ok: false; message: string } {
+function leerDefPerfil(
+  body: Record<string, unknown>,
+): { ok: true; nombre: string; descripcion: string; permisos: Record<string, Level>; alcances: Record<string, Alcance>; acciones: Record<string, string[]> } | { ok: false; message: string } {
   const nombre = String(body.nombre ?? "").replace(/\s+/g, " ").trim();
   if (nombre.length < 2 || nombre.length > 60) return { ok: false, message: "El nombre del perfil tiene que tener entre 2 y 60 caracteres." };
   const descripcion = String(body.descripcion ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -203,7 +235,8 @@ function leerDefPerfil(body: Record<string, unknown>): { ok: true; nombre: strin
   for (const [mod, a] of Object.entries((body.alcances ?? {}) as Record<string, unknown>)) {
     if (permisos[mod] && isSectorModule(mod) && (ALCANCES as readonly string[]).includes(String(a)) && a !== "todos") alcances[mod] = a as Alcance;
   }
-  return { ok: true, nombre, descripcion, permisos, alcances };
+  const acciones = parseAcciones(body, permisos) ?? {};
+  return { ok: true, nombre, descripcion, permisos, alcances, acciones };
 }
 
 async function nombrePerfilOcupado(nombre: string, exceptoId?: number) {
@@ -228,6 +261,7 @@ async function listarPerfiles() {
     descripcion: p.descripcion,
     permisos: p.permisos ?? {},
     alcances: p.alcances ?? {},
+    acciones: p.acciones ?? {},
     usuarios: n.get(p.id) ?? 0,
     // Personas vinculadas que, por el alcance del perfil, necesitan sectores y no tienen ninguno elegido.
     sinSectores: sinSectores
@@ -256,7 +290,7 @@ router.post("/users/perfiles", async (req, res): Promise<void> => {
       res.status(409).json({ message: `Ya existe el perfil "${v.nombre}".` });
       return;
     }
-    const [row] = await db.insert(perfilesTable).values({ nombre: v.nombre, descripcion: v.descripcion, permisos: v.permisos, alcances: v.alcances }).returning();
+    const [row] = await db.insert(perfilesTable).values({ nombre: v.nombre, descripcion: v.descripcion, permisos: v.permisos, alcances: v.alcances, acciones: v.acciones }).returning();
     res.status(201).json((await listarPerfiles()).find((p) => p.id === row.id));
   } catch (err) {
     console.error("[users.perfiles.post]", err);
@@ -272,7 +306,7 @@ router.patch("/users/perfiles/:id", async (req, res): Promise<void> => {
       res.status(404).json({ message: "Perfil no encontrado." });
       return;
     }
-    const v = leerDefPerfil({ nombre: actual.nombre, permisos: actual.permisos, alcances: actual.alcances, ...(req.body ?? {}) });
+    const v = leerDefPerfil({ nombre: actual.nombre, permisos: actual.permisos, alcances: actual.alcances, acciones: actual.acciones, ...(req.body ?? {}) });
     if (!v.ok) {
       res.status(400).json({ message: v.message });
       return;
@@ -281,7 +315,10 @@ router.patch("/users/perfiles/:id", async (req, res): Promise<void> => {
       res.status(409).json({ message: `Ya existe el perfil "${v.nombre}".` });
       return;
     }
-    await db.update(perfilesTable).set({ nombre: v.nombre, descripcion: v.descripcion, permisos: v.permisos, alcances: v.alcances, updatedAt: new Date() }).where(eq(perfilesTable.id, id));
+    await db
+      .update(perfilesTable)
+      .set({ nombre: v.nombre, descripcion: v.descripcion, permisos: v.permisos, alcances: v.alcances, acciones: v.acciones, updatedAt: new Date() })
+      .where(eq(perfilesTable.id, id));
     res.json((await listarPerfiles()).find((p) => p.id === id));
   } catch (err) {
     console.error("[users.perfiles.patch]", err);
@@ -302,7 +339,7 @@ router.delete("/users/perfiles/:id", async (req, res): Promise<void> => {
     await db.transaction(async (tx) => {
       for (const u of vinculados) {
         await tx.update(usersTable).set({ perfilId: null }).where(eq(usersTable.id, u.id));
-        await savePermissions(tx, u.id, u.permissions, u.scopes, null);
+        await savePermissions(tx, u.id, u.permissions, u.scopes, null, u.acciones);
       }
       await tx.delete(perfilesTable).where(eq(perfilesTable.id, id));
     });
@@ -321,8 +358,9 @@ async function resolverConPerfil(
   body: Record<string, unknown>,
   perfil: PerfilDef,
   sectoresActuales: Record<string, number[]>,
-): Promise<{ ok: true; permissions: Record<string, Level>; scopes: Record<string, ModuleScope> } | { ok: false; message: string }> {
+): Promise<{ ok: true; permissions: Record<string, Level>; scopes: Record<string, ModuleScope>; acciones: Record<string, string[]> } | { ok: false; message: string }> {
   const permissions = parsePermissions(body) ?? efectivos("usuario", perfil, []).permissions;
+  const acciones = parseAcciones(body, permissions) ?? {};
   const scopes: Record<string, ModuleScope> = {};
   const pedidos = (body.scopes && typeof body.scopes === "object" ? body.scopes : {}) as Record<string, { alcance?: unknown; sectorIds?: unknown }>;
   for (const mod of Object.keys(permissions)) {
@@ -337,7 +375,7 @@ async function resolverConPerfil(
     }
     scopes[mod] = { alcance, sectorIds };
   }
-  return { ok: true, permissions, scopes };
+  return { ok: true, permissions, scopes, acciones };
 }
 
 async function perfilPedido(body: Record<string, unknown>): Promise<{ ok: true; perfil: PerfilDef | null | undefined } | { ok: false; message: string }> {
@@ -435,16 +473,18 @@ router.post("/users", async (req, res): Promise<void> => {
     const perfil = role === "superadmin" ? null : (pp.perfil ?? null);
     let permissions: Record<string, Level> = {};
     let scopes: Record<string, ModuleScope> = {};
+    let acciones: Record<string, string[]> = {};
     if (perfil) {
       const r = await resolverConPerfil(req.body ?? {}, perfil, {});
       if (!r.ok) {
         res.status(400).json({ message: r.message });
         return;
       }
-      ({ permissions, scopes } = r);
+      ({ permissions, scopes, acciones } = r);
     } else if (role !== "superadmin") {
       permissions = parsePermissions(req.body ?? {}) ?? { dashboard: "ver" as Level };
       scopes = (await parseScopes(req.body ?? {}, permissions)) ?? {};
+      acciones = parseAcciones(req.body ?? {}, permissions) ?? {};
     }
     const passwordHash = await hashPassword(data.password);
 
@@ -453,7 +493,7 @@ router.post("/users", async (req, res): Promise<void> => {
         .insert(usersTable)
         .values({ username, name, email: data.email?.trim() || null, passwordHash, role, active: data.active ?? true, mustChangePassword: true, perfilId: perfil?.id ?? null })
         .returning({ id: usersTable.id });
-      await savePermissions(tx, created.id, permissions, scopes, perfil);
+      await savePermissions(tx, created.id, permissions, scopes, perfil, acciones);
       return created.id;
     });
     const [out] = await serializeUsers([id]);
@@ -525,9 +565,11 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
     const actuales = efectivos(current.role, perfilActual, filas);
     const perfil = nextRole === "superadmin" ? null : pp.perfil === undefined ? perfilActual : pp.perfil;
     const cambiaPerfil = (perfil?.id ?? null) !== (perfilActual?.id ?? null);
-    const tocaPermisos = req.body?.permissions !== undefined || req.body?.modules !== undefined || req.body?.scopes !== undefined || req.body?.sectorIds !== undefined;
+    const tocaPermisos =
+      req.body?.permissions !== undefined || req.body?.modules !== undefined || req.body?.scopes !== undefined || req.body?.sectorIds !== undefined || req.body?.acciones !== undefined;
     let permissions: Record<string, Level> | undefined;
     let scopes: Record<string, ModuleScope> | undefined;
+    let acciones: Record<string, string[]> = {};
     if (nextRole === "superadmin") {
       if (current.role !== "superadmin") ({ permissions, scopes } = { permissions: {}, scopes: {} });
     } else if (perfil && (tocaPermisos || cambiaPerfil)) {
@@ -537,11 +579,15 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
         res.status(400).json({ message: r.message });
         return;
       }
-      ({ permissions, scopes } = r);
+      ({ permissions, scopes, acciones } = r);
     } else if (!perfil && (tocaPermisos || cambiaPerfil || (current.role !== nextRole && nextRole === "usuario"))) {
       // Sin perfil: lo pedido o, si no se manda, lo que ya tenía (un "responsable" viejo que pasa a "usuario" fija sus permisos).
       permissions = parsePermissions(req.body ?? {}) ?? actuales.permissions;
       scopes = (await parseScopes(req.body ?? {}, permissions)) ?? Object.fromEntries(Object.entries(actuales.scopes).filter(([k]) => permissions![k]));
+      // Acciones: las pedidas; si no se mandan, se conservan las de los módulos que no cambian de nivel.
+      acciones =
+        parseAcciones(req.body ?? {}, permissions) ??
+        Object.fromEntries(Object.entries(actuales.acciones).filter(([k]) => permissions![k] && permissions![k] === actuales.permissions[k]));
     }
 
     await db.transaction(async (tx) => {
@@ -556,7 +602,7 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
           perfilId: perfil?.id ?? null,
         })
         .where(eq(usersTable.id, id));
-      if (permissions && scopes) await savePermissions(tx, id, permissions, scopes, perfil ?? null);
+      if (permissions && scopes) await savePermissions(tx, id, permissions, scopes, perfil ?? null, acciones);
     });
     // Cambios de permisos o desactivación: cerrar sus sesiones para que tomen efecto ya.
     if (!nextActive) await revokeUserSessions(id);

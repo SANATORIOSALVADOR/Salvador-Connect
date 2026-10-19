@@ -189,6 +189,9 @@ export default function GuardiasMedicas() {
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Guardia | null>(null);
   const [canWrite, setCanWrite] = useState(false);
+  /** Acciones de la persona en Guardias (lib/permisos.ts → ACCIONES). */
+  const [acciones, setAcciones] = useState<string[]>([]);
+  const puede = (accion: string) => acciones.includes(accion);
   /** Control total: eliminar guardias y configurar sectores / profesionales. */
   const [canTotal, setCanTotal] = useState(false);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
@@ -219,15 +222,24 @@ export default function GuardiasMedicas() {
   const loadMeta = useCallback(async () => {
     try {
       const [me, secs, cfg, profs, tags] = await Promise.all([
-        apiJson<{ role?: string; sectorIds?: number[]; permissions?: Record<string, string>; scopes?: Record<string, { alcance: string; sectorIds: number[] }> }>("/auth/me"),
+        apiJson<{ role?: string; sectorIds?: number[]; permissions?: Record<string, string>; scopes?: Record<string, { alcance: string; sectorIds: number[] }>; acciones?: Record<string, string[]> }>("/auth/me"),
         apiJson<Sector[]>("/sectors"),
         apiJson<SectorConfig[]>("/guardias/config"),
         apiJson<string[]>("/guardias/profesionales"),
         apiJson<Etiqueta[]>("/guardias/etiquetas").catch(() => [] as Etiqueta[]),
       ]);
       const role = String(me.role || "");
-      setCanWrite(levelRank(me, "guardias") >= 2);
-      setCanTotal(levelRank(me, "guardias") >= 3);
+      // Acciones concretas; si la API es vieja (sin acciones), se deducen del nivel.
+      const acc =
+        me.acciones?.guardias ??
+        (levelRank(me, "guardias") >= 3
+          ? ["ver", "estadisticas", "exportar", "cargar", "copiar", "historial", "eliminar", "horarios", "profesionales"]
+          : levelRank(me, "guardias") >= 2
+            ? ["ver", "estadisticas", "exportar", "cargar", "copiar", "historial"]
+            : ["ver", "estadisticas", "exportar"]);
+      setAcciones(acc);
+      setCanWrite(acc.includes("cargar"));
+      setCanTotal(acc.includes("eliminar"));
       setIsSuperadmin(role === "superadmin");
       // Alcance en Guardias: sectores donde trabaja y, si es "solo sus sectores", los únicos que ve.
       const sc = role === "superadmin" ? undefined : me.scopes?.guardias;
@@ -286,8 +298,8 @@ export default function GuardiasMedicas() {
 
   const reloadAll = useCallback(async () => {
     await Promise.all([loadMonth(), loadNow(), loadMeta()]);
-    if (canWrite) void loadAudit();
-  }, [loadMonth, loadNow, loadMeta, loadAudit, canWrite]);
+    if (acciones.includes("historial")) void loadAudit();
+  }, [loadMonth, loadNow, loadMeta, loadAudit, acciones]);
 
   useEffect(() => {
     void loadMeta();
@@ -299,9 +311,9 @@ export default function GuardiasMedicas() {
   }, [loadMonth]);
 
   useEffect(() => {
-    if (canWrite && tab === "registro") void loadAudit();
+    if (acciones.includes("historial") && tab === "registro") void loadAudit();
     if (tab === "config") void loadProfList();
-  }, [canWrite, tab, loadAudit, loadProfList]);
+  }, [acciones, tab, loadAudit, loadProfList]);
 
   // Guardias ya cargadas el día que se está cargando (panel lateral de "Carga nueva").
   const [cargaDia, setCargaDia] = useState<Guardia[]>([]);
@@ -777,10 +789,10 @@ export default function GuardiasMedicas() {
         <div className="gm-tabs" role="tablist" style={{ flexWrap: "wrap" }}>
           {([
             ["calendario", "Calendario"],
-            ["carga", "Carga nueva"],
+            ...(canWrite ? [["carga", "Carga nueva"]] : []),
             ["registro", "Registro"],
-            ["stats", "Estadísticas"],
-            ...(canTotal ? [["config", "Configuración"]] : []),
+            ...(puede("estadisticas") ? [["stats", "Estadísticas"]] : []),
+            ...(puede("horarios") || puede("profesionales") ? [["config", "Configuración"]] : []),
           ] as [typeof tab, string][]).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} className={`gm-tab${tab === id ? " is-active" : ""}`} onClick={() => setTab(id)}>{label}</button>
           ))}
@@ -809,7 +821,7 @@ export default function GuardiasMedicas() {
                   <span className="gm-cal-month">{monthLabel}</span>
                   <button type="button" className="btn btn-quiet" aria-label="Mes siguiente" onClick={nextMonth}>→</button>
                   <button type="button" className="btn btn-quiet" onClick={() => { setCursor(new Date()); setSelectedDay(todayIso); }}>Hoy</button>
-                  <button type="button" className="btn btn-quiet" onClick={imprimir} title="Imprimir la grilla del mes">Imprimir</button>
+                  {puede("exportar") && <button type="button" className="btn btn-quiet" onClick={imprimir} title="Imprimir la grilla del mes">Imprimir</button>}
                 </div>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 600 }}>
                   <span>Sector</span>
@@ -1027,15 +1039,19 @@ export default function GuardiasMedicas() {
                 </select>
                 <button type="button" className="btn btn-quiet" onClick={prevMonth}>← Mes</button>
                 <button type="button" className="btn btn-quiet" onClick={nextMonth}>Mes →</button>
-                <button type="button" className="btn btn-quiet" onClick={exportGuardiasCsv}>Exportar CSV</button>
-                <button type="button" className="btn btn-quiet" onClick={imprimir}>Imprimir</button>
-                {canWrite && (
+                {puede("exportar") && (
+                  <>
+                    <button type="button" className="btn btn-quiet" onClick={exportGuardiasCsv}>Exportar CSV</button>
+                    <button type="button" className="btn btn-quiet" onClick={imprimir}>Imprimir</button>
+                  </>
+                )}
+                {puede("copiar") && (
                   <>
                     <button type="button" className="btn btn-quiet" onClick={() => openCopy("semana")}>Copiar semana anterior</button>
                     <button type="button" className="btn btn-quiet" onClick={() => openCopy("mes")}>Copiar mes anterior</button>
-                    <button type="button" className="btn btn-primary" onClick={() => setTab("carga")}>+ Carga nueva</button>
                   </>
                 )}
+                {canWrite && <button type="button" className="btn btn-primary" onClick={() => setTab("carga")}>+ Carga nueva</button>}
               </div>
             </div>
             <div className="agenda-table-wrap" style={{ maxHeight: "calc(100vh - 260px)", minHeight: 240, overflowY: "auto" }}>
@@ -1075,7 +1091,7 @@ export default function GuardiasMedicas() {
             </div>
           </div>
 
-          {canWrite && (
+          {puede("historial") && (
             <div className="card gm-table-wrap">
               <div className="section-kicker">Historial de cambios</div>
               <h3 className="section-title" style={{ marginTop: 4, marginBottom: 12, fontSize: 16 }}>Últimos movimientos</h3>
@@ -1103,7 +1119,7 @@ export default function GuardiasMedicas() {
         </div>
       )}
 
-      {tab === "stats" && (
+      {tab === "stats" && puede("estadisticas") && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card" style={PANEL}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", justifyContent: "space-between" }}>
@@ -1126,8 +1142,12 @@ export default function GuardiasMedicas() {
                   Profesional
                   <input className="input" placeholder="Buscar nombre…" value={statsFilterPerson} onChange={(e) => setStatsFilterPerson(e.target.value)} style={{ minWidth: 160 }} />
                 </label>
-                <button type="button" className="btn btn-quiet" onClick={exportStatsCsv}>Exportar productividad CSV</button>
-                <button type="button" className="btn btn-quiet" onClick={imprimir}>Imprimir</button>
+                {puede("exportar") && (
+                  <>
+                    <button type="button" className="btn btn-quiet" onClick={exportStatsCsv}>Exportar productividad CSV</button>
+                    <button type="button" className="btn btn-quiet" onClick={imprimir}>Imprimir</button>
+                  </>
+                )}
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginTop: 16 }}>
@@ -1213,8 +1233,9 @@ export default function GuardiasMedicas() {
         </div>
       )}
 
-      {tab === "config" && canTotal && (
+      {tab === "config" && (puede("horarios") || puede("profesionales")) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {puede("horarios") && (
           <div className="card" style={PANEL}>
             <div className="section-kicker">Sectores de guardia</div>
             <h3 className="section-title" style={{ marginTop: 4, fontSize: 16 }}>Horario que cada sector necesita cubierto</h3>
@@ -1262,6 +1283,9 @@ export default function GuardiasMedicas() {
             </div>
           </div>
 
+          )}
+
+          {puede("profesionales") && (
           <div className="card gm-table-wrap">
             <div className="section-kicker">Profesionales</div>
             <h3 className="section-title" style={{ marginTop: 4, fontSize: 16 }}>Datos de los profesionales de guardia</h3>
@@ -1300,6 +1324,7 @@ export default function GuardiasMedicas() {
               </table>
             </div>
           </div>
+          )}
         </div>
       )}
 

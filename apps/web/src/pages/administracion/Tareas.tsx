@@ -69,7 +69,7 @@ export default function Tareas() {
             <section key={c.titulo} style={{ background: "hsl(var(--muted) / .5)", borderRadius: 14, padding: 10, minWidth: 0 }}>
               <h2 style={{ ...S.label, color: c.color ?? S.label.color, margin: "2px 4px 10px" }}>{c.titulo} · {c.items.length}</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {c.items.map((t) => <TarjetaTarea key={t.id} t={t} hoy={hoy} puedeEditar={permisos.editar} onOpen={() => abrir(t.id)} onCheck={() => cumplir(t)} />)}
+                {c.items.map((t) => <TarjetaTarea key={t.id} t={t} hoy={hoy} puedeEditar={permisos.cumplir} onOpen={() => abrir(t.id)} onCheck={() => cumplir(t)} />)}
                 {c.items.length === 0 && <div style={{ ...S.small, padding: "6px 4px" }}>—</div>}
               </div>
             </section>

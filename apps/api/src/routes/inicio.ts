@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { admItemsTable, admObligacionesTable, db, guardiasTable, sectorsTable, usersTable } from "@salvador/db";
-import { ownSectorIds, hasLevel, hasModule, levelOf, requireAuth } from "../lib/auth";
+import { can, ownSectorIds, hasModule, levelOf, requireAuth } from "../lib/auth";
 import { aplicaEnMes, calendarioDelAnio, isoDate } from "../lib/administracion";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
@@ -77,6 +77,8 @@ router.get("/inicio", requireAuth, async (req, res): Promise<void> => {
         administracion: levelOf(user, "administracion"),
         guardias: levelOf(user, "guardias"),
         superadmin: user.role === "superadmin",
+        // Acciones que habilitan los atajos de la pantalla.
+        cargarAdministracion: can(user, "administracion", "cargar"),
       },
     };
 
@@ -240,7 +242,7 @@ router.get("/inicio", requireAuth, async (req, res): Promise<void> => {
         huecosHoy,
         diasConHuecos: semana.filter((s) => (s.huecos ?? 0) > 0).length,
         planificadoHasta: tope,
-        puedeCargar: hasLevel(user, "guardias", "editar"),
+        puedeCargar: can(user, "guardias", "cargar"),
       };
     }
 

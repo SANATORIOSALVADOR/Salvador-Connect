@@ -82,7 +82,7 @@ export default function Cheques() {
                     <td style={{ ...S.td, textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>{Number.isFinite(n) ? formatMonto(n) : c.monto}</td>
                     <td style={S.td}><UrgenciaPill item={c} hoy={hoy} /></td>
                     <td style={{ ...S.td, textAlign: "right" }}>
-                      {permisos.editar && c.estado === "pendiente" && (
+                      {permisos.cumplir && c.estado === "pendiente" && (
                         <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => cumplir(c)}>{c.datos?.direccion === "recibido" ? "Cobrado" : "Debitado"}</button>
                       )}
                     </td>

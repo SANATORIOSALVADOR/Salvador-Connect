@@ -58,6 +58,18 @@ depende del nivel del usuario en ese módulo (y de sus sectores a cargo).
   `POST / PATCH / DELETE` solo superadmin. Renombrar o cambiar el color actualiza `guardias.tag_label/tag_color`;
   eliminar solo si ninguna guardia la usa (409 → desactivar).
 
+## Acciones concretas
+
+- Catálogo en `apps/api/src/lib/acciones.ts` (y `apps/web/src/lib/permisos.ts → ACCIONES` con los textos). Cada acción tiene el
+  nivel desde el que viene "de fábrica". `accionesDeNivel(mod, nivel)` = el atajo.
+- Se guardan solo si difieren del nivel: `user_modules.acciones` (null = las del nivel) y `perfiles.acciones` ({mod: [...]}).
+  `efectivos()` devuelve `acciones` y la sesión (`AuthUser.acciones`, `/auth/me`) también.
+- API: `can(user, mod, accion)` y `requireAccion(mod, accion)`. Guardias y Administración controlan cada ruta de escritura
+  con su acción (router con `requireModuleAccess(mod, { porRuta: true })`). Inventario / Instructivos: por método (cargar / eliminar).
+- Pantallas: Guardias usa `acciones.guardias`; Administración arma `Permisos` (editar = cargar, cumplir, verificar,
+  recurrentes, contactos, eliminar, calendario) en `Administracion.tsx → permisosDe`.
+- Estadísticas y exportar se controlan en pantalla (los datos son los mismos del calendario).
+
 ## Perfiles y "Ver como"
 
 - Tabla `perfiles` (nombre, descripción, `permisos` {modulo: nivel}, `alcances` {modulo: alcance}); `users.perfil_id`.
