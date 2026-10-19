@@ -2,8 +2,14 @@ import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSPropertie
 import { confirmar } from "@/components/feedback";
 import AparienciaConfig from "./shared/AparienciaConfig";
 import { LEVEL_COLOR, LEVEL_LABEL, MODULES, type Level } from "@/lib/permisos";
+import { CoberturaEditor, TAG_COLORS, TagBadge, franjasResumen, type Etiqueta } from "./guardias/compartido";
+import type { Franja, SectorConfig } from "./guardias/logic";
 
-// Configuración: secciones Usuarios (ABM + permisos por módulo) y Sectores. Solo superadmin.
+// Configuración (solo superadmin): Usuarios (ABM + permisos por módulo), Sectores (y su participación en
+// Guardias con el horario requerido), Etiquetas de Guardias y Apariencia.
+
+type Seccion = "usuarios" | "sectores" | "etiquetas" | "apariencia";
+const SECCIONES: Seccion[] = ["usuarios", "sectores", "etiquetas", "apariencia"];
 
 const API = "/api";
 
@@ -91,7 +97,10 @@ function PermChips({ u }: { u: UserRow }) {
 }
 
 export default function ConfiguracionPage() {
-  const [section, setSection] = useState<"usuarios" | "sectores" | "apariencia">("usuarios");
+  const [section, setSection] = useState<Seccion>(() => {
+    const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("seccion") : null;
+    return SECCIONES.includes(q as Seccion) ? (q as Seccion) : "usuarios";
+  });
   const [me, setMe] = useState<{ id: number; role: string } | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
@@ -112,8 +121,16 @@ export default function ConfiguracionPage() {
   const [nombrePlantilla, setNombrePlantilla] = useState<string | null>(null);
 
   // sectores
-  const [sectorEditor, setSectorEditor] = useState<{ mode: "create" | "edit"; sector?: Sector } | null>(null);
-  const [sform, setSform] = useState({ name: "", shortName: "", active: true });
+  const [sectorEditor, setSectorEditor] = useState<{ mode: "create" | "edit"; sector?: Sector; guardiaIni: string } | null>(null);
+  const [sform, setSform] = useState<{ name: string; shortName: string; active: boolean; guardia: boolean; cobertura: Franja[] }>({ name: "", shortName: "", active: true, guardia: false, cobertura: [] });
+  const [sguardando, setSguardando] = useState(false);
+  const [guardiaCfg, setGuardiaCfg] = useState<SectorConfig[]>([]);
+
+  // etiquetas de Guardias
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
+  const [etiquetaEditor, setEtiquetaEditor] = useState<{ mode: "create" | "edit"; etiqueta?: Etiqueta } | null>(null);
+  const [eform, setEform] = useState({ nombre: "", color: TAG_COLORS[0] });
+  const [eerror, setEerror] = useState<string | null>(null);
 
   const isSuperadmin = me?.role === "superadmin";
 
@@ -124,8 +141,16 @@ export default function ConfiguracionPage() {
       const meData = await apiJson<{ id: number; role: string }>("/auth/me");
       setMe(meData);
       if (meData.role !== "superadmin") return;
-      const [u, s, pl] = await Promise.all([apiJson<UserRow[]>("/users"), apiJson<Sector[]>("/sectores"), apiJson<Plantilla[]>("/users/plantillas").catch(() => [])]);
+      const [u, s, pl, et, gc] = await Promise.all([
+        apiJson<UserRow[]>("/users"),
+        apiJson<Sector[]>("/sectores"),
+        apiJson<Plantilla[]>("/users/plantillas").catch(() => []),
+        apiJson<Etiqueta[]>("/guardias/etiquetas").catch(() => [] as Etiqueta[]),
+        apiJson<SectorConfig[]>("/guardias/config").catch(() => [] as SectorConfig[]),
+      ]);
       setPlantillas(Array.isArray(pl) ? pl : []);
+      setEtiquetas(Array.isArray(et) ? et : []);
+      setGuardiaCfg(Array.isArray(gc) ? gc : []);
       setUsers(Array.isArray(u) ? u : []);
       setSectors(Array.isArray(s) ? s : []);
     } catch (e) {
@@ -280,22 +305,88 @@ export default function ConfiguracionPage() {
 
   // ---------- sectores ----------
 
+  const cfgDe = (id: number) => guardiaCfg.find((c) => c.sectorId === id);
+
   function openSector(s?: Sector) {
-    setSform(s ? { name: s.name, shortName: s.shortName, active: s.active } : { name: "", shortName: "", active: true });
-    setSectorEditor({ mode: s ? "edit" : "create", sector: s });
+    const c = s ? cfgDe(s.id) : undefined;
+    const guardia = Boolean(c?.active);
+    const cobertura = c?.cobertura ?? [];
+    setSform(s ? { name: s.name, shortName: s.shortName, active: s.active, guardia, cobertura } : { name: "", shortName: "", active: true, guardia: false, cobertura: [] });
+    setSectorEditor({ mode: s ? "edit" : "create", sector: s, guardiaIni: JSON.stringify({ guardia, cobertura }) });
   }
 
   async function saveSector(e: FormEvent) {
     e.preventDefault();
+    if (!sectorEditor) return;
+    setSguardando(true);
     try {
       const body = JSON.stringify({ name: sform.name.trim(), shortName: sform.shortName.trim() || sform.name.trim().slice(0, 8), active: sform.active });
-      if (sectorEditor?.mode === "edit" && sectorEditor.sector) await apiJson(`/sectores/${sectorEditor.sector.id}`, { method: "PATCH", body });
-      else await apiJson("/sectores", { method: "POST", body });
+      let id = sectorEditor.sector?.id;
+      if (sectorEditor.mode === "edit" && id) await apiJson(`/sectores/${id}`, { method: "PATCH", body });
+      else id = (await apiJson<Sector>("/sectores", { method: "POST", body })).id;
+      // Participación en Guardias y horario requerido: solo si cambió (o es un sector nuevo que participa).
+      // Al dejar de participar se conserva el horario, por si el sector vuelve a Guardias.
+      const cambioGuardia = JSON.stringify({ guardia: sform.guardia, cobertura: sform.cobertura }) !== sectorEditor.guardiaIni;
+      if (id && cambioGuardia && (sform.guardia || sectorEditor.mode === "edit")) {
+        await apiJson(`/guardias/config/${id}`, { method: "PUT", body: JSON.stringify({ active: sform.guardia, cobertura: sform.cobertura }) });
+      }
       setSectorEditor(null);
       setNotice("Sector guardado.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el sector");
+    } finally {
+      setSguardando(false);
+    }
+  }
+
+  // ---------- etiquetas ----------
+
+  function openEtiqueta(et?: Etiqueta) {
+    setEform(et ? { nombre: et.nombre, color: et.color } : { nombre: "", color: TAG_COLORS[(etiquetas.length + 1) % TAG_COLORS.length] });
+    setEerror(null);
+    setEtiquetaEditor({ mode: et ? "edit" : "create", etiqueta: et });
+  }
+
+  async function saveEtiqueta(e: FormEvent) {
+    e.preventDefault();
+    if (!etiquetaEditor) return;
+    setEerror(null);
+    try {
+      const body = JSON.stringify({ nombre: eform.nombre.trim(), color: eform.color });
+      if (etiquetaEditor.mode === "edit" && etiquetaEditor.etiqueta) {
+        const r = await apiJson<{ guardiasActualizadas?: number }>(`/guardias/etiquetas/${etiquetaEditor.etiqueta.id}`, { method: "PATCH", body });
+        const n = r?.guardiasActualizadas ?? 0;
+        setNotice(n ? `Etiqueta guardada. Se actualizaron ${n} guardia${n === 1 ? "" : "s"} que la usaban.` : "Etiqueta guardada.");
+      } else {
+        await apiJson("/guardias/etiquetas", { method: "POST", body });
+        setNotice("Etiqueta creada: ya se puede elegir al cargar guardias.");
+      }
+      setEtiquetaEditor(null);
+      await load();
+    } catch (err) {
+      setEerror(err instanceof Error ? err.message : "No se pudo guardar la etiqueta");
+    }
+  }
+
+  async function toggleEtiqueta(et: Etiqueta) {
+    try {
+      await apiJson(`/guardias/etiquetas/${et.id}`, { method: "PATCH", body: JSON.stringify({ activa: !et.activa }) });
+      setNotice(et.activa ? `«${et.nombre}» desactivada: ya no aparece al cargar guardias.` : `«${et.nombre}» activada.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    }
+  }
+
+  async function deleteEtiqueta(et: Etiqueta) {
+    if (!(await confirmar({ titulo: `¿Eliminar la etiqueta ${et.nombre}?`, mensaje: "Solo se puede eliminar si ninguna guardia la usa.", accion: "Eliminar", peligro: true }))) return;
+    try {
+      await apiJson(`/guardias/etiquetas/${et.id}`, { method: "DELETE" });
+      setNotice("Etiqueta eliminada.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la etiqueta");
     }
   }
 
@@ -329,7 +420,7 @@ export default function ConfiguracionPage() {
         <div className="eyebrow">Espacio / Configuración</div>
         <h1 className="page-title">Configuración</h1>
         <div className="card" style={{ ...CARD, marginTop: 16, maxWidth: 520 }}>
-          <strong>Los usuarios y sectores los administra el área de Sistemas.</strong>
+          <strong>Los usuarios, sectores y etiquetas los administra el área de Sistemas.</strong>
           <p className="page-subtitle" style={{ marginTop: 6 }}>Si necesitás un acceso o un cambio de permisos, pedíselo al área de Sistemas.</p>
         </div>
       </div>
@@ -342,11 +433,12 @@ export default function ConfiguracionPage() {
         <div>
           <div className="eyebrow">Espacio / Configuración</div>
           <h1 className="page-title">Configuración</h1>
-          <p className="page-subtitle">Usuarios, permisos, sectores y apariencia del sistema.</p>
+          <p className="page-subtitle">Usuarios, permisos, sectores, etiquetas y apariencia del sistema.</p>
         </div>
         <div className="gm-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={section === "usuarios"} className={`gm-tab${section === "usuarios" ? " is-active" : ""}`} onClick={() => setSection("usuarios")}>Usuarios ({users.filter((u) => u.active).length})</button>
           <button type="button" role="tab" aria-selected={section === "sectores"} className={`gm-tab${section === "sectores" ? " is-active" : ""}`} onClick={() => setSection("sectores")}>Sectores ({sectors.length})</button>
+          <button type="button" role="tab" aria-selected={section === "etiquetas"} className={`gm-tab${section === "etiquetas" ? " is-active" : ""}`} onClick={() => setSection("etiquetas")}>Etiquetas ({etiquetas.filter((e) => e.activa).length})</button>
           <button type="button" role="tab" aria-selected={section === "apariencia"} className={`gm-tab${section === "apariencia" ? " is-active" : ""}`} onClick={() => setSection("apariencia")}>Apariencia</button>
         </div>
       </div>
@@ -432,20 +524,61 @@ export default function ConfiguracionPage() {
             <span>Desactivar conserva el historial; eliminar solo es posible si el usuario no cargó registros.</span>
           </div>
         </div>
+      ) : section === "etiquetas" ? (
+        <div className="card" style={CARD}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10, flexWrap: "wrap" }}>
+            <p className="page-subtitle" style={{ margin: 0, maxWidth: 720 }}>Etiquetas que se eligen al cargar una guardia (ej. GUARDIA EXTRA, REEMPLAZO). Renombrar o cambiar el color actualiza todas las guardias que la usan; desactivarla la saca de la carga, pero las guardias la conservan.</p>
+            <button type="button" className="btn btn-primary" onClick={() => openEtiqueta()}>+ Nueva etiqueta</button>
+          </div>
+          <div className="agenda-table-wrap">
+            <table className="agenda-table">
+              <thead><tr><th>Etiqueta</th><th>Color</th><th>Guardias que la usan</th><th>Estado</th><th /></tr></thead>
+              <tbody>
+                {etiquetas.length === 0 ? (
+                  <tr><td colSpan={5} style={{ textAlign: "center", padding: 20, color: "hsl(var(--muted-foreground))" }}>Todavía no hay etiquetas.</td></tr>
+                ) : (
+                  etiquetas.map((et) => (
+                    <tr key={et.id} style={{ opacity: et.activa ? 1 : 0.6 }}>
+                      <td><TagBadge label={et.nombre} color={et.color} /></td>
+                      <td><span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "monospace", fontSize: 12 }}><i style={{ width: 14, height: 14, borderRadius: 4, background: et.color, display: "inline-block" }} />{et.color}</span></td>
+                      <td>{et.usos}</td>
+                      <td>{et.activa ? <span style={CHIP("hsl(155 55% 88%)", "hsl(155 60% 24%)")}>Activa</span> : <span style={CHIP("hsl(0 0% 90%)", "hsl(0 0% 35%)")}>Inactiva</span>}</td>
+                      <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
+                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => openEtiqueta(et)}>Editar</button>
+                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => void toggleEtiqueta(et)}>{et.activa ? "Desactivar" : "Activar"}</button>
+                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12, color: "#b91c1c" }} disabled={et.usos > 0} title={et.usos > 0 ? "Está en uso: desactivala en su lugar" : undefined} onClick={() => void deleteEtiqueta(et)}>Eliminar</button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <div className="card" style={CARD}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10, flexWrap: "wrap" }}>
-            <p className="page-subtitle" style={{ margin: 0 }}>Los sectores se usan en Guardias, Inventario e Instructivos, y para limitar a qué sectores accede cada usuario.</p>
+            <p className="page-subtitle" style={{ margin: 0, maxWidth: 720 }}>Los sectores se usan en Guardias, Inventario e Instructivos, y para limitar a qué sectores accede cada usuario. En cada sector se define si participa de Guardias Médicas y qué horario necesita cubierto.</p>
             <button type="button" className="btn btn-primary" onClick={() => openSector()}>+ Nuevo sector</button>
           </div>
           <div className="agenda-table-wrap">
             <table className="agenda-table">
-              <thead><tr><th>Sector</th><th>Abreviatura</th><th>Usuarios a cargo</th><th>Estado</th><th /></tr></thead>
+              <thead><tr><th>Sector</th><th>Abreviatura</th><th>Guardias Médicas</th><th>Usuarios a cargo</th><th>Estado</th><th /></tr></thead>
               <tbody>
                 {sectors.map((s) => (
                   <tr key={s.id} style={{ opacity: s.active ? 1 : 0.6 }}>
                     <td className="agenda-title">{s.name}</td>
                     <td style={{ fontFamily: "monospace" }}>{s.shortName}</td>
+                    <td>
+                      {cfgDe(s.id)?.active ? (
+                        <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span><span style={CHIP("hsl(262 80% 93%)", "hsl(262 55% 38%)")}>Participa</span></span>
+                          <span style={MUTED}>{franjasResumen(cfgDe(s.id)!.cobertura)}</span>
+                        </span>
+                      ) : (
+                        <span style={MUTED}>No participa</span>
+                      )}
+                    </td>
                     <td>{usersInSector(s.id)}</td>
                     <td>{s.active ? <span style={CHIP("hsl(155 55% 88%)", "hsl(155 60% 24%)")}>Activo</span> : <span style={CHIP("hsl(0 0% 90%)", "hsl(0 0% 35%)")}>Inactivo</span>}</td>
                     <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
@@ -646,7 +779,7 @@ export default function ConfiguracionPage() {
 
       {sectorEditor && (
         <div style={OVERLAY} onClick={() => setSectorEditor(null)}>
-          <form className="card" style={{ width: "min(420px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={saveSector}>
+          <form className="card" style={{ width: sform.guardia ? "min(640px, 100%)" : "min(460px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={saveSector}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{sectorEditor.mode === "create" ? "Nuevo sector" : `Editar ${sectorEditor.sector?.name}`}</h2>
             <label className="field"><span className="field-label">Nombre</span><input className="input" required value={sform.name} onChange={(e) => setSform({ ...sform, name: e.target.value })} /></label>
             <label className="field"><span className="field-label">Abreviatura</span><input className="input" maxLength={8} value={sform.shortName} placeholder="Opcional (ej. UTI)" onChange={(e) => setSform({ ...sform, shortName: e.target.value })} /></label>
@@ -654,8 +787,60 @@ export default function ConfiguracionPage() {
               <input type="checkbox" checked={sform.active} onChange={(e) => setSform({ ...sform, active: e.target.checked })} />
               Sector activo
             </label>
+            <section style={{ borderTop: "1px solid hsl(var(--border))", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, fontWeight: 600 }}>
+                <input type="checkbox" checked={sform.guardia} disabled={!sform.active} onChange={(e) => setSform({ ...sform, guardia: e.target.checked })} style={{ marginTop: 2 }} />
+                <span>
+                  Participa de Guardias Médicas
+                  <span style={{ ...MUTED, display: "block", fontWeight: 400 }}>Aparece en el calendario de Guardias y se controla su cobertura.</span>
+                </span>
+              </label>
+              {sform.guardia && sform.active && (
+                <div>
+                  <div className="field-label" style={{ marginBottom: 6 }}>Horario que necesita cubierto</div>
+                  <CoberturaEditor value={sform.cobertura} onChange={(cobertura) => setSform({ ...sform, cobertura })} />
+                </div>
+              )}
+            </section>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button type="button" className="btn btn-quiet" onClick={() => setSectorEditor(null)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={sguardando}>{sguardando ? "Guardando…" : "Guardar"}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {etiquetaEditor && (
+        <div style={OVERLAY} onClick={() => setEtiquetaEditor(null)}>
+          <form className="card" style={{ width: "min(460px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 14 }} onClick={(e) => e.stopPropagation()} onSubmit={saveEtiqueta}>
+            <div>
+              <div className="eyebrow">Etiquetas de Guardias</div>
+              <h2 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 700 }}>{etiquetaEditor.mode === "create" ? "Nueva etiqueta" : `Editar ${etiquetaEditor.etiqueta?.nombre}`}</h2>
+            </div>
+            {eerror && <div className="form-error">{eerror}</div>}
+            <label className="field">
+              <span className="field-label">Nombre</span>
+              <input className="input" required minLength={2} maxLength={30} value={eform.nombre} placeholder="Ej: GUARDIA EXTRA" onChange={(e) => setEform({ ...eform, nombre: e.target.value.toUpperCase() })} />
+            </label>
+            <div>
+              <div className="field-label" style={{ marginBottom: 6 }}>Color</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                {TAG_COLORS.map((c) => (
+                  <button key={c} type="button" aria-label={`Color ${c}`} aria-pressed={eform.color === c} onClick={() => setEform({ ...eform, color: c })}
+                    style={{ width: 30, height: 30, borderRadius: 9, background: c, cursor: "pointer", border: "none", boxShadow: eform.color === c ? `0 0 0 2px hsl(var(--card)), 0 0 0 4px ${c}` : "inset 0 0 0 1px rgba(0,0,0,.08)" }} />
+                ))}
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "hsl(var(--muted-foreground))", cursor: "pointer" }}>
+                  <input type="color" value={eform.color} onChange={(e) => setEform({ ...eform, color: e.target.value })} style={{ width: 34, height: 30, border: "none", padding: 0, background: "transparent", cursor: "pointer" }} />
+                  Otro
+                </label>
+              </div>
+            </div>
+            <div style={{ ...MUTED, display: "flex", alignItems: "center", gap: 8 }}>Vista previa: <TagBadge label={eform.nombre.trim() || "ETIQUETA"} color={eform.color} /></div>
+            {etiquetaEditor.mode === "edit" && (etiquetaEditor.etiqueta?.usos ?? 0) > 0 && (
+              <div style={MUTED}>Los cambios se aplican también a las {etiquetaEditor.etiqueta?.usos} guardias que ya la usan.</div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button type="button" className="btn btn-quiet" onClick={() => setEtiquetaEditor(null)}>Cancelar</button>
               <button type="submit" className="btn btn-primary">Guardar</button>
             </div>
           </form>

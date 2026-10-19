@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 import {
   db,
+  guardiaEtiquetasTable,
   guardiaSectoresTable,
   guardiasAuditoriaTable,
   guardiasTable,
@@ -9,7 +10,7 @@ import {
   sectorsTable,
   type CoberturaFranja,
 } from "@salvador/db";
-import { hasLevel, requireAuth, requireLevel, requireModuleAccess, type AuthUser } from "../lib/auth";
+import { hasLevel, requireAuth, requireLevel, requireModuleAccess, requireSuperadmin, type AuthUser } from "../lib/auth";
 
 const router: IRouter = Router();
 router.use("/guardias", requireAuth, requireModuleAccess("guardias"));
@@ -135,6 +136,28 @@ function parseBody(body: Record<string, unknown>): { ok: true; data: ParsedGuard
     ok: true,
     data: { sectorId, date, endDate, startTime, endTime, modality, professionalName, observations, tagLabel, tagColor },
   };
+}
+
+/**
+ * Etiqueta de una guardia: tiene que estar en el catálogo (Configuración → Etiquetas) y activa; se guarda
+ * con el nombre y el color del catálogo. Al editar, se conserva la que ya tenía aunque hoy esté desactivada.
+ */
+async function resolverEtiqueta(
+  label: string,
+  previa?: { tagLabel: string; tagColor: string } | null,
+): Promise<{ ok: true; tagLabel: string; tagColor: string } | { ok: false; message: string }> {
+  const nombre = label.replace(/\s+/g, " ").trim();
+  if (!nombre) return { ok: true, tagLabel: "", tagColor: "" };
+  if (previa && personKey(previa.tagLabel) === personKey(nombre)) return { ok: true, tagLabel: previa.tagLabel, tagColor: previa.tagColor };
+  const [et] = await db
+    .select()
+    .from(guardiaEtiquetasTable)
+    .where(sql`lower(${guardiaEtiquetasTable.nombre}) = lower(${nombre})`)
+    .limit(1);
+  if (!et || !et.activa) {
+    return { ok: false, message: `La etiqueta "${nombre}" no está en el catálogo. Las etiquetas las crea el área de Sistemas en Configuración → Etiquetas.` };
+  }
+  return { ok: true, tagLabel: et.nombre, tagColor: et.color };
 }
 
 async function findOverlap(
@@ -277,7 +300,7 @@ router.get("/guardias/config", async (_req, res): Promise<void> => {
   }
 });
 
-router.put("/guardias/config/:sectorId", requireLevel("guardias", "total"), async (req, res): Promise<void> => {
+router.put("/guardias/config/:sectorId", requireSuperadmin, async (req, res): Promise<void> => {
   try {
     const sectorId = Number(req.params.sectorId);
     if (!sectorId || Number.isNaN(sectorId)) {
@@ -320,6 +343,145 @@ router.put("/guardias/config/:sectorId", requireLevel("guardias", "total"), asyn
   } catch (err) {
     console.error("[guardias.config.put]", err);
     res.status(500).json({ message: "Error al guardar la configuración." });
+  }
+});
+
+// ---------- etiquetas (catálogo; solo el superadmin lo modifica) ----------
+
+const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+router.get("/guardias/etiquetas", async (_req, res): Promise<void> => {
+  try {
+    const [rows, usos] = await Promise.all([
+      db.select().from(guardiaEtiquetasTable).orderBy(asc(guardiaEtiquetasTable.nombre)),
+      db
+        .select({ clave: sql<string>`lower(trim(${guardiasTable.tagLabel}))`, n: sql<number>`count(*)::int` })
+        .from(guardiasTable)
+        .where(sql`trim(${guardiasTable.tagLabel}) <> ''`)
+        .groupBy(sql`lower(trim(${guardiasTable.tagLabel}))`),
+    ]);
+    const porClave = new Map(usos.map((u) => [u.clave, Number(u.n)]));
+    res.json(rows.map((r) => ({ id: r.id, nombre: r.nombre, color: r.color, activa: r.activa, usos: porClave.get(r.nombre.trim().toLowerCase()) ?? 0 })));
+  } catch (err) {
+    console.error("[guardias.etiquetas]", err);
+    res.status(500).json({ message: "Error al leer las etiquetas." });
+  }
+});
+
+type EtiquetaBody = { nombre?: string; color?: string; activa?: boolean };
+
+function leerEtiqueta(body: Record<string, unknown>, parcial: boolean): { ok: true; v: EtiquetaBody } | { ok: false; message: string } {
+  const v: EtiquetaBody = {};
+  if (!parcial || body.nombre !== undefined) {
+    const nombre = String(body.nombre ?? "").replace(/\s+/g, " ").trim().toUpperCase();
+    if (nombre.length < 2 || nombre.length > 30) return { ok: false, message: "El nombre de la etiqueta tiene que tener entre 2 y 30 caracteres." };
+    v.nombre = nombre;
+  }
+  if (!parcial || body.color !== undefined) {
+    const color = String(body.color ?? "").trim();
+    if (!COLOR_RE.test(color)) return { ok: false, message: "Color inválido (formato #RRGGBB)." };
+    v.color = color.toLowerCase();
+  }
+  if (body.activa !== undefined) v.activa = body.activa !== false;
+  return { ok: true, v };
+}
+
+async function nombreOcupado(nombre: string, exceptoId?: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: guardiaEtiquetasTable.id })
+    .from(guardiaEtiquetasTable)
+    .where(and(sql`lower(${guardiaEtiquetasTable.nombre}) = lower(${nombre})`, exceptoId ? ne(guardiaEtiquetasTable.id, exceptoId) : sql`true`))
+    .limit(1);
+  return Boolean(row);
+}
+
+async function usosDe(nombre: string): Promise<number> {
+  const [uso] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(guardiasTable)
+    .where(sql`lower(trim(${guardiasTable.tagLabel})) = lower(${nombre.trim()})`);
+  return Number(uso?.n ?? 0);
+}
+
+router.post("/guardias/etiquetas", requireSuperadmin, async (req, res): Promise<void> => {
+  try {
+    const r = leerEtiqueta(req.body ?? {}, false);
+    if (!r.ok) {
+      res.status(400).json({ message: r.message });
+      return;
+    }
+    const nombre = r.v.nombre!;
+    if (await nombreOcupado(nombre)) {
+      res.status(409).json({ message: `Ya existe la etiqueta "${nombre}".` });
+      return;
+    }
+    const [row] = await db.insert(guardiaEtiquetasTable).values({ nombre, color: r.v.color!, activa: r.v.activa ?? true }).returning();
+    res.status(201).json({ id: row.id, nombre: row.nombre, color: row.color, activa: row.activa, usos: await usosDe(row.nombre) });
+  } catch (err) {
+    console.error("[guardias.etiquetas.post]", err);
+    res.status(500).json({ message: "Error al crear la etiqueta." });
+  }
+});
+
+router.patch("/guardias/etiquetas/:id", requireSuperadmin, async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    const [actual] = id ? await db.select().from(guardiaEtiquetasTable).where(eq(guardiaEtiquetasTable.id, id)).limit(1) : [];
+    if (!actual) {
+      res.status(404).json({ message: "Etiqueta no encontrada." });
+      return;
+    }
+    const r = leerEtiqueta(req.body ?? {}, true);
+    if (!r.ok) {
+      res.status(400).json({ message: r.message });
+      return;
+    }
+    if (r.v.nombre && (await nombreOcupado(r.v.nombre, id))) {
+      res.status(409).json({ message: `Ya existe la etiqueta "${r.v.nombre}".` });
+      return;
+    }
+    const nombre = r.v.nombre ?? actual.nombre;
+    const color = r.v.color ?? actual.color;
+    const [row] = await db
+      .update(guardiaEtiquetasTable)
+      .set({ nombre, color, activa: r.v.activa ?? actual.activa, updatedAt: new Date() })
+      .where(eq(guardiaEtiquetasTable.id, id))
+      .returning();
+    // Renombrar o cambiar el color se refleja en todas las guardias que la usan.
+    let guardiasActualizadas = 0;
+    if (nombre !== actual.nombre || color !== actual.color) {
+      const cambiadas = await db
+        .update(guardiasTable)
+        .set({ tagLabel: nombre, tagColor: color })
+        .where(sql`lower(trim(${guardiasTable.tagLabel})) = lower(${actual.nombre.trim()})`)
+        .returning({ id: guardiasTable.id });
+      guardiasActualizadas = cambiadas.length;
+    }
+    res.json({ id: row.id, nombre: row.nombre, color: row.color, activa: row.activa, usos: await usosDe(row.nombre), guardiasActualizadas });
+  } catch (err) {
+    console.error("[guardias.etiquetas.patch]", err);
+    res.status(500).json({ message: "Error al modificar la etiqueta." });
+  }
+});
+
+router.delete("/guardias/etiquetas/:id", requireSuperadmin, async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    const [actual] = id ? await db.select().from(guardiaEtiquetasTable).where(eq(guardiaEtiquetasTable.id, id)).limit(1) : [];
+    if (!actual) {
+      res.status(404).json({ message: "Etiqueta no encontrada." });
+      return;
+    }
+    const n = await usosDe(actual.nombre);
+    if (n > 0) {
+      res.status(409).json({ message: `La etiqueta está en ${n} guardia${n === 1 ? "" : "s"}: desactivala para que no se use más (las guardias la conservan).` });
+      return;
+    }
+    await db.delete(guardiaEtiquetasTable).where(eq(guardiaEtiquetasTable.id, id));
+    res.status(204).end();
+  } catch (err) {
+    console.error("[guardias.etiquetas.delete]", err);
+    res.status(500).json({ message: "Error al eliminar la etiqueta." });
   }
 });
 
@@ -469,6 +631,13 @@ router.post("/guardias", async (req, res): Promise<void> => {
     }
     const data = parsed.data;
     const allowOverlap = Boolean((req.body as { allowOverlap?: boolean })?.allowOverlap);
+    const etiqueta = await resolverEtiqueta(data.tagLabel);
+    if (!etiqueta.ok) {
+      res.status(400).json({ message: etiqueta.message });
+      return;
+    }
+    data.tagLabel = etiqueta.tagLabel;
+    data.tagColor = etiqueta.tagColor;
 
     const [sector] = await db.select().from(sectorsTable).where(eq(sectorsTable.id, data.sectorId)).limit(1);
     if (!sector) {
@@ -630,6 +799,13 @@ router.patch("/guardias/:id", async (req, res): Promise<void> => {
       res.status(403).json({ message: "Solo podés modificar guardias de los sectores que tenés asignados." });
       return;
     }
+    const etiqueta = await resolverEtiqueta(data.tagLabel, existing);
+    if (!etiqueta.ok) {
+      res.status(400).json({ message: etiqueta.message });
+      return;
+    }
+    data.tagLabel = etiqueta.tagLabel;
+    data.tagColor = etiqueta.tagColor;
 
     if (!allowOverlap) {
       const overlap = await findOverlap(data.professionalName, data.date, data.endDate, data.startTime, data.endTime, id);

@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState, type CSSPropertie
 import { confirmar } from "@/components/feedback";
 import { imprimir } from "@/components/print-header";
 import { useApariencia } from "./shared/apariencia";
+import { TagBadge, type Etiqueta } from "./guardias/compartido";
 import {
   addDaysIso,
   computeStats,
@@ -22,7 +23,6 @@ import {
   profKey,
   requiredIntervals,
   type DayCoverage,
-  type Franja,
   type Guardia,
   type Sector,
   type SectorConfig,
@@ -34,15 +34,6 @@ const MODALITIES = [
   { value: "pasiva", label: "Pasiva" },
 ];
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const DOW_LABELS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
-const TAG_PRESETS = [
-  { label: "GUARDIA EXTRA", color: "#c2410c" },
-  { label: "COBERTURA", color: "#1d4ed8" },
-  { label: "REEMPLAZO", color: "#7c3aed" },
-  { label: "URGENTE", color: "#b91c1c" },
-];
-const TAG_COLORS = ["#0d9488", "#c2410c", "#1d4ed8", "#7c3aed", "#b91c1c", "#ca8a04", "#334155", "#be185d"];
-
 // Estilos de estado en línea: el CSS del build fija background/border de .gm-cell con !important.
 const COVERAGE_STYLE: Record<string, CSSProperties> = {
   sin: { boxShadow: "inset 0 0 0 2px rgba(185,28,28,.6), inset 0 0 0 999px rgba(220,38,38,.16)" },
@@ -124,15 +115,6 @@ function useIsNarrow(maxWidth = 720) {
   return narrow;
 }
 
-function TagBadge({ label, color }: { label?: string | null; color?: string | null }) {
-  if (!label) return null;
-  return (
-    <span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, letterSpacing: "0.02em", padding: "2px 8px", borderRadius: 999, background: color || "#0d9488", color: "#fff", lineHeight: 1.4, whiteSpace: "nowrap" }}>
-      {label}
-    </span>
-  );
-}
-
 type FormState = {
   sectorId: string;
   date: string;
@@ -151,106 +133,34 @@ function emptyForm(today: string): FormState {
   return { sectorId: "", date: today, endDate: today, startTime: "08:00", endTime: "16:00", modality: "activa", professionalName: "", observations: "", tagEnabled: false, tagLabel: "", tagColor: "#c2410c" };
 }
 
-function TagFields({ form, setForm }: { form: FormState; setForm: (f: FormState) => void }) {
+/** Etiqueta de la guardia: se elige del catálogo que arma Sistemas en Configuración → Etiquetas. */
+function TagFields({ form, setForm, etiquetas }: { form: FormState; setForm: (f: FormState) => void; etiquetas: Etiqueta[] }) {
+  const activas = etiquetas.filter((e) => e.activa);
+  const actual = form.tagEnabled ? form.tagLabel.trim() : "";
+  const enCatalogo = activas.some((e) => e.nombre.toLowerCase() === actual.toLowerCase());
+  const elegir = (e: { nombre: string; color: string } | null) => setForm({ ...form, tagEnabled: Boolean(e), tagLabel: e?.nombre ?? "", tagColor: e?.color ?? "" });
+  const chip = (color: string | null, sel: boolean): CSSProperties => ({
+    fontSize: 11.5, fontWeight: 700, letterSpacing: "0.02em", padding: "5px 11px", borderRadius: 999, cursor: "pointer", border: "none",
+    background: color || "hsl(var(--secondary))", color: color ? "#fff" : "hsl(var(--foreground))",
+    boxShadow: sel ? `0 0 0 2px hsl(var(--card)), 0 0 0 4px ${color || "hsl(var(--primary))"}` : "inset 0 0 0 1px rgba(0,0,0,.06)",
+    opacity: sel || !actual ? 1 : 0.72,
+  });
   return (
-    <div style={{ border: "1px dashed hsl(var(--border))", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={form.tagEnabled}
-          onChange={(e) => setForm({ ...form, tagEnabled: e.target.checked, tagLabel: e.target.checked ? form.tagLabel || "GUARDIA EXTRA" : form.tagLabel, tagColor: form.tagColor || "#c2410c" })}
-        />
-        Agregar etiqueta (opcional)
-      </label>
-      {form.tagEnabled && (
-        <>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {TAG_PRESETS.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => setForm({ ...form, tagLabel: p.label, tagColor: p.color, tagEnabled: true })}
-                style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, border: form.tagLabel === p.label ? "2px solid #0f172a" : "1px solid transparent", background: p.color, color: "#fff", cursor: "pointer" }}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <label className="field" style={{ margin: 0 }}>
-            <span className="field-label">Texto de la etiqueta</span>
-            <input className="input" maxLength={40} placeholder="Ej: GUARDIA EXTRA" value={form.tagLabel} onChange={(e) => setForm({ ...form, tagLabel: e.target.value })} />
-          </label>
-          <div>
-            <div className="field-label" style={{ marginBottom: 6 }}>Color</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              {TAG_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  title={c}
-                  onClick={() => setForm({ ...form, tagColor: c })}
-                  style={{ width: 28, height: 28, borderRadius: 8, background: c, border: form.tagColor === c ? "3px solid #0f172a" : "2px solid #fff", boxShadow: "0 0 0 1px hsl(var(--border))", cursor: "pointer" }}
-                />
-              ))}
-              <input type="color" value={form.tagColor || "#c2410c"} onChange={(e) => setForm({ ...form, tagColor: e.target.value })} style={{ width: 36, height: 28, border: "none", padding: 0, cursor: "pointer" }} />
-            </div>
-          </div>
-          {form.tagLabel && (
-            <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>
-              Vista previa: <TagBadge label={form.tagLabel} color={form.tagColor} />
-            </div>
-          )}
-        </>
-      )}
+    <div className="field" style={{ margin: 0 }}>
+      <span className="field-label">Etiqueta (opcional)</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 2 }}>
+        <button type="button" style={chip(null, !actual)} onClick={() => elegir(null)}>Sin etiqueta</button>
+        {actual && !enCatalogo && (
+          <button type="button" style={chip(form.tagColor || "#0d9488", true)} title="Esta etiqueta ya no está en el catálogo: la guardia la conserva.">{actual}</button>
+        )}
+        {activas.map((e) => {
+          const sel = e.nombre.toLowerCase() === actual.toLowerCase();
+          return <button key={e.id} type="button" style={chip(e.color, sel)} aria-pressed={sel} onClick={() => elegir(e)}>{sel ? "✓ " : ""}{e.nombre}</button>;
+        })}
+      </div>
+      {activas.length === 0 && <span style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>Todavía no hay etiquetas. Las crea el área de Sistemas en Configuración → Etiquetas.</span>}
     </div>
   );
-}
-
-/** Editor del horario de cobertura requerido de un sector. */
-function CoberturaEditor({ value, onChange, disabled }: { value: Franja[]; onChange: (v: Franja[]) => void; disabled?: boolean }) {
-  const preset = (dows: number[], start: string, end: string) => onChange(dows.map((dow) => ({ dow, start, end })));
-  const update = (i: number, patch: Partial<Franja>) => onChange(value.map((f, j) => (j === i ? { ...f, ...patch } : f)));
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} disabled={disabled} onClick={() => preset([0, 1, 2, 3, 4, 5, 6], "00:00", "24:00")}>24 h todos los días</button>
-        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} disabled={disabled} onClick={() => preset([1, 2, 3, 4, 5], "08:00", "20:00")}>Lun a Vie 08–20</button>
-        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} disabled={disabled} onClick={() => preset([0, 1, 2, 3, 4, 5, 6], "08:00", "20:00")}>Todos los días 08–20</button>
-        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} disabled={disabled} onClick={() => onChange([])}>Sin horario fijo</button>
-      </div>
-      {value.length === 0 ? (
-        <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>Sin horario fijo: se marca solo si un día no hay nadie.</div>
-      ) : (
-        value.map((f, i) => (
-          <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-            <select className="select" style={{ width: 130 }} value={f.dow} disabled={disabled} onChange={(e) => update(i, { dow: Number(e.target.value) })}>
-              {DOW_LABELS.map((l, d) => <option key={d} value={d}>{l}</option>)}
-            </select>
-            <input className="input" type="time" style={{ width: 110 }} value={f.start} disabled={disabled} onChange={(e) => update(i, { start: e.target.value })} />
-            <span style={{ fontSize: 12 }}>a</span>
-            {/* 00:00 como hora de fin = hasta el final del día (se guarda como 24:00). */}
-            <input className="input" type="time" style={{ width: 110 }} value={f.end === "24:00" ? "00:00" : f.end} disabled={disabled} onChange={(e) => update(i, { end: e.target.value === "00:00" ? "24:00" : e.target.value })} />
-            <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} disabled={disabled} onClick={() => onChange(value.filter((_, j) => j !== i))}>Quitar</button>
-          </div>
-        ))
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} disabled={disabled} onClick={() => onChange([...value, { dow: 1, start: "08:00", end: "20:00" }])}>+ Agregar franja</button>
-        <span style={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}>Fin 00:00 = hasta medianoche. Una noche (20 a 08) se carga como 20:00–00:00 y, el día siguiente, 00:00–08:00.</span>
-      </div>
-    </div>
-  );
-}
-
-function franjasResumen(c: Franja[]): string {
-  if (c.length === 0) return "Sin horario fijo";
-  const full = c.filter((f) => f.start === "00:00" && f.end === "24:00").map((f) => f.dow);
-  if (full.length === 7 && c.length === 7) return "24 h todos los días";
-  const byRange = new Map<string, number[]>();
-  for (const f of c) byRange.set(`${f.start}–${f.end}`, [...(byRange.get(`${f.start}–${f.end}`) || []), f.dow]);
-  return Array.from(byRange.entries())
-    .map(([r, dows]) => `${dows.sort().map((d) => DOW_LABELS[d].slice(0, 3)).join(", ")} ${r}`)
-    .join(" · ");
 }
 
 export default function GuardiasMedicas() {
@@ -290,7 +200,7 @@ export default function GuardiasMedicas() {
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyBusy, setCopyBusy] = useState(false);
   const [copyForm, setCopyForm] = useState({ fromStart: "", fromEnd: "", toStart: "", sectorId: "" });
-  const [cfgDrafts, setCfgDrafts] = useState<Record<number, { active: boolean; cobertura: Franja[] }>>({});
+  const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
   const [profDrafts, setProfDrafts] = useState<Record<number, Partial<Profesional>>>({});
   const isNarrow = useIsNarrow();
   const { apariencia } = useApariencia();
@@ -306,11 +216,12 @@ export default function GuardiasMedicas() {
 
   const loadMeta = useCallback(async () => {
     try {
-      const [me, secs, cfg, profs] = await Promise.all([
+      const [me, secs, cfg, profs, tags] = await Promise.all([
         apiJson<{ role?: string; sectorIds?: number[]; permissions?: Record<string, string> }>("/auth/me"),
         apiJson<Sector[]>("/sectors"),
         apiJson<SectorConfig[]>("/guardias/config"),
         apiJson<string[]>("/guardias/profesionales"),
+        apiJson<Etiqueta[]>("/guardias/etiquetas").catch(() => [] as Etiqueta[]),
       ]);
       const role = String(me.role || "");
       setCanWrite(levelRank(me, "guardias") >= 2);
@@ -321,6 +232,7 @@ export default function GuardiasMedicas() {
       setSectors(Array.isArray(secs) ? secs : []);
       setConfigs(Array.isArray(cfg) ? cfg : []);
       setProfesionales(Array.isArray(profs) ? profs : []);
+      setEtiquetas(Array.isArray(tags) ? tags : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar datos del módulo");
     }
@@ -716,19 +628,6 @@ export default function GuardiasMedicas() {
     }
   }
 
-  async function saveConfig(sectorId: number) {
-    const draft = cfgDrafts[sectorId];
-    if (!draft) return;
-    try {
-      await apiJson(`/guardias/config/${sectorId}`, { method: "PUT", body: JSON.stringify(draft) });
-      setCfgDrafts(({ [sectorId]: _, ...rest }) => rest);
-      setNotice("Configuración del sector guardada.");
-      await loadMeta();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar la configuración");
-    }
-  }
-
   async function saveProf(id: number) {
     const draft = profDrafts[id];
     if (!draft) return;
@@ -806,7 +705,7 @@ export default function GuardiasMedicas() {
           <span className="field-label">Observaciones</span>
           <textarea className="textarea" rows={3} placeholder="Opcional" value={f.observations} onChange={(e) => setF({ ...f, observations: e.target.value })} />
         </label>
-        <TagFields form={f} setForm={setF} />
+        <TagFields form={f} setForm={setF} etiquetas={etiquetas} />
       </>
     );
   }
@@ -1298,42 +1197,18 @@ export default function GuardiasMedicas() {
 
       {tab === "config" && canTotal && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div className="card" style={PANEL}>
-            <div className="section-kicker">Sectores de guardia</div>
-            <h3 className="section-title" style={{ marginTop: 4, fontSize: 16 }}>Horario que cada sector necesita cubierto</h3>
-            <p className="page-subtitle" style={{ marginTop: 4 }}>El calendario marca en amarillo o rojo solo los huecos de este horario. Sin horario fijo, se marca cuando un día no hay nadie.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 12, marginTop: 14, alignItems: "start" }}>
-              {configs.map((c) => {
-                const draft = cfgDrafts[c.sectorId];
-                const val = draft || { active: c.active, cobertura: c.cobertura };
-                const editable = canEditSector(c.sectorId);
-                const set = (patch: Partial<typeof val>) => setCfgDrafts((d) => ({ ...d, [c.sectorId]: { ...val, ...patch } }));
-                return (
-                  <div key={c.sectorId} style={{ border: "1px solid hsl(var(--border))", borderRadius: 12, padding: 12, opacity: val.active ? 1 : 0.75 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
-                        <input type="checkbox" checked={val.active} disabled={!editable} onChange={(e) => set({ active: e.target.checked })} />
-                        {c.name}
-                      </label>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "hsl(var(--muted-foreground))" }}>
-                        {val.active ? franjasResumen(val.cobertura) : "No participa de Guardias"}
-                        {val.active && editable && !draft && (
-                          <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => set({})}>Editar horario</button>
-                        )}
-                      </span>
-                    </div>
-                    {val.active && editable && draft && <div style={{ marginTop: 10 }}><CoberturaEditor value={val.cobertura} onChange={(cobertura) => set({ cobertura })} /></div>}
-                    {draft && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                        <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => void saveConfig(c.sectorId)}>Guardar</button>
-                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setCfgDrafts(({ [c.sectorId]: _, ...rest }) => rest)}>Descartar</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              {!isSuperadmin && writableSectorIds && <div style={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}>Solo podés modificar los sectores que tenés asignados.</div>}
+          <div className="card" style={{ ...PANEL, display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ minWidth: 0, flex: "1 1 360px" }}>
+              <div className="section-kicker">Sectores y etiquetas</div>
+              <h3 className="section-title" style={{ marginTop: 4, fontSize: 16 }}>Se administran desde Configuración</h3>
+              <p className="page-subtitle" style={{ marginTop: 4 }}>Qué sectores participan de Guardias, el horario que cada uno necesita cubierto y las etiquetas los configura el área de Sistemas.</p>
             </div>
+            {isSuperadmin && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <a className="btn btn-quiet" href="/configuracion?seccion=sectores">Sectores de guardia</a>
+                <a className="btn btn-quiet" href="/configuracion?seccion=etiquetas">Etiquetas</a>
+              </div>
+            )}
           </div>
 
           <div className="card gm-table-wrap">

@@ -134,6 +134,16 @@ export const guardiaSectoresTable = pgTable("guardia_sectores", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Catálogo de etiquetas de guardias (Configuración → Etiquetas, solo superadmin). */
+export const guardiaEtiquetasTable = pgTable("guardia_etiquetas", {
+  id: serial("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  color: text("color").notNull().default("#0d9488"),
+  activa: boolean("activa").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Registro de altas, cambios y bajas de guardias (quién y qué). */
 export const guardiasAuditoriaTable = pgTable("guardias_auditoria", {
   id: serial("id").primaryKey(),

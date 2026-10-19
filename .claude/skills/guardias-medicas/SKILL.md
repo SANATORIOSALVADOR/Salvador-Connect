@@ -32,7 +32,8 @@ Ver quién está de guardia por día/sector y cargar registros con horario.
 2. **Carga nueva** — formulario; mantiene sector y horario para cargar la siguiente
 3. **Registro** — tabla del mes, CSV, copiar semana / mes anterior, historial de cambios
 4. **Estadísticas** — productividad: horas activas / pasivas, nocturnas, extras, reemplazos, % del horario requerido cubierto
-5. **Configuración** (escritura) — sectores que participan y su horario requerido; datos de profesionales
+5. **Configuración** (Control total) — datos de profesionales. Los sectores que participan, su horario requerido y las
+   etiquetas se administran en **Configuración del sistema** (solo superadmin), no en el módulo.
 
 Estilos de estado en línea: el CSS del build fija `background` / `border` de `.gm-cell` con `!important`
 (por eso el color de cobertura usa `box-shadow` inline).
@@ -54,6 +55,8 @@ Estilos de estado en línea: el CSS del build fija `background` / `border` de `.
 - Profesionales: tabla propia; se crean solos al cargar un nombre nuevo; renombrar actualiza sus guardias.
 - Copiar período: omite lo que se solapa con guardias del mismo profesional (no duplica si se copia dos veces).
 - Toda alta / modificación / baja / copia queda en `guardias_auditoria`.
+- Etiquetas: solo del catálogo `guardia_etiquetas` (activas). La API guarda nombre y color del catálogo; al editar una guardia
+  se conserva la etiqueta que ya tenía aunque hoy esté desactivada. Sin texto libre en la UI.
 
 ## Checklist
 

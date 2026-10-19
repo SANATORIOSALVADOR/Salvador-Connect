@@ -7,7 +7,8 @@ description: Configuración → Usuarios y Sectores del Sanatorio del Salvador �
 
 ## Archivos
 
-- UI: `apps/web/src/pages/Configuracion.tsx` (secciones **Usuarios** y **Sectores**).
+- UI: `apps/web/src/pages/Configuracion.tsx` (secciones **Usuarios**, **Sectores**, **Etiquetas** y **Apariencia**;
+  `?seccion=sectores|etiquetas` abre directo esa solapa).
   `Usuarios.tsx` solo re-exporta Configuración (la ruta `/usuarios` sigue funcionando).
 - API: `apps/api/src/routes/users.ts` (todo requiere `superadmin`), `routes/sectores.ts`.
 - Permisos: `apps/api/src/lib/auth.ts` → `PERMISSION_MODULES`, `requireModuleAccess`, `requireLevel`, `hasLevel`.
@@ -36,6 +37,14 @@ description: Configuración → Usuarios y Sectores del Sanatorio del Salvador �
 - No se puede dejar el sistema sin un superadmin activo.
 - Desactivar o resetear clave cierra las sesiones del usuario.
 - Eliminar un usuario con registros cargados devuelve 409: desactivarlo.
+
+## Sectores y Guardias (todo solo superadmin)
+
+- En el formulario de sector: "Participa de Guardias Médicas" + horario requerido (`CoberturaEditor`, en
+  `pages/guardias/compartido.tsx`). Se guarda con `PUT /api/guardias/config/:sectorId` (requireSuperadmin).
+- Etiquetas: tabla `guardia_etiquetas` (migración `0005`). API `GET /api/guardias/etiquetas` (cualquiera con Guardias),
+  `POST / PATCH / DELETE` solo superadmin. Renombrar o cambiar el color actualiza `guardias.tag_label/tag_color`;
+  eliminar solo si ninguna guardia la usa (409 → desactivar).
 
 ## Menú
 
