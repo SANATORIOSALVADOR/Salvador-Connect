@@ -44,6 +44,7 @@ import {
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { VerComoAviso } from "@/components/ver-como";
 
 // Cada módulo se descarga recién cuando se abre (la primera carga es más liviana).
 const AdministracionPage = lazy(() => import("@/pages/Administracion"));
@@ -206,6 +207,7 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
       </div>
     )}
     <div className="main-column" style={{ marginLeft: sideW, paddingLeft: 8, width: `calc(100% - ${sideW}px)`, maxWidth: `calc(100% - ${sideW}px)`, minWidth: 0, display: 'flex', flexDirection: 'column', overflowX: 'clip', boxSizing: 'border-box' }}>
+      <VerComoAviso />
       <header className="topbar" style={{ paddingLeft: 20, paddingRight: 20 }}>
         <button className="btn btn-quiet btn-icon mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Abrir menú" data-testid="button-open-menu"><Menu size={18} /></button>
         <div className="topbar-meta"><span style={{ fontWeight: 600 }}>{apariencia.nombre}</span><span style={{ margin: '0 8px', opacity: .35 }}>/</span><span>Operación interna</span></div>

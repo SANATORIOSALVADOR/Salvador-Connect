@@ -8,8 +8,8 @@ import type { Franja, SectorConfig } from "./guardias/logic";
 // Configuración (solo superadmin): Usuarios (ABM + permisos por módulo), Sectores (y su participación en
 // Guardias con el horario requerido), Etiquetas de Guardias y Apariencia.
 
-type Seccion = "usuarios" | "sectores" | "etiquetas" | "apariencia";
-const SECCIONES: Seccion[] = ["usuarios", "sectores", "etiquetas", "apariencia"];
+type Seccion = "usuarios" | "perfiles" | "sectores" | "etiquetas" | "apariencia";
+const SECCIONES: Seccion[] = ["usuarios", "perfiles", "sectores", "etiquetas", "apariencia"];
 
 const API = "/api";
 
@@ -26,6 +26,10 @@ type UserRow = {
   permissions: Record<string, Level>;
   scopes?: Record<string, ModuleScope>;
   sectorIds: number[];
+  /** Perfil vinculado y módulos donde la persona tiene una excepción. */
+  perfilId?: number | null;
+  perfilNombre?: string | null;
+  excepciones?: string[];
   lastLoginAt: string | null;
   createdAt: string;
 };
@@ -61,7 +65,17 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
 }
 
-type Plantilla = { nombre: string; permissions: Record<string, Level>; scopes?: Record<string, ModuleScope>; sectorIds?: number[] };
+/** Perfil de permisos (Configuración → Perfiles). Los sectores concretos se eligen en cada persona. */
+type Perfil = {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  permisos: Record<string, Level>;
+  alcances: Record<string, Alcance>;
+  usuarios: number;
+  sinSectores: string[];
+};
+type PerfilForm = { nombre: string; descripcion: string; permisos: Record<string, Level>; alcances: Record<string, Alcance> };
 
 type UserForm = {
   name: string;
@@ -73,10 +87,12 @@ type UserForm = {
   permissions: Record<string, Level>;
   /** Alcance por módulo con sectores (los que no figuran = todos los sectores). */
   scopes: Record<string, ModuleScope>;
+  /** Perfil vinculado (null = permisos a medida). */
+  perfilId: number | null;
 };
 
 function emptyUserForm(): UserForm {
-  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, scopes: {} };
+  return { name: "", username: "", email: "", password: randomPassword(), active: true, role: "usuario", permissions: { dashboard: "ver" }, scopes: {}, perfilId: null };
 }
 
 /** Alcance de una plantilla o usuario viejo que solo tenía "sectores a cargo" (lo de antes = ve todo, carga en esos). */
@@ -115,9 +131,17 @@ function AlcanceResumen({ u, sectorName }: { u: UserRow; sectorName: Map<number,
 function PermChips({ u }: { u: UserRow }) {
   if (u.role === "superadmin") return <span style={CHIP("hsl(270 60% 92%)", "hsl(270 50% 32%)")}>Todo + administración</span>;
   const list = MODULES.filter((m) => u.permissions[m.key]);
-  if (!list.length) return <span style={MUTED}>Sin acceso a módulos</span>;
+  const exc = u.excepciones?.length ?? 0;
+  const perfil = u.perfilNombre ? (
+    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+      <span style={CHIP("hsl(270 60% 92%)", "hsl(270 50% 32%)")} title="Perfil vinculado: hereda sus cambios">Perfil: {u.perfilNombre}</span>
+      {exc > 0 && <span style={CHIP("hsl(35 90% 90%)", "hsl(30 70% 30%)")} title={`Excepciones en: ${u.excepciones!.map((k) => MODULES.find((m) => m.key === k)?.label ?? k).join(", ")}`}>+{exc} excepción{exc === 1 ? "" : "es"}</span>}
+    </span>
+  ) : null;
+  if (!list.length) return <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{perfil}<span style={MUTED}>Sin acceso a módulos</span></div>;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+      {perfil}
       {list.map((m) => {
         const lvl = u.permissions[m.key];
         const c = LEVEL_COLOR[lvl];
@@ -152,8 +176,10 @@ export default function ConfiguracionPage() {
   const [usaving, setUsaving] = useState(false);
   const [resetUser, setResetUser] = useState<UserRow | null>(null);
   const [resetPw, setResetPw] = useState("");
-  const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
-  const [nombrePlantilla, setNombrePlantilla] = useState<string | null>(null);
+  const [perfiles, setPerfiles] = useState<Perfil[]>([]);
+  const [perfilEditor, setPerfilEditor] = useState<{ mode: "create" | "edit"; perfil?: Perfil; desdeUsuario?: boolean } | null>(null);
+  const [pform, setPform] = useState<PerfilForm>({ nombre: "", descripcion: "", permisos: {}, alcances: {} });
+  const [perror, setPerror] = useState<string | null>(null);
 
   // sectores
   const [sectorEditor, setSectorEditor] = useState<{ mode: "create" | "edit"; sector?: Sector; guardiaIni: string } | null>(null);
@@ -179,11 +205,11 @@ export default function ConfiguracionPage() {
       const [u, s, pl, et, gc] = await Promise.all([
         apiJson<UserRow[]>("/users"),
         apiJson<Sector[]>("/sectores"),
-        apiJson<Plantilla[]>("/users/plantillas").catch(() => []),
+        apiJson<Perfil[]>("/users/perfiles").catch(() => [] as Perfil[]),
         apiJson<Etiqueta[]>("/guardias/etiquetas").catch(() => [] as Etiqueta[]),
         apiJson<SectorConfig[]>("/guardias/config").catch(() => [] as SectorConfig[]),
       ]);
-      setPlantillas(Array.isArray(pl) ? pl : []);
+      setPerfiles(Array.isArray(pl) ? pl : []);
       setEtiquetas(Array.isArray(et) ? et : []);
       setGuardiaCfg(Array.isArray(gc) ? gc : []);
       setUsers(Array.isArray(u) ? u : []);
@@ -225,7 +251,7 @@ export default function ConfiguracionPage() {
   }
 
   function openEditUser(u: UserRow) {
-    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, scopes: scopesDe(u) });
+    setUform({ name: u.name, username: u.username, email: u.email || "", password: "", active: u.active, role: u.role, permissions: { ...u.permissions }, scopes: scopesDe(u), perfilId: u.perfilId ?? null });
     setUerror(null);
     setEditor({ mode: "edit", user: u });
   }
@@ -286,6 +312,7 @@ export default function ConfiguracionPage() {
         role: uform.role,
         permissions: uform.role === "superadmin" ? {} : uform.permissions,
         scopes: uform.role === "superadmin" ? {} : Object.fromEntries(Object.entries(uform.scopes).filter(([k]) => uform.permissions[k])),
+        perfilId: uform.role === "superadmin" ? null : uform.perfilId,
         ...(editor?.mode === "create" ? { password: uform.password } : {}),
       };
       if (editor?.mode === "create") {
@@ -304,28 +331,110 @@ export default function ConfiguracionPage() {
     }
   }
 
-  async function guardarPlantillas(lista: Plantilla[], mensaje: string) {
+  // ---------- perfiles ----------
+
+  const perfilDe = (id: number | null | undefined) => perfiles.find((p) => p.id === id) ?? null;
+
+  /** Vincula el formulario a un perfil: toma sus módulos, niveles y alcances, y conserva los sectores ya elegidos. */
+  function aplicarPerfil(id: number | null) {
+    const p = perfilDe(id);
+    setUform((f) => {
+      if (!p) return { ...f, perfilId: null };
+      const scopes: Record<string, ModuleScope> = {};
+      for (const m of MODULES) {
+        const a = p.alcances[m.key];
+        if (m.sectores && p.permisos[m.key] && a && a !== "todos") scopes[m.key] = { alcance: a, sectorIds: f.scopes[m.key]?.sectorIds ?? [] };
+      }
+      return { ...f, perfilId: p.id, permissions: { ...p.permisos }, scopes };
+    });
+  }
+
+  /** ¿El módulo difiere del perfil vinculado (nivel o alcance)? */
+  function esExcepcion(moduleKey: string): boolean {
+    const p = perfilDe(uform.perfilId);
+    if (!p) return false;
+    const m = MODULES.find((x) => x.key === moduleKey);
+    if ((uform.permissions[moduleKey] ?? null) !== (p.permisos[moduleKey] ?? null)) return true;
+    return Boolean(m?.sectores && uform.permissions[moduleKey] && (uform.scopes[moduleKey]?.alcance ?? "todos") !== (p.alcances[moduleKey] ?? "todos"));
+  }
+
+  function volverAlPerfil(moduleKey: string) {
+    const p = perfilDe(uform.perfilId);
+    if (!p) return;
+    setUform((f) => {
+      const permissions = { ...f.permissions };
+      const scopes = { ...f.scopes };
+      if (p.permisos[moduleKey]) permissions[moduleKey] = p.permisos[moduleKey];
+      else delete permissions[moduleKey];
+      const a = p.alcances[moduleKey];
+      if (a && a !== "todos" && p.permisos[moduleKey]) scopes[moduleKey] = { alcance: a, sectorIds: f.scopes[moduleKey]?.sectorIds ?? [] };
+      else delete scopes[moduleKey];
+      return { ...f, permissions, scopes };
+    });
+  }
+
+  function openPerfil(p?: Perfil, desdeUsuario = false) {
+    setPerror(null);
+    if (p) setPform({ nombre: p.nombre, descripcion: p.descripcion, permisos: { ...p.permisos }, alcances: { ...p.alcances } });
+    else if (desdeUsuario)
+      setPform({
+        nombre: "",
+        descripcion: "",
+        permisos: { ...uform.permissions },
+        alcances: Object.fromEntries(Object.entries(uform.scopes).filter(([k]) => uform.permissions[k]).map(([k, sc]) => [k, sc.alcance])),
+      });
+    else setPform({ nombre: "", descripcion: "", permisos: { dashboard: "ver" }, alcances: {} });
+    setPerfilEditor({ mode: p ? "edit" : "create", perfil: p, desdeUsuario });
+  }
+
+  async function savePerfil(e: FormEvent) {
+    e.preventDefault();
+    if (!perfilEditor) return;
+    setPerror(null);
     try {
-      setPlantillas(await apiJson<Plantilla[]>("/users/plantillas", { method: "PUT", body: JSON.stringify(lista) }));
-      setNotice(mensaje);
+      const body = JSON.stringify({ nombre: pform.nombre.trim(), descripcion: pform.descripcion.trim(), permisos: pform.permisos, alcances: pform.alcances });
+      const guardado =
+        perfilEditor.mode === "edit" && perfilEditor.perfil
+          ? await apiJson<Perfil>(`/users/perfiles/${perfilEditor.perfil.id}`, { method: "PATCH", body })
+          : await apiJson<Perfil>("/users/perfiles", { method: "POST", body });
+      const lista = await apiJson<Perfil[]>("/users/perfiles");
+      setPerfiles(lista);
+      if (perfilEditor.desdeUsuario && guardado) setUform((f) => ({ ...f, perfilId: guardado.id }));
+      setNotice(
+        perfilEditor.mode === "edit"
+          ? `Perfil guardado${guardado?.usuarios ? `: se aplicó a ${guardado.usuarios} persona${guardado.usuarios === 1 ? "" : "s"} vinculada${guardado.usuarios === 1 ? "" : "s"}` : ""}.`
+          : perfilEditor.desdeUsuario
+            ? "Perfil creado y vinculado a esta persona (se guarda al guardar el usuario)."
+            : "Perfil creado.",
+      );
+      setPerfilEditor(null);
+      if (!perfilEditor.desdeUsuario) await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron guardar las plantillas.");
+      setPerror(err instanceof Error ? err.message : "No se pudo guardar el perfil");
     }
   }
 
-  async function guardarComoPlantilla() {
-    const nombre = (nombrePlantilla ?? "").trim();
-    if (!nombre) return;
-    const existe = plantillas.some((p) => p.nombre.toLowerCase() === nombre.toLowerCase());
-    if (existe && !(await confirmar({ titulo: `Reemplazar la plantilla "${nombre}"?`, accion: "Reemplazar" }))) return;
-    const nueva: Plantilla = { nombre, permissions: { ...uform.permissions }, scopes: JSON.parse(JSON.stringify(uform.scopes)) };
-    await guardarPlantillas([...plantillas.filter((p) => p.nombre.toLowerCase() !== nombre.toLowerCase()), nueva], `Plantilla "${nombre}" guardada.`);
-    setNombrePlantilla(null);
+  async function deletePerfil(p: Perfil) {
+    const msg = p.usuarios
+      ? `Las ${p.usuarios} persona${p.usuarios === 1 ? "" : "s"} vinculada${p.usuarios === 1 ? "" : "s"} conservan los permisos que tienen hoy, pero ya no se actualizan con un perfil.`
+      : "Nadie está vinculado a este perfil.";
+    if (!(await confirmar({ titulo: `¿Eliminar el perfil ${p.nombre}?`, mensaje: msg, accion: "Eliminar", peligro: true }))) return;
+    try {
+      await apiJson(`/users/perfiles/${p.id}`, { method: "DELETE" });
+      setNotice("Perfil eliminado.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el perfil");
+    }
   }
 
-  async function borrarPlantilla(nombre: string) {
-    if (!(await confirmar({ titulo: `¿Borrar la plantilla "${nombre}"?`, mensaje: "Los usuarios que la usaron conservan sus permisos.", accion: "Borrar", peligro: true }))) return;
-    await guardarPlantillas(plantillas.filter((p) => p.nombre !== nombre), "Plantilla borrada.");
+  async function verComo(u: UserRow) {
+    try {
+      await apiJson("/auth/ver-como", { method: "POST", body: JSON.stringify({ userId: u.id }) });
+      window.location.href = "/dashboard";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo activar «Ver como»");
+    }
   }
 
   async function toggleActive(u: UserRow) {
@@ -497,6 +606,7 @@ export default function ConfiguracionPage() {
         </div>
         <div className="gm-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={section === "usuarios"} className={`gm-tab${section === "usuarios" ? " is-active" : ""}`} onClick={() => setSection("usuarios")}>Usuarios ({users.filter((u) => u.active).length})</button>
+          <button type="button" role="tab" aria-selected={section === "perfiles"} className={`gm-tab${section === "perfiles" ? " is-active" : ""}`} onClick={() => setSection("perfiles")}>Perfiles ({perfiles.length})</button>
           <button type="button" role="tab" aria-selected={section === "sectores"} className={`gm-tab${section === "sectores" ? " is-active" : ""}`} onClick={() => setSection("sectores")}>Sectores ({sectors.length})</button>
           <button type="button" role="tab" aria-selected={section === "etiquetas"} className={`gm-tab${section === "etiquetas" ? " is-active" : ""}`} onClick={() => setSection("etiquetas")}>Etiquetas ({etiquetas.filter((e) => e.activa).length})</button>
           <button type="button" role="tab" aria-selected={section === "apariencia"} className={`gm-tab${section === "apariencia" ? " is-active" : ""}`} onClick={() => setSection("apariencia")}>Apariencia</button>
@@ -528,17 +638,6 @@ export default function ConfiguracionPage() {
             </select>
             <button type="button" className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={openCreate}>+ Nuevo usuario</button>
           </div>
-          {plantillas.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 12, ...MUTED }}>
-              <span>Plantillas de permisos:</span>
-              {plantillas.map((p) => (
-                <span key={p.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 4px 2px 10px", borderRadius: 999, border: "1px solid hsl(var(--border))", color: "hsl(var(--foreground))" }}>
-                  {p.nombre}
-                  <button type="button" onClick={() => void borrarPlantilla(p.nombre)} aria-label={`Borrar plantilla ${p.nombre}`} title="Borrar plantilla" style={{ border: "none", background: "transparent", cursor: "pointer", color: "inherit", fontSize: 14, lineHeight: 1, padding: "0 4px" }}>×</button>
-                </span>
-              ))}
-            </div>
-          )}
           <div className="agenda-table-wrap">
             <table className="agenda-table">
               <thead>
@@ -550,7 +649,7 @@ export default function ConfiguracionPage() {
                 ) : (
                   filteredUsers.map((u) => (
                     <tr key={u.id} style={{ opacity: u.active ? 1 : 0.6 }}>
-                      <td>
+                      <td style={{ minWidth: 150 }}>
                         <div className="agenda-title">{u.name}{u.id === me?.id ? " (vos)" : ""}</div>
                         <div style={MUTED}>Último acceso: {fmtDate(u.lastLoginAt)}</div>
                       </td>
@@ -563,8 +662,12 @@ export default function ConfiguracionPage() {
                       <td>
                         {!u.active ? <span style={CHIP("hsl(0 0% 90%)", "hsl(0 0% 35%)")}>Inactivo</span> : u.mustChangePassword ? <span style={CHIP("hsl(40 90% 90%)", "hsl(35 70% 30%)")}>Primer acceso</span> : <span style={CHIP("hsl(155 55% 88%)", "hsl(155 60% 24%)")}>Activo</span>}
                       </td>
-                      <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
+                      <td style={{ textAlign: "right", minWidth: 190 }}>
+                        <div className="usr-acciones">
                         <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => openEditUser(u)}>Editar</button>
+                        {u.role === "usuario" && u.active && u.id !== me?.id && (
+                          <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} title="Navegar el sistema como esta persona (solo lectura)" onClick={() => void verComo(u)}>Ver como</button>
+                        )}
                         <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => { setResetUser(u); setResetPw(randomPassword()); }}>Clave</button>
                         {u.id !== me?.id && (
                           <>
@@ -572,6 +675,7 @@ export default function ConfiguracionPage() {
                             <button type="button" className="btn btn-quiet" style={{ fontSize: 12, color: "#b91c1c" }} onClick={() => void deleteUser(u)}>Eliminar</button>
                           </>
                         )}
+                      </div>
                       </td>
                     </tr>
                   ))
@@ -583,6 +687,55 @@ export default function ConfiguracionPage() {
             {(["ver", "editar", "total"] as Level[]).map((l) => <span key={l}><span style={CHIP(LEVEL_COLOR[l].bg, LEVEL_COLOR[l].fg)}>{LEVEL_LABEL[l]}</span></span>)}
             <span>Desactivar conserva el historial; eliminar solo es posible si el usuario no cargó registros.</span>
           </div>
+        </div>
+      ) : section === "perfiles" ? (
+        <div className="card" style={CARD}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10, flexWrap: "wrap" }}>
+            <p className="page-subtitle" style={{ margin: 0, maxWidth: 760 }}>
+              Un perfil arma de una vez qué módulos ve una persona, con qué nivel y sobre qué sectores (ej. «Encargado de sector»). Las personas vinculadas se actualizan solas cuando cambiás el perfil; sus sectores y sus excepciones se eligen en cada una.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={() => openPerfil()}>+ Nuevo perfil</button>
+          </div>
+          {perfiles.length === 0 ? (
+            <div className="empty-state" style={{ padding: "28px 8px" }}><p>Todavía no hay perfiles.</p></div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 12 }}>
+              {perfiles.map((p) => (
+                <div key={p.id} style={{ border: "1px solid hsl(var(--border))", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15.5 }}>{p.nombre}</div>
+                      {p.descripcion && <div style={{ ...MUTED, marginTop: 2 }}>{p.descripcion}</div>}
+                    </div>
+                    <span style={CHIP("hsl(270 60% 92%)", "hsl(270 50% 32%)")}>{p.usuarios} persona{p.usuarios === 1 ? "" : "s"}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {MODULES.filter((m) => p.permisos[m.key]).map((m) => {
+                      const lvl = p.permisos[m.key];
+                      const a = p.alcances[m.key] ?? "todos";
+                      return (
+                        <div key={m.key} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+                          <span style={{ minWidth: 0 }}>{m.label.replace(" (próximamente)", "")}</span>
+                          <span style={CHIP(LEVEL_COLOR[lvl].bg, LEVEL_COLOR[lvl].fg)}>{LEVEL_LABEL[lvl]}</span>
+                          {m.sectores && <span style={MUTED}>· {ALCANCE_LABEL[a].toLowerCase()}</span>}
+                        </div>
+                      );
+                    })}
+                    {!Object.keys(p.permisos).length && <span style={MUTED}>Sin módulos</span>}
+                  </div>
+                  {p.sinSectores.length > 0 && (
+                    <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 10, background: "hsl(35 90% 92%)", color: "hsl(30 70% 28%)" }}>
+                      Sin sectores elegidos (no ven nada por sector): {p.sinSectores.join(", ")}.
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 6, marginTop: "auto" }}>
+                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => openPerfil(p)}>Editar</button>
+                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12, color: "#b91c1c" }} onClick={() => void deletePerfil(p)}>Eliminar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : section === "etiquetas" ? (
         <div className="card" style={CARD}>
@@ -709,54 +862,31 @@ export default function ConfiguracionPage() {
                       value=""
                       onChange={(e) => {
                         const src = users.find((u) => u.id === Number(e.target.value));
-                        if (src) setUform((f) => ({ ...f, permissions: { ...src.permissions }, scopes: scopesDe(src) }));
+                        if (src) setUform((f) => ({ ...f, permissions: { ...src.permissions }, scopes: scopesDe(src), perfilId: src.perfilId ?? null }));
                       }}
                     >
                       <option value="">Copiar de un usuario…</option>
                       {users.filter((u) => u.role === "usuario" && u.id !== editor.user?.id).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                     </select>
-                    {plantillas.length > 0 && (
-                      <select
-                        className="select"
-                        style={{ width: 200, fontSize: 12 }}
-                        value=""
-                        aria-label="Aplicar plantilla de permisos"
-                        onChange={(e) => {
-                          const pl = plantillas.find((p) => p.nombre === e.target.value);
-                          if (pl) setUform((f) => ({ ...f, permissions: { ...pl.permissions }, scopes: scopesDe(pl) }));
-                        }}
-                      >
-                        <option value="">Aplicar plantilla…</option>
-                        {plantillas.map((p) => <option key={p.nombre} value={p.nombre}>{p.nombre}</option>)}
-                      </select>
-                    )}
                     <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setUform((f) => ({ ...f, permissions: Object.fromEntries(MODULES.map((m) => [m.key, "ver" as Level])) }))}>Ver todo</button>
                     <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setUform((f) => ({ ...f, permissions: {} }))}>Quitar todo</button>
-                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setNombrePlantilla("")}>Guardar como plantilla</button>
+                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => openPerfil(undefined, true)}>Crear perfil con estos permisos</button>
                   </div>
                 </div>
-                {nombrePlantilla !== null && (
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-                    <input
-                      className="input"
-                      autoFocus
-                      maxLength={60}
-                      placeholder="Nombre de la plantilla (ej. Jefe de guardia)"
-                      value={nombrePlantilla}
-                      onChange={(e) => setNombrePlantilla(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void guardarComoPlantilla();
-                        } else if (e.key === "Escape") setNombrePlantilla(null);
-                      }}
-                      style={{ maxWidth: 300 }}
-                    />
-                    <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} disabled={!nombrePlantilla.trim()} onClick={() => void guardarComoPlantilla()}>Guardar plantilla</button>
-                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setNombrePlantilla(null)}>Cancelar</button>
-                    <span style={MUTED}>Guarda los permisos y sectores elegidos arriba.</span>
-                  </div>
-                )}
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: 10, borderRadius: 12, border: "1px solid hsl(var(--border))", background: uform.perfilId ? "hsl(270 60% 50% / .07)" : "transparent" }}>
+                  <span className="field-label" style={{ margin: 0 }}>Perfil</span>
+                  <select className="select" style={{ width: 260, fontSize: 13 }} value={uform.perfilId ?? ""} onChange={(e) => aplicarPerfil(e.target.value ? Number(e.target.value) : null)} aria-label="Perfil de permisos">
+                    <option value="">Sin perfil (permisos a medida)</option>
+                    {perfiles.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                  <span style={{ ...MUTED, flex: "1 1 280px", whiteSpace: "normal" }}>
+                    {uform.perfilId
+                      ? "Vinculado: si el perfil cambia, esta persona se actualiza sola. Lo que cambies abajo queda como excepción solo para ella."
+                      : perfiles.length
+                        ? "Elegí un perfil para no tener que armar los permisos a mano (y que se actualicen solos)."
+                        : "Todavía no hay perfiles: podés crearlos en la solapa Perfiles o con el botón de arriba."}
+                  </span>
+                </div>
                 <div className="agenda-table-wrap">
                   <table className="agenda-table">
                     <thead>
@@ -771,7 +901,15 @@ export default function ConfiguracionPage() {
                           <Fragment key={m.key}>
                           <tr>
                             <td>
-                              <div className="agenda-title">{m.label}</div>
+                              <div className="agenda-title" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                {m.label}
+                                {esExcepcion(m.key) && (
+                                  <>
+                                    <span style={CHIP("hsl(35 90% 90%)", "hsl(30 70% 30%)")} title="Distinto del perfil vinculado">Excepción</span>
+                                    <button type="button" onClick={() => volverAlPerfil(m.key)} style={{ border: "none", background: "transparent", padding: 0, fontSize: 11.5, fontWeight: 600, color: "hsl(var(--primary))", cursor: "pointer" }}>volver al perfil</button>
+                                  </>
+                                )}
+                              </div>
                               <div style={{ ...MUTED, maxWidth: 300, whiteSpace: "normal" }}>{cur ? m.can[cur] : "No ve el módulo en el menú."}</div>
                             </td>
                             <td style={{ textAlign: "center" }}><input type="radio" name={`perm-${m.key}`} checked={!cur} onChange={() => setLevel(m.key, null)} aria-label={`${m.label}: sin acceso`} /></td>
@@ -913,6 +1051,82 @@ export default function ConfiguracionPage() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button type="button" className="btn btn-quiet" onClick={() => setEtiquetaEditor(null)}>Cancelar</button>
               <button type="submit" className="btn btn-primary">Guardar</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {perfilEditor && (
+        <div style={{ ...OVERLAY, zIndex: 95 }} onClick={() => setPerfilEditor(null)}>
+          <form className="card" style={{ width: "min(720px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 14 }} onClick={(e) => e.stopPropagation()} onSubmit={savePerfil}>
+            <div>
+              <div className="eyebrow">Perfiles de permisos</div>
+              <h2 style={{ margin: "4px 0 0", fontSize: 19, fontWeight: 700 }}>{perfilEditor.mode === "create" ? "Nuevo perfil" : `Editar ${perfilEditor.perfil?.nombre}`}</h2>
+              {perfilEditor.mode === "edit" && (perfilEditor.perfil?.usuarios ?? 0) > 0 && (
+                <div style={{ ...MUTED, marginTop: 4 }}>Los cambios se aplican a las {perfilEditor.perfil?.usuarios} personas vinculadas (salvo en sus excepciones).</div>
+              )}
+            </div>
+            {perror && <div className="form-error">{perror}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <label className="field"><span className="field-label">Nombre</span><input className="input" required minLength={2} maxLength={60} value={pform.nombre} placeholder="Ej: Encargado de sector" onChange={(e) => setPform({ ...pform, nombre: e.target.value })} /></label>
+              <label className="field"><span className="field-label">Descripción (opcional)</span><input className="input" maxLength={200} value={pform.descripcion} placeholder="Para qué es este perfil" onChange={(e) => setPform({ ...pform, descripcion: e.target.value })} /></label>
+            </div>
+            <div className="agenda-table-wrap">
+              <table className="agenda-table">
+                <thead>
+                  <tr><th>Módulo</th><th style={{ textAlign: "center" }}>Sin acceso</th>{(["ver", "editar", "total"] as Level[]).map((l) => <th key={l} style={{ textAlign: "center" }}>{LEVEL_LABEL[l]}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {MODULES.map((m) => {
+                    const cur = pform.permisos[m.key] ?? null;
+                    const setNivel = (l: Level | null) =>
+                      setPform((f) => {
+                        const permisos = { ...f.permisos };
+                        const alcances = { ...f.alcances };
+                        if (l) permisos[m.key] = l;
+                        else {
+                          delete permisos[m.key];
+                          delete alcances[m.key];
+                        }
+                        return { ...f, permisos, alcances };
+                      });
+                    const alc: Alcance = pform.alcances[m.key] ?? "todos";
+                    return (
+                      <Fragment key={m.key}>
+                        <tr>
+                          <td>
+                            <div className="agenda-title">{m.label}</div>
+                            <div style={{ ...MUTED, maxWidth: 280, whiteSpace: "normal" }}>{cur ? m.can[cur] : "No ve el módulo."}</div>
+                          </td>
+                          <td style={{ textAlign: "center" }}><input type="radio" name={`pf-${m.key}`} checked={!cur} onChange={() => setNivel(null)} aria-label={`${m.label}: sin acceso`} /></td>
+                          {(["ver", "editar", "total"] as Level[]).map((l) => (
+                            <td key={l} style={{ textAlign: "center" }}>
+                              {m.levels.includes(l) ? <input type="radio" name={`pf-${m.key}`} checked={cur === l} onChange={() => setNivel(l)} aria-label={`${m.label}: ${LEVEL_LABEL[l]}`} /> : <span style={MUTED}>—</span>}
+                            </td>
+                          ))}
+                        </tr>
+                        {m.sectores && cur && (
+                          <tr>
+                            <td colSpan={5} style={{ background: "hsl(var(--muted) / .35)", paddingTop: 10, paddingBottom: 12 }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                                <span className="field-label" style={{ margin: 0 }}>Sectores</span>
+                                <select className="select" style={{ width: 290, fontSize: 13 }} value={alc} onChange={(e) => setPform((f) => ({ ...f, alcances: { ...f.alcances, [m.key]: e.target.value as Alcance } }))} aria-label={`${m.label}: alcance`}>
+                                  {(["todos", "carga", "sector"] as Alcance[]).map((a) => <option key={a} value={a}>{ALCANCE_LABEL[a]}</option>)}
+                                </select>
+                                <span style={{ ...MUTED, flex: "1 1 240px", whiteSpace: "normal" }}>{alc === "todos" ? ALCANCE_AYUDA.todos : `${ALCANCE_AYUDA[alc]} Los sectores se eligen en cada persona.`}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button type="button" className="btn btn-quiet" onClick={() => setPerfilEditor(null)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary">{perfilEditor.mode === "create" ? "Crear perfil" : "Guardar perfil"}</button>
             </div>
           </form>
         </div>

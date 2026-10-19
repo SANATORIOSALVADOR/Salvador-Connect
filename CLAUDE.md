@@ -91,6 +91,11 @@ docker compose up -d --force-recreate
   `todos` · `carga` (ve todo, trabaja en sus sectores) · `sector` (ve y trabaja solo en sus sectores).
   Se guarda en `user_modules.alcance` + `user_modules.sector_ids`. API: `visibleSectorIds`, `ownSectorIds`,
   `canSeeSector`, `canWriteSector` en `lib/auth.ts`. **Toda lectura** de datos con sector debe filtrar por `visibleSectorIds`.
+- **Perfiles** (`perfiles`, migración 0007): módulos + nivel + tipo de alcance. `users.perfil_id` vincula; la persona hereda
+  los cambios. En `user_modules` con perfil: `level = 'perfil'` (hereda, guarda sus sectores), `'ninguno'` o un nivel (excepción).
+  Permisos efectivos: `efectivos()` en `lib/auth.ts`.
+- **Ver como** (solo superadmin, solo lectura): cookie `sanatorio_ver_como`; `requireAuth` reemplaza `authUser` y rechaza todo
+  lo que no sea GET (salvo salir / logout). `req.verComoDe` = el superadmin real.
 
 Skill: `.claude/skills/usuarios/SKILL.md`
 

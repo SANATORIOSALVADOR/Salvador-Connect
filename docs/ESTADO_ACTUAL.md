@@ -7,6 +7,7 @@
 - **Administración (v2, oct-2026)**: resumen del día, agenda (lista + calendario), control fiscal mensual con calendario oficial cargado a mano (sin conexión a ARCA), cheques, documentos/contratos con renovación, tareas, vencimientos recurrentes, contactos, feriados e historial. Ver `.claude/skills/administracion/SKILL.md`.
 - **Guardias Médicas**: calendario con cobertura por horario requerido, "de guardia ahora", carga, copiar semana/mes, historial de cambios, productividad por profesional y sector, configuración de sectores y profesionales
 - **Configuración** (solo superadmin): Usuarios con permisos por módulo (Ver / Cargar y editar / Control total) y sectores a cargo; Sectores
+  **Perfiles** de permisos vinculados (la persona hereda los cambios del perfil; lo que se le cambia a mano queda como excepción). Las plantillas viejas pasaron a ser perfiles. **Ver como**: el superadmin navega como otra persona, en solo lectura.
   Alcance por sector **en cada módulo** (Guardias, y los futuros Inventario / Instructivos): todos los sectores, "ve todo y trabaja en sus sectores" o "solo sus sectores" (no ve nada de otros sectores: calendario, Inicio, avisos, gráficos, buscador, historial).
   Sectores: crear / editar (solo superadmin); en el mismo formulario, si participa de Guardias Médicas y su horario requerido.
   Ese horario también lo ajusta desde Guardias → Configuración quien tenga Control total en Guardias (en sus sectores a cargo).

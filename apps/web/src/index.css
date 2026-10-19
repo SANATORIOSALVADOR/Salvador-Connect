@@ -1077,3 +1077,16 @@ html, body, #root { height: 100%; max-width: 100vw; overflow-x: hidden; }
 .ini-servicios li { border-left: 1px solid hsl(var(--border)); margin-left: -1px; border-top: 1px solid hsl(var(--border)); margin-top: -1px; }
 .ini-act-grilla { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); column-gap: 24px; row-gap: 2px; }
 .ini .ini-card > .ini-lista.ini-sectores { flex: 1 1 auto; align-content: stretch; }
+
+/* "Ver como" (superadmin): franja fija arriba mientras navega como otra persona */
+.main-column > .ver-como { position: sticky !important; top: 0; z-index: 60; padding: 0 !important; }
+.ver-como-in { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 20px; font-size: 13.5px; font-weight: 500;
+  color: #3b2405; background: linear-gradient(90deg, #f7c873, #f3b65a); box-shadow: 0 6px 18px -10px rgba(0,0,0,.45); }
+.ver-como-in span { flex: 1 1 320px; }
+.ver-como-in em { font-style: normal; font-weight: 700; }
+.ver-como-in .btn { background: #3b2405; color: #fff6e6; border: none; font-size: 12.5px; padding: 6px 12px; }
+.ver-como-in .btn:hover { background: #241503; }
+
+/* Usuarios: acciones en dos líneas si no entran (no empujan la tabla) */
+.usr-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 250px; margin-left: auto; }
+.usr-acciones .btn { font-size: 12px !important; padding: 6px 10px !important; }

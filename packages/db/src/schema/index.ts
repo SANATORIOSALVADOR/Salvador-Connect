@@ -34,6 +34,19 @@ export const usersTable = pgTable("users", {
   mustChangePassword: boolean("must_change_password").notNull().default(true),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Perfil de permisos vinculado (null = permisos a medida). FK en la migración 0007.
+  perfilId: integer("perfil_id"),
+});
+
+/** Perfiles de permisos (Configuración → Perfiles). La persona vinculada hereda sus cambios. */
+export const perfilesTable = pgTable("perfiles", {
+  id: serial("id").primaryKey(),
+  nombre: text("nombre").notNull(),
+  descripcion: text("descripcion").notNull().default(""),
+  permisos: jsonb("permisos").$type<Record<string, string>>().notNull().default({}),
+  alcances: jsonb("alcances").$type<Record<string, string>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const userModulesTable = pgTable("user_modules", {
@@ -42,6 +55,8 @@ export const userModulesTable = pgTable("user_modules", {
     .references(() => usersTable.id, { onDelete: "cascade" }),
   moduleKey: text("module_key").notNull(),
   // Nivel en el módulo: ver | editar | total. Vacío = fila vieja (se deduce del rol del usuario).
+  // Con perfil vinculado: "perfil" = hereda el nivel del perfil (la fila guarda sus sectores);
+  // "ninguno" = excepción sin acceso; ver / editar / total = excepción con ese nivel.
   level: text("level").notNull().default(""),
   // Alcance en módulos con sectores: todos | carga (ve todo, carga en sus sectores) | sector (solo sus sectores).
   alcance: text("alcance").notNull().default("todos"),

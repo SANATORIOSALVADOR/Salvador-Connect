@@ -3,8 +3,10 @@ import { eq } from "drizzle-orm";
 import { db, sectorsTable, usersTable } from "@salvador/db";
 import { ChangePasswordBody, LoginBody } from "@salvador/api-zod";
 import {
+  VER_COMO_COOKIE,
   clearSession,
   createSession,
+  getAuthenticatedUser,
   getUserWithPermissions,
   hashPassword,
   purgeExpiredSessions,
@@ -57,6 +59,8 @@ const publicUser = (user: NonNullable<Express.Request["authUser"]>) => ({
   permissions: user.permissions,
   scopes: user.scopes,
   sectorIds: user.sectorIds,
+  perfil: user.perfil,
+  excepciones: user.excepciones,
 });
 
 router.post("/auth/login", async (request, response): Promise<void> => {
@@ -102,11 +106,40 @@ router.post("/auth/login", async (request, response): Promise<void> => {
 
 router.post("/auth/logout", requireAuth, async (request, response): Promise<void> => {
   await clearSession(request, response);
+  response.clearCookie(VER_COMO_COOKIE, { path: "/" });
   response.sendStatus(204);
 });
 
 router.get("/auth/me", requireAuth, async (request, response): Promise<void> => {
-  response.json(publicUser(request.authUser!));
+  const real = request.verComoDe;
+  response.json({ ...publicUser(request.authUser!), verComo: real ? { id: request.authUser!.id, name: request.authUser!.name, de: real.name } : null });
+});
+
+/** "Ver como": el superadmin navega como otra persona, en solo lectura, hasta que sale. */
+router.post("/auth/ver-como", async (request, response): Promise<void> => {
+  const real = await getAuthenticatedUser(request);
+  if (!real) {
+    response.status(401).json({ message: "Sesión no válida o vencida." });
+    return;
+  }
+  if (real.role !== "superadmin") {
+    response.status(403).json({ message: "Solo el superadmin puede ver el sistema como otra persona." });
+    return;
+  }
+  const id = Number((request.body ?? {}).userId);
+  const otro = Number.isInteger(id) && id !== real.id ? await getUserWithPermissions(id) : null;
+  if (!otro) {
+    response.status(400).json({ message: "Elegí un usuario activo distinto del tuyo." });
+    return;
+  }
+  response.cookie(VER_COMO_COOKIE, String(otro.id), { httpOnly: true, sameSite: "lax", secure: process.env.COOKIE_SECURE === "true", path: "/" });
+  logger.info({ superadmin: real.username, verComo: otro.username }, "Ver como");
+  response.json({ ok: true, name: otro.name });
+});
+
+router.delete("/auth/ver-como", (_request, response): void => {
+  response.clearCookie(VER_COMO_COOKIE, { path: "/" });
+  response.sendStatus(204);
 });
 
 /** Mi perfil: cada persona corrige su nombre y email (usuario, rol y permisos los define el superadmin). */

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scrypt as nodeScrypt, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { and, eq, gt, lt, ne } from "drizzle-orm";
-import { db, sessionsTable, userModulesTable, usersTable } from "@salvador/db";
+import { db, perfilesTable, sessionsTable, userModulesTable, usersTable } from "@salvador/db";
 import { logger } from "./logger";
 
 const scrypt = (password: string, salt: string, keyLength: number, options: { cost: number; blockSize: number; parallelization: number }) =>
@@ -12,6 +12,8 @@ const scrypt = (password: string, salt: string, keyLength: number, options: { co
     });
   });
 export const SESSION_COOKIE = "sanatorio_session";
+/** "Ver como": el superadmin navega como otra persona, en solo lectura (cookie con el id de esa persona). */
+export const VER_COMO_COOKIE = "sanatorio_ver_como";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
 export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "inventario", "instructivos", "configuracion", "usuarios"] as const;
@@ -163,6 +165,9 @@ export type AuthUser = {
   scopes: Record<string, ModuleScope>;
   /** Todos los sectores a cargo, sumando módulos (compatibilidad con pantallas viejas). */
   sectorIds: number[];
+  /** Perfil vinculado (null = permisos a medida) y módulos donde la persona tiene una excepción. */
+  perfil: { id: number; nombre: string } | null;
+  excepciones: string[];
 };
 
 function digestToken(token: string) {
@@ -198,6 +203,62 @@ export function buildScopes(rows: { moduleKey: string; alcance?: string | null; 
   return out;
 }
 
+export type PerfilDef = { id: number; nombre: string; permisos: Record<string, string>; alcances: Record<string, string> };
+type FilaModulo = { moduleKey: string; level: string; alcance?: string | null; sectorIds?: number[] | null };
+
+/**
+ * Permisos efectivos de una persona: su perfil (si tiene) + sus filas propias.
+ * Con perfil, cada fila es "perfil" (hereda; guarda sus sectores), "ninguno" (excepción sin acceso)
+ * o un nivel (excepción con ese nivel y su propio alcance).
+ * Un alcance por sector sin sectores elegidos no da acceso a ningún sector (nunca a todos).
+ */
+export function efectivos(role: string, perfil: PerfilDef | null, rows: FilaModulo[]): { permissions: Record<string, Level>; scopes: Record<string, ModuleScope>; excepciones: string[] } {
+  if (role === "superadmin") return { permissions: allPermissions(), scopes: {}, excepciones: [] };
+  if (!perfil) {
+    const propias = rows.filter((r) => r.level !== "perfil" && r.level !== "ninguno");
+    const permissions = buildPermissions(role, propias);
+    return { permissions, scopes: buildScopes(propias.filter((r) => permissions[r.moduleKey])), excepciones: [] };
+  }
+  const permissions: Record<string, Level> = {};
+  const alcance: Record<string, string> = {};
+  for (const [mod, lvl] of Object.entries(perfil.permisos ?? {})) {
+    const l = normalizeLevel(mod, lvl);
+    if (!l) continue;
+    permissions[mod] = l;
+    alcance[mod] = String(perfil.alcances?.[mod] ?? "todos");
+  }
+  const sectores: Record<string, number[]> = {};
+  const excepciones: string[] = [];
+  for (const r of rows) {
+    if (!PERMISSION_MODULES[r.moduleKey]) continue;
+    sectores[r.moduleKey] = r.sectorIds ?? [];
+    if (r.level === "perfil") continue;
+    excepciones.push(r.moduleKey);
+    if (r.level === "ninguno") {
+      delete permissions[r.moduleKey];
+      continue;
+    }
+    const l = normalizeLevel(r.moduleKey, r.level || legacyLevel(role));
+    if (l) {
+      permissions[r.moduleKey] = l;
+      alcance[r.moduleKey] = r.alcance || "todos";
+    }
+  }
+  const scopes: Record<string, ModuleScope> = {};
+  for (const mod of Object.keys(permissions)) {
+    const a = alcance[mod] as Alcance;
+    if (!isSectorModule(mod) || !(ALCANCES as readonly string[]).includes(a) || a === "todos") continue;
+    scopes[mod] = { alcance: a, sectorIds: [...new Set(sectores[mod] ?? [])].sort((x, y) => x - y) };
+  }
+  return { permissions, scopes, excepciones };
+}
+
+export async function leerPerfil(id: number | null | undefined): Promise<PerfilDef | null> {
+  if (!id) return null;
+  const [p] = await db.select().from(perfilesTable).where(eq(perfilesTable.id, id)).limit(1);
+  return p ? { id: p.id, nombre: p.nombre, permisos: p.permisos ?? {}, alcances: p.alcances ?? {} } : null;
+}
+
 /** Arma el mapa módulo → nivel a partir de las filas de user_modules. */
 export function buildPermissions(role: string, rows: { moduleKey: string; level: string }[]): Record<string, Level> {
   const out: Record<string, Level> = {};
@@ -216,9 +277,8 @@ export async function getUserWithPermissions(userId: number): Promise<AuthUser |
     .select({ moduleKey: userModulesTable.moduleKey, level: userModulesTable.level, alcance: userModulesTable.alcance, sectorIds: userModulesTable.sectorIds })
     .from(userModulesTable)
     .where(eq(userModulesTable.userId, userId));
-  const superadmin = user.role === "superadmin";
-  const permissions = superadmin ? allPermissions() : buildPermissions(user.role, modules);
-  const scopes = superadmin ? {} : buildScopes(modules.filter((m) => permissions[m.moduleKey]));
+  const perfil = user.role === "superadmin" ? null : await leerPerfil(user.perfilId);
+  const { permissions, scopes, excepciones } = efectivos(user.role, perfil, modules);
   return {
     id: user.id,
     username: user.username,
@@ -231,6 +291,8 @@ export async function getUserWithPermissions(userId: number): Promise<AuthUser |
     permissions,
     scopes,
     sectorIds: [...new Set(Object.values(scopes).flatMap((sc) => sc.sectorIds))].sort((a, b) => a - b),
+    perfil: perfil ? { id: perfil.id, nombre: perfil.nombre } : null,
+    excepciones,
   };
 }
 
@@ -295,11 +357,39 @@ export async function getAuthenticatedUser(request: Request): Promise<AuthUser |
   return session ? getUserWithPermissions(session.userId) : null;
 }
 
+/** Pedidos que se permiten en "Ver como" además de consultar: salir del modo y cerrar sesión. */
+function libreEnVerComo(request: Request): boolean {
+  const m = request.method;
+  if (m === "GET" || m === "HEAD" || m === "OPTIONS") return true;
+  const path = (request.originalUrl || request.url || "").split("?")[0];
+  return path.endsWith("/auth/ver-como") || path.endsWith("/auth/logout");
+}
+
 export const requireAuth: RequestHandler = async (request, response, next) => {
+  // Puede correr más de una vez en el mismo pedido (router.use + ruta): se resuelve una sola vez.
+  if (request.authUser) {
+    next();
+    return;
+  }
   const user = await getAuthenticatedUser(request);
   if (!user) {
     response.status(401).json({ message: "Sesión no válida o vencida." });
     return;
+  }
+  // "Ver como": solo el superadmin, y en solo lectura.
+  const verComo = Number(request.cookies?.[VER_COMO_COOKIE]);
+  if (user.role === "superadmin" && Number.isInteger(verComo) && verComo > 0 && verComo !== user.id) {
+    const otro = await getUserWithPermissions(verComo);
+    if (otro) {
+      if (!libreEnVerComo(request)) {
+        response.status(403).json({ message: `Estás viendo el sistema como ${otro.name}: es solo lectura. Volvé a tu usuario para hacer cambios.`, codigo: "ver_como" });
+        return;
+      }
+      request.verComoDe = user;
+      request.authUser = otro;
+      next();
+      return;
+    }
   }
   request.authUser = user;
   next();
@@ -395,6 +485,8 @@ declare global {
   namespace Express {
     interface Request {
       authUser?: AuthUser;
+      /** Superadmin real cuando está en "Ver como" (authUser es la persona que mira). */
+      verComoDe?: AuthUser;
     }
   }
 }

@@ -58,6 +58,18 @@ depende del nivel del usuario en ese módulo (y de sus sectores a cargo).
   `POST / PATCH / DELETE` solo superadmin. Renombrar o cambiar el color actualiza `guardias.tag_label/tag_color`;
   eliminar solo si ninguna guardia la usa (409 → desactivar).
 
+## Perfiles y "Ver como"
+
+- Tabla `perfiles` (nombre, descripción, `permisos` {modulo: nivel}, `alcances` {modulo: alcance}); `users.perfil_id`.
+  API bajo `/api/users/perfiles` (solo superadmin). Borrar un perfil deja a cada persona con los permisos que tenía (a medida).
+- Con perfil, `user_modules` guarda solo lo propio: `level='perfil'` (hereda el nivel; guarda los sectores), `'ninguno'`
+  (excepción sin acceso) o un nivel / alcance distinto (excepción). `efectivos()` en `lib/auth.ts` arma el resultado.
+- Con perfil que trabaja por sector, la persona TIENE que tener sectores (400 si no); sin sectores no ve nada por sector.
+- La pantalla manda siempre el estado completo (`perfilId`, `permissions`, `scopes`); la API calcula las excepciones.
+- "Ver como": `POST /api/auth/ver-como {userId}` (superadmin) pone la cookie `sanatorio_ver_como`; `DELETE` la saca.
+  En ese modo la API trabaja como esa persona y responde 403 `codigo: "ver_como"` a todo lo que no sea consultar.
+  `GET /api/auth/me` devuelve `verComo` y la web muestra la franja (`components/ver-como.tsx`).
+
 ## Menú
 
 `apps/web/src/App.tsx` (Shell): el menú filtra por `user.modules`; "Usuarios" no aparece (vive en Configuración)
