@@ -7,7 +7,8 @@ description: Módulo Inventario del Sanatorio del Salvador — equipos y bienes 
 
 ## Archivos
 
-- UI: `apps/web/src/pages/inventario/` — `Inventario.tsx` (solapas Equipos / Controles / Plan y catálogos),
+- UI: `apps/web/src/pages/inventario/` — `Inventario.tsx` (solapas Equipos / Controles / Fallas / Historial,
+  esquema tipo CMMS: activos, mantenimiento preventivo, correctivo e historial),
   `modales.tsx` (alta-edición, control/falla/reparación, cambios en lote, detalle con historia), `Importar.tsx`,
   `excel.ts` (leer / plantilla / exportar), `api.ts` (tipos, llamadas, situación de controles).
 - API: `apps/api/src/routes/inventario.ts`; resumen para Inicio / avisos / panel: `apps/api/src/lib/inventario.ts`.
@@ -20,7 +21,7 @@ description: Módulo Inventario del Sanatorio del Salvador — equipos y bienes 
   sin distinguir mayúsculas), estado (`operativo | con_falla | en_reparacion | fuera_servicio | baja`), `frecuencia_dias`,
   `ultimo_control`, `proximo_control` (= último control o hoy + frecuencia), observaciones. Nº = id.
 - Planta / rubro / tipo son texto libre, pero se reutiliza la grafía existente (sin tildes ni mayúsculas) y se pueden unificar
-  ("Plan y catálogos → Unificar nombres").
+  (API `POST /inventario/catalogos/renombrar`; hoy sin pantalla).
 - `inv_registros`: `control` (resultado ok / observacion / falla) · `falla` · `reparacion` · `traslado` · `alta` · `cambio` ·
   `baja` · `importacion`. Todo cambio de un equipo deja registro.
 - Control: actualiza último/próximo control. Falla (o control con falla) → `con_falla`; reparación → `operativo` (salvo que se elija otro).
@@ -33,9 +34,12 @@ description: Módulo Inventario del Sanatorio del Salvador — equipos y bienes 
   detalle, el detalle se arma con los puntos en falla. Se guarda en `inv_registros.checklist`.
 - Tipos de registro: `control` · `falla` · `envio` (sale a reparación → `en_reparacion`, con `proveedor`) · `reparacion`
   (→ `operativo`; también renueva el control).
-- UI (`pages/inventario/controles.tsx`): `ListaVerificacion`, `RegistroForm` y `RondaModal` (equipo por equipo, «Todo OK»,
-  saltear, resumen final). Solapa Controles: filtros planta/sector, % al día, ronda de pendientes/completa, vencidos,
-  agenda por semana, con falla sin enviar, en reparación (días y proveedor), cumplimiento por sector y registro.
+- UI (`pages/inventario/controles.tsx`): `ListaVerificacion`, `RegistroForm`, `RondaModal` (equipo por equipo, «Todo OK»,
+  saltear, resumen final) y `ComoSeControlaModal` (desde la ficha del equipo: frecuencia + lista de puntos del tipo, con
+  opción de aplicar la frecuencia a todos los del mismo tipo). No hay pantalla de configuración aparte.
+- Solapa Controles (preventivo): filtros planta/sector, % al día, ronda, vencidos, próximos 30 días por semana,
+  cumplimiento por sector. Solapa Fallas (correctivo): tablero Reportadas → En reparación → Resueltas (30 días), con
+  «Reportar falla» (elegir equipo). Solapa Historial: todos los registros, búsqueda y Excel.
 
 ## Importación
 

@@ -59,7 +59,7 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
     can: {
       ver: "Ver equipos, su historia y el registro de controles; exportar.",
       editar: "Además: registrar controles, fallas y reparaciones; dar de alta y editar equipos.",
-      total: "Además: importar desde Excel, dar de baja / eliminar y configurar el plan de controles.",
+      total: "Además: importar desde Excel, dar de baja / eliminar y definir qué se revisa en cada tipo de equipo.",
     },
   },
   {
@@ -107,7 +107,7 @@ export const ACCIONES: Record<string, { key: string; label: string; nivel: Level
     { key: "cargar", label: "Dar de alta y editar equipos (y trasladarlos)", nivel: "editar" },
     { key: "importar", label: "Importar desde Excel (carga masiva)", nivel: "total" },
     { key: "eliminar", label: "Dar de baja y eliminar equipos", nivel: "total" },
-    { key: "configurar", label: "Plan de controles y catálogos (plantas, rubros, tipos)", nivel: "total" },
+    { key: "configurar", label: "Definir qué se revisa en cada tipo de equipo (lista de verificación)", nivel: "total" },
   ],
   instructivos: [
     { key: "ver", label: "Ver y consultar instructivos", nivel: "ver" },

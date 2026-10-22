@@ -281,7 +281,7 @@ const ACCION_LABEL: Record<string, string> = {
   calendario: "calendario oficial y feriados",
   controlar: "registrar controles, fallas y reparaciones",
   importar: "importar desde Excel",
-  configurar: "plan de controles y catálogos",
+  configurar: "lista de verificación por tipo",
 };
 const accionLabel = (k: string) => ACCION_LABEL[k] ?? k;
 

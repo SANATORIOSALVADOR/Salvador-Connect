@@ -432,3 +432,97 @@ export function RondaModal({ equipos, planes, responsable, onClose, onDone }: { 
     </Modal>
   );
 }
+
+// ---------- cómo se controla un equipo (frecuencia + lista de verificación) ----------
+
+/**
+ * Se edita desde la ficha del equipo. La lista de verificación es la misma para todos los equipos del mismo tipo;
+ * la frecuencia se puede aplicar solo a este equipo o a todos los de su tipo.
+ */
+export function ComoSeControlaModal({
+  equipo,
+  planes,
+  mismoTipo,
+  puedeLista,
+  onClose,
+  onSaved,
+}: {
+  equipo: Equipo;
+  planes: Plan[];
+  mismoTipo: number;
+  puedeLista: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const plan = planDe(planes, equipo.tipo);
+  const [dias, setDias] = useState<string>(String(equipo.frecuenciaDias ?? plan?.frecuenciaDias ?? ""));
+  const [lista, setLista] = useState((plan?.checklist ?? []).join("\n"));
+  const [todos, setTodos] = useState(mismoTipo > 1 && puedeLista);
+  const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const FRECS: [number, string][] = [[7, "Semanal"], [15, "Quincenal"], [30, "Mensual"], [60, "Bimestral"], [90, "Trimestral"], [120, "Cuatrimestral"], [180, "Semestral"], [365, "Anual"], [730, "Cada 2 años"]];
+
+  const guardar = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setGuardando(true);
+    try {
+      const f = dias ? Number(dias) : null;
+      const puntos = lista.split("\n").map((x) => x.trim()).filter(Boolean);
+      if (puedeLista) {
+        // La lista siempre es del tipo; la frecuencia, del tipo solo si se eligió "todos".
+        await inv.plan(equipo.tipo, todos ? f : (plan?.frecuenciaDias ?? null), todos ? "todos" : "ninguno", puntos);
+      }
+      if (!todos && f !== equipo.frecuenciaDias) await inv.editar(equipo.id, { frecuenciaDias: f });
+      avisar(todos ? `Guardado para los ${mismoTipo} equipos de tipo «${equipo.tipo}».` : "Guardado.");
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <Modal
+      titulo="Cómo se controla"
+      onClose={onClose}
+      ancho={560}
+      pie={
+        <>
+          <button type="button" className="btn btn-quiet" onClick={onClose}>Cancelar</button>
+          <button type="submit" form="form-plan" className="btn btn-primary" disabled={guardando}>{guardando ? "Guardando…" : "Guardar"}</button>
+        </>
+      }
+    >
+      <form id="form-plan" onSubmit={guardar} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="inv-reg-equipo">
+          <strong>{equipo.descripcion}</strong>
+          <span style={S.small}>Tipo: {equipo.tipo}</span>
+        </div>
+        {error && <div className="form-error">{error}</div>}
+        <Campo label="Cada cuánto se controla">
+          <select className="select" value={dias} onChange={(e) => setDias(e.target.value)}>
+            <option value="">Sin control periódico</option>
+            {FRECS.map(([d, l]) => <option key={d} value={d}>{l}</option>)}
+            {dias && !FRECS.some(([d]) => String(d) === dias) && <option value={dias}>Cada {dias} días</option>}
+          </select>
+        </Campo>
+        {puedeLista && (
+          <Campo label="Qué se revisa (un punto por renglón)" hint={`La lista es la misma para todos los equipos de tipo «${equipo.tipo}». Vacía = el control se registra como OK / observaciones / falla.`}>
+            <textarea className="input" rows={6} value={lista} onChange={(e) => setLista(e.target.value)} placeholder={"Ej.:\nEnciende y hace el autotest\nAlarmas funcionan\nCable y batería en buen estado"} />
+          </Campo>
+        )}
+        {puedeLista && mismoTipo > 1 && (
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>
+            <input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} style={{ marginTop: 2 }} />
+            <span>
+              Usar la misma frecuencia en los <strong>{mismoTipo} equipos</strong> de tipo «{equipo.tipo}»
+              <span style={{ ...S.small, display: "block" }}>Y los equipos nuevos de este tipo la toman solos.</span>
+            </span>
+          </label>
+        )}
+      </form>
+    </Modal>
+  );
+}

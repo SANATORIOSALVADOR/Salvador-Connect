@@ -15,6 +15,7 @@ import {
   frecuenciaTexto,
   hoyIso,
   inv,
+  planDe,
   situacion,
   textoProximo,
   type Catalogos,
@@ -23,6 +24,7 @@ import {
   type Equipo,
   type EquipoDetalle,
   type Estado,
+  type Plan,
   type Registro,
 } from "./api";
 
@@ -305,18 +307,22 @@ function colorRegistro(r: Registro): string {
 export function EquipoDetalleModal({
   id,
   permisos,
+  planes,
   puedeEscribir,
   onClose,
   onEditar,
   onRegistrar,
+  onPlan,
   onChanged,
 }: {
   id: number;
   permisos: Permisos;
+  planes: Plan[];
   puedeEscribir: (sectorId: number) => boolean;
   onClose: () => void;
   onEditar: (e: Equipo) => void;
   onRegistrar: (e: Equipo, tipo: DatosRegistro["tipo"]) => void;
+  onPlan: (e: Equipo) => void;
   onChanged: () => void;
 }) {
   const [e, setE] = useState<EquipoDetalle | null>(null);
@@ -445,6 +451,30 @@ export function EquipoDetalleModal({
               </div>
             ))}
           </div>
+          {e.estado !== "baja" && (() => {
+            const plan = planDe(planes, e.tipo);
+            return (
+              <div className="inv-como">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={S.label}>Cómo se controla</div>
+                    <div style={{ fontSize: 14, marginTop: 2 }}>
+                      {frecuenciaTexto(e.frecuenciaDias)}
+                      {plan?.checklist.length ? ` · ${plan.checklist.length} puntos a revisar` : " · sin lista de puntos"}
+                    </div>
+                  </div>
+                  {escribe && (permisos.cargar || permisos.configurar) && (
+                    <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => onPlan(e)}>Cambiar</button>
+                  )}
+                </div>
+                {plan && plan.checklist.length > 0 && (
+                  <div className="inv-plan-puntos">
+                    {plan.checklist.map((x) => <span key={x}>{x}</span>)}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {e.observaciones && (
             <div>
               <div style={S.label}>Observaciones</div>

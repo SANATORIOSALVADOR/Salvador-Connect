@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ClipboardCheck, Download, FileSpreadsheet, Plus, Search, SlidersHorizontal, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ClipboardCheck, Download, FileSpreadsheet, Plus, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { avisar } from "@/components/feedback";
-import { Kpi, Pill, S, Seccion, SegControl, Vacio } from "../administracion/ui";
+import { Kpi, Modal, Pill, S, Seccion, Vacio } from "../administracion/ui";
 import {
   ESTADOS,
   FRECUENCIAS,
@@ -28,11 +28,11 @@ import {
 import { exportar } from "./excel";
 import { ImportarModal } from "./Importar";
 import { ControlPill, EquipoDetalleModal, EquipoForm, EstadoPill, LoteForm, RegistroForm, type Permisos } from "./modales";
-import { RondaModal } from "./controles";
+import { ComoSeControlaModal, RondaModal } from "./controles";
 
 type Me = { id: number; name: string; role: string; acciones?: Record<string, string[]>; scopes?: Record<string, { alcance: string; sectorIds: number[] }> };
 type Sector = { id: number; name: string; shortName?: string; active?: boolean };
-type Tab = "equipos" | "controles" | "ajustes";
+type Tab = "equipos" | "controles" | "fallas" | "historial";
 type Orden = { campo: "id" | "planta" | "sector" | "rubro" | "tipo" | "descripcion" | "marca" | "codigoSerie" | "estado" | "proximo"; dir: 1 | -1 };
 
 const POR_PAGINA = 50;
@@ -80,7 +80,7 @@ export default function Inventario() {
   const [items, setItems] = useState<Equipo[] | null>(null);
   const [catalogos, setCatalogos] = useState<Catalogos | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("equipos");
+  const [tab, setTab] = useState<Tab>(() => (param("filtro") === "falla" ? "fallas" : param("filtro") === "vencidos" ? "controles" : "equipos"));
   const [conBajas, setConBajas] = useState(false);
 
   // filtros
@@ -102,6 +102,8 @@ export default function Inventario() {
   const [registro, setRegistro] = useState<{ equipos: Equipo[]; tipo: DatosRegistro["tipo"] } | null>(null);
   const [lote, setLote] = useState(false);
   const [ronda, setRonda] = useState<Equipo[] | null>(null);
+  const [planEq, setPlanEq] = useState<Equipo | null>(null);
+  const [elegir, setElegir] = useState(false);
   const [importar, setImportar] = useState(false);
   const [menuExport, setMenuExport] = useState(false);
 
@@ -310,8 +312,9 @@ export default function Inventario() {
         {(
           [
             ["equipos", "Equipos"],
-            ["controles", `Controles${kpi.vencidos ? ` (${kpi.vencidos} vencidos)` : ""}`],
-            ...(permisos.configurar ? [["ajustes", "Plan y catálogos"]] : []),
+            ["controles", `Controles${kpi.vencidos ? ` · ${kpi.vencidos} vencidos` : ""}`],
+            ["fallas", `Fallas${kpi.falla + kpi.reparacion ? ` · ${kpi.falla + kpi.reparacion}` : ""}`],
+            ["historial", "Historial"],
           ] as [Tab, string][]
         ).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={`gm-tab${tab === id ? " is-active" : ""}`} onClick={() => setTab(id)}>{label}</button>
@@ -325,9 +328,9 @@ export default function Inventario() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
             <Kpi label="Equipos" valor={kpi.total} nota="activos (sin bajas)" onClick={limpiar} />
             <Kpi label="Operativos" valor={kpi.operativos} tono="ok" onClick={() => { limpiar(); setEstado("operativo"); }} />
-            <Kpi label="Con falla" valor={kpi.falla} tono={kpi.falla ? "alerta" : undefined} onClick={() => { limpiar(); setEstado("con_falla"); }} />
-            <Kpi label="En reparación" valor={kpi.reparacion} nota="o fuera de servicio" onClick={() => { limpiar(); setEstado("atencion"); }} />
-            <Kpi label="Controles vencidos" valor={kpi.vencidos} tono={kpi.vencidos ? "alerta" : undefined} onClick={() => { limpiar(); setControl("vencido"); }} />
+            <Kpi label="Con falla" valor={kpi.falla} tono={kpi.falla ? "alerta" : undefined} onClick={() => setTab("fallas")} />
+            <Kpi label="En reparación" valor={kpi.reparacion} nota="o fuera de servicio" onClick={() => setTab("fallas")} />
+            <Kpi label="Controles vencidos" valor={kpi.vencidos} tono={kpi.vencidos ? "alerta" : undefined} onClick={() => setTab("controles")} />
             <Kpi label="Controles esta semana" valor={kpi.semana} onClick={() => { limpiar(); setControl("semana"); }} />
           </div>
 
@@ -477,7 +480,6 @@ export default function Inventario() {
         <Controles
           items={items}
           hoy={hoy}
-          planes={catalogos?.planes ?? []}
           permisos={permisos}
           puedeEscribir={puedeEscribir}
           onAbrir={setDetalle}
@@ -485,8 +487,18 @@ export default function Inventario() {
           onRonda={setRonda}
         />
       )}
-
-      {tab === "ajustes" && permisos.configurar && <Ajustes catalogos={catalogos} onChanged={refrescar} />}
+      {tab === "fallas" && items && (
+        <Fallas
+          items={items}
+          hoy={hoy}
+          permisos={permisos}
+          puedeEscribir={puedeEscribir}
+          onAbrir={setDetalle}
+          onRegistrar={(equipos, tipo) => setRegistro({ equipos, tipo })}
+          onReportar={() => setElegir(true)}
+        />
+      )}
+      {tab === "historial" && items && <Historial items={items} permisos={permisos} onAbrir={setDetalle} />}
 
       {detalle !== null && (
         <EquipoDetalleModal
@@ -496,7 +508,38 @@ export default function Inventario() {
           onClose={() => setDetalle(null)}
           onEditar={(e) => setForm({ equipo: e })}
           onRegistrar={(e, tipo) => setRegistro({ equipos: [e], tipo })}
+          onPlan={setPlanEq}
+          planes={catalogos?.planes ?? []}
           onChanged={refrescar}
+        />
+      )}
+      {planEq && (
+        <ComoSeControlaModal
+          equipo={planEq}
+          planes={catalogos?.planes ?? []}
+          mismoTipo={(items ?? []).filter((x) => x.estado !== "baja" && clave(x.tipo) === clave(planEq.tipo)).length}
+          puedeLista={permisos.configurar}
+          onClose={() => setPlanEq(null)}
+          onSaved={() => {
+            setPlanEq(null);
+            refrescar();
+            if (detalle !== null) {
+              const d = detalle;
+              setDetalle(null);
+              setTimeout(() => setDetalle(d), 0);
+            }
+          }}
+        />
+      )}
+      {elegir && items && (
+        <ElegirEquipoModal
+          items={items}
+          puedeEscribir={puedeEscribir}
+          onClose={() => setElegir(false)}
+          onElegir={(e) => {
+            setElegir(false);
+            setRegistro({ equipos: [e], tipo: "falla" });
+          }}
         />
       )}
       {form && (
@@ -564,7 +607,7 @@ export default function Inventario() {
   );
 }
 
-// ---------- Controles: ronda, cumplimiento, agenda, reparaciones y registro ----------
+// ---------- Controles (mantenimiento preventivo): qué toca controlar, ronda y cumplimiento ----------
 
 function semanaDe(iso: string, hoy: string): string {
   const d = diasEntre(hoy, iso);
@@ -574,80 +617,33 @@ function semanaDe(iso: string, hoy: string): string {
   return "En 3 a 4 semanas";
 }
 
-function Controles({
-  items,
-  hoy,
-  planes,
-  permisos,
-  puedeEscribir,
-  onAbrir,
-  onRegistrar,
-  onRonda,
-}: {
-  items: Equipo[];
-  hoy: string;
-  planes: Plan[];
-  permisos: Permisos;
-  puedeEscribir: (sectorId: number) => boolean;
-  onAbrir: (id: number) => void;
-  onRegistrar: (e: Equipo[], tipo?: DatosRegistro["tipo"]) => void;
-  onRonda: (e: Equipo[]) => void;
-}) {
-  const [registros, setRegistros] = useState<Registro[] | null>(null);
-  const [envios, setEnvios] = useState<Map<number, Registro>>(new Map());
-  const [desde, setDesde] = useState(() => sumarDias(hoyIso(), -90));
-  const [tipo, setTipo] = useState("control,falla,envio,reparacion");
-  const [planta, setPlanta] = useState("");
-  const [sectorId, setSectorId] = useState("");
-  useEffect(() => {
-    setRegistros(null);
-    inv
-      .registros({ desde, tipo })
-      .then(setRegistros)
-      .catch(() => setRegistros([]));
-  }, [desde, tipo, items]);
-  // Último envío a reparación de cada equipo (para saber desde cuándo y a quién).
-  useEffect(() => {
-    inv
-      .registros({ tipo: "envio", limit: 5000 })
-      .then((rs) => {
-        const m = new Map<number, Registro>();
-        for (const r of rs) if (!m.has(r.itemId)) m.set(r.itemId, r);
-        setEnvios(m);
-      })
-      .catch(() => setEnvios(new Map()));
-  }, [items]);
+function FiltroPlantaSector({ items, planta, setPlanta, sectorId, setSectorId }: { items: Equipo[]; planta: string; setPlanta: (v: string) => void; sectorId: string; setSectorId: (v: string) => void }) {
+  const activos = items.filter((e) => e.estado !== "baja");
+  const plantas = [...new Set(activos.map((e) => e.planta))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+  const sectores = [...new Map(activos.map((e) => [e.sectorId, e.sectorName ?? ""])).entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
+  return (
+    <div className="inv-ctrl-filtros">
+      <label>
+        <span style={S.label}>Planta</span>
+        <select className="select" value={planta} onChange={(e) => setPlanta(e.target.value)}>
+          <option value="">Todas</option>
+          {plantas.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </label>
+      <label>
+        <span style={S.label}>Sector</span>
+        <select className="select" value={sectorId} onChange={(e) => setSectorId(e.target.value)}>
+          <option value="">Todos</option>
+          {sectores.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}
 
-  const activos = items.filter((e) => e.estado !== "baja" && (!planta || e.planta === planta) && (!sectorId || e.sectorId === Number(sectorId)));
-  const conControl = activos.filter((e) => e.proximoControl);
-  const vencidos = conControl.filter((e) => situacion(e, hoy) === "vencido").sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
-  const proximos = conControl.filter((e) => ["semana", "mes"].includes(situacion(e, hoy))).sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
-  const enReparacion = activos.filter((e) => e.estado === "en_reparacion");
-  const conFalla = activos.filter((e) => e.estado === "con_falla" || e.estado === "fuera_servicio");
-  const alDia = conControl.length ? Math.round(((conControl.length - vencidos.length) / conControl.length) * 100) : null;
-  const plantas = [...new Set(items.filter((e) => e.estado !== "baja").map((e) => e.planta))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
-  const sectores = [...new Map(items.filter((e) => e.estado !== "baja").map((e) => [e.sectorId, e.sectorName ?? ""])).entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
-
-  const porSector = useMemo(() => {
-    const m = new Map<number, { nombre: string; total: number; vencidos: number; falla: number }>();
-    for (const e of conControl) {
-      const x = m.get(e.sectorId) ?? { nombre: e.sectorName ?? "—", total: 0, vencidos: 0, falla: 0 };
-      x.total++;
-      if (situacion(e, hoy) === "vencido") x.vencidos++;
-      m.set(e.sectorId, x);
-    }
-    for (const e of activos) if (e.estado !== "operativo") {
-      const x = m.get(e.sectorId);
-      if (x) x.falla++;
-    }
-    return [...m.entries()].map(([id, v]) => ({ id, ...v, pct: Math.round(((v.total - v.vencidos) / v.total) * 100) })).sort((a, b) => a.pct - b.pct || a.nombre.localeCompare(b.nombre, "es"));
-  }, [conControl, activos, hoy]);
-
-  const pendientesRonda = [...vencidos, ...proximos.filter((e) => situacion(e, hoy) === "semana")].filter((e) => puedeEscribir(e.sectorId));
-  const puede = (e: Equipo) => permisos.controlar && puedeEscribir(e.sectorId);
-
-  const filaEquipo = (e: Equipo, extra?: ReactNode, accion?: ReactNode) => (
-    <div key={e.id} className="inv-fila">
+function FilaEquipo({ e, onAbrir, extra, accion }: { e: Equipo; onAbrir: (id: number) => void; extra?: ReactNode; accion?: ReactNode }) {
+  return (
+    <div className="inv-fila">
       <button type="button" className="inv-fila-main" onClick={() => onAbrir(e.id)}>
         <span style={{ fontWeight: 600 }}>{e.descripcion}</span>
         <span style={S.small}>
@@ -658,32 +654,63 @@ function Controles({
       {accion}
     </div>
   );
+}
+
+function Controles({
+  items,
+  hoy,
+  permisos,
+  puedeEscribir,
+  onAbrir,
+  onRegistrar,
+  onRonda,
+}: {
+  items: Equipo[];
+  hoy: string;
+  permisos: Permisos;
+  puedeEscribir: (sectorId: number) => boolean;
+  onAbrir: (id: number) => void;
+  onRegistrar: (e: Equipo[], tipo?: DatosRegistro["tipo"]) => void;
+  onRonda: (e: Equipo[]) => void;
+}) {
+  const [planta, setPlanta] = useState("");
+  const [sectorId, setSectorId] = useState("");
+  const activos = items.filter((e) => e.estado !== "baja" && (!planta || e.planta === planta) && (!sectorId || e.sectorId === Number(sectorId)));
+  const conControl = activos.filter((e) => e.proximoControl);
+  const sinControl = activos.filter((e) => !e.frecuenciaDias).length;
+  const vencidos = conControl.filter((e) => situacion(e, hoy) === "vencido").sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
+  const proximos = conControl.filter((e) => ["semana", "mes"].includes(situacion(e, hoy))).sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
+  const alDia = conControl.length ? Math.round(((conControl.length - vencidos.length) / conControl.length) * 100) : null;
+  const puede = (e: Equipo) => permisos.controlar && puedeEscribir(e.sectorId);
+  const pendientes = [...vencidos, ...proximos.filter((e) => situacion(e, hoy) === "semana")].filter(puede);
+
+  const porSector = useMemo(() => {
+    const m = new Map<number, { nombre: string; total: number; vencidos: number }>();
+    for (const e of conControl) {
+      const x = m.get(e.sectorId) ?? { nombre: e.sectorName ?? "—", total: 0, vencidos: 0 };
+      x.total++;
+      if (situacion(e, hoy) === "vencido") x.vencidos++;
+      m.set(e.sectorId, x);
+    }
+    return [...m.entries()].map(([id, v]) => ({ id, ...v, pct: Math.round(((v.total - v.vencidos) / v.total) * 100) })).sort((a, b) => a.pct - b.pct || a.nombre.localeCompare(b.nombre, "es"));
+  }, [conControl, hoy]);
 
   const agenda = new Map<string, Equipo[]>();
   for (const e of proximos) {
     const k = semanaDe(e.proximoControl!, hoy);
     agenda.set(k, [...(agenda.get(k) ?? []), e]);
   }
+  const btnControlar = (e: Equipo) =>
+    puede(e) ? (
+      <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e])}>
+        Controlar
+      </button>
+    ) : undefined;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <section className="card inv-ctrl-cab">
-        <div className="inv-ctrl-filtros">
-          <label>
-            <span style={S.label}>Planta</span>
-            <select className="select" value={planta} onChange={(e) => setPlanta(e.target.value)}>
-              <option value="">Todas</option>
-              {plantas.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </label>
-          <label>
-            <span style={S.label}>Sector</span>
-            <select className="select" value={sectorId} onChange={(e) => setSectorId(e.target.value)}>
-              <option value="">Todos</option>
-              {sectores.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
-            </select>
-          </label>
-        </div>
+        <FiltroPlantaSector items={items} planta={planta} setPlanta={setPlanta} sectorId={sectorId} setSectorId={setSectorId} />
         <div className="inv-ctrl-kpis">
           <div>
             <span style={S.label}>Controles al día</span>
@@ -699,22 +726,28 @@ function Controles({
             <strong>{proximos.length}</strong>
           </div>
           <div>
-            <span style={S.label}>Con falla / en reparación</span>
-            <strong style={{ color: conFalla.length + enReparacion.length ? "#b91c1c" : undefined }}>{conFalla.length + enReparacion.length}</strong>
+            <span style={S.label}>Sin control definido</span>
+            <strong>{sinControl}</strong>
+            <span style={S.small}>Se define en la ficha del equipo</span>
           </div>
         </div>
         {permisos.controlar && (
           <div className="inv-ronda-cta">
             <div style={{ minWidth: 0 }}>
               <strong>Ronda de control</strong>
-              <span style={S.small}>Recorré los equipos uno por uno y registrá cada control en segundos{pendientesRonda.length ? ` · ${pendientesRonda.length} pendientes (vencidos y de esta semana)` : ""}.</span>
+              <span style={S.small}>Recorré los equipos uno por uno y registrá cada control en segundos{pendientes.length ? ` · ${pendientes.length} pendientes (vencidos y de esta semana)` : ""}.</span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" className="btn btn-primary" disabled={!pendientesRonda.length} onClick={() => onRonda(pendientesRonda)}>
-                <ClipboardCheck size={15} /> Ronda de pendientes ({pendientesRonda.length})
+              <button type="button" className="btn btn-primary" disabled={!pendientes.length} onClick={() => onRonda(pendientes)}>
+                <ClipboardCheck size={15} /> Ronda de pendientes ({pendientes.length})
               </button>
-              <button type="button" className="btn btn-quiet" disabled={!activos.some((e) => puedeEscribir(e.sectorId))} onClick={() => onRonda(activos.filter((e) => puedeEscribir(e.sectorId)).sort((a, b) => a.planta.localeCompare(b.planta, "es") || (a.sectorName ?? "").localeCompare(b.sectorName ?? "", "es") || a.id - b.id))}>
-                Ronda completa ({activos.filter((e) => puedeEscribir(e.sectorId)).length})
+              <button
+                type="button"
+                className="btn btn-quiet"
+                disabled={!activos.some(puede)}
+                onClick={() => onRonda(activos.filter(puede).sort((a, b) => a.planta.localeCompare(b.planta, "es") || (a.sectorName ?? "").localeCompare(b.sectorName ?? "", "es") || a.id - b.id))}
+              >
+                Ronda completa ({activos.filter(puede).length})
               </button>
             </div>
           </div>
@@ -722,27 +755,16 @@ function Controles({
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, alignItems: "start" }}>
-        <Seccion
-          titulo={`Controles vencidos (${vencidos.length})`}
-          extra={
-            vencidos.some(puede) ? (
-              <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => onRonda(vencidos.filter(puede))}>
-                Ronda de vencidos
-              </button>
-            ) : undefined
-          }
-        >
+        <Seccion titulo={`Vencidos (${vencidos.length})`}>
           {vencidos.length === 0 ? (
             <div style={S.small}>No hay controles vencidos.</div>
           ) : (
             <div className="inv-lista-scroll">
-              {vencidos.slice(0, 300).map((e) =>
-                filaEquipo(e, <ControlPill e={e} hoy={hoy} />, puede(e) ? <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e])}>Controlar</button> : undefined),
-              )}
+              {vencidos.slice(0, 300).map((e) => <FilaEquipo key={e.id} e={e} onAbrir={onAbrir} extra={<ControlPill e={e} hoy={hoy} />} accion={btnControlar(e)} />)}
             </div>
           )}
         </Seccion>
-        <Seccion titulo={`Agenda · próximos 30 días (${proximos.length})`}>
+        <Seccion titulo={`Próximos 30 días (${proximos.length})`}>
           {proximos.length === 0 ? (
             <div style={S.small}>Nada que controlar en los próximos 30 días.</div>
           ) : (
@@ -752,68 +774,13 @@ function Controles({
                   <div className="inv-semana">
                     {semana} <span>{eqs.length}</span>
                   </div>
-                  {eqs.map((e) => filaEquipo(e, <span style={{ ...S.small, whiteSpace: "nowrap" }}>{fechaAr(e.proximoControl)}</span>, puede(e) ? <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e])}>Controlar</button> : undefined))}
+                  {eqs.map((e) => <FilaEquipo key={e.id} e={e} onAbrir={onAbrir} extra={<span style={{ ...S.small, whiteSpace: "nowrap" }}>{fechaAr(e.proximoControl)}</span>} accion={btnControlar(e)} />)}
                 </div>
               ))}
             </div>
           )}
         </Seccion>
       </div>
-
-      {(conFalla.length > 0 || enReparacion.length > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, alignItems: "start" }}>
-          <Seccion titulo={`Con falla, sin enviar a reparar (${conFalla.length})`}>
-            {conFalla.length === 0 ? (
-              <div style={S.small}>Ninguno.</div>
-            ) : (
-              <div className="inv-lista-scroll">
-                {conFalla.map((e) =>
-                  filaEquipo(
-                    e,
-                    <EstadoPill estado={e.estado} />,
-                    puede(e) ? (
-                      <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e], "envio")}>
-                        Enviar a reparar
-                      </button>
-                    ) : undefined,
-                  ),
-                )}
-              </div>
-            )}
-          </Seccion>
-          <Seccion titulo={`En reparación (${enReparacion.length})`}>
-            {enReparacion.length === 0 ? (
-              <div style={S.small}>Ninguno.</div>
-            ) : (
-              <div className="inv-lista-scroll">
-                {enReparacion
-                  .map((e) => ({ e, envio: envios.get(e.id) }))
-                  .sort((a, b) => (a.envio?.fecha ?? "9").localeCompare(b.envio?.fecha ?? "9"))
-                  .map(({ e, envio }) =>
-                    filaEquipo(
-                      e,
-                      <span style={{ ...S.small, textAlign: "right" }}>
-                        {envio ? (
-                          <>
-                            <strong style={{ color: diasEntre(envio.fecha, hoy) > 30 ? "#b91c1c" : "hsl(var(--foreground))" }}>{diasEntre(envio.fecha, hoy)} días</strong>
-                            {envio.proveedor && <><br />{envio.proveedor}</>}
-                          </>
-                        ) : (
-                          "En reparación"
-                        )}
-                      </span>,
-                      puede(e) ? (
-                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e], "reparacion")}>
-                          Reparado
-                        </button>
-                      ) : undefined,
-                    ),
-                  )}
-              </div>
-            )}
-          </Seccion>
-        </div>
-      )}
 
       {porSector.length > 0 && (
         <Seccion titulo="Cumplimiento por sector">
@@ -827,216 +794,284 @@ function Controles({
                 <span className="inv-cumpl-num">{s.pct} %</span>
                 <span style={S.small}>
                   {s.vencidos ? `${s.vencidos} vencido${s.vencidos === 1 ? "" : "s"}` : "al día"} de {s.total}
-                  {s.falla ? ` · ${s.falla} con problema` : ""}
                 </span>
               </button>
             ))}
           </div>
         </Seccion>
       )}
-
-      <Seccion
-        titulo="Registro de controles"
-        extra={
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <select className="select" style={{ width: 230, fontSize: 13 }} value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Qué registros">
-              <option value="control,falla,envio,reparacion">Controles, fallas y reparaciones</option>
-              <option value="control">Solo controles</option>
-              <option value="falla">Solo fallas</option>
-              <option value="envio,reparacion">Envíos y reparaciones</option>
-              <option value="">Todo (incluye altas y cambios)</option>
-            </select>
-            <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}>
-              Desde <input type="date" className="input" style={{ width: 150, padding: "5px 8px" }} value={desde} onChange={(e) => setDesde(e.target.value)} />
-            </label>
-            {permisos.exportar && registros && registros.length > 0 && (
-              <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => void exportar(registros.map(filaRegistro), `inventario-registro-${hoyIso()}`, "xlsx", "Registro")}>
-                <Download size={14} /> Excel
-              </button>
-            )}
-          </div>
-        }
-      >
-        {registros === null ? (
-          <div className="skeleton" style={{ height: 160 }} />
-        ) : registros.length === 0 ? (
-          <div style={S.small}>No hay registros en ese período.</div>
-        ) : (
-          <div className="inv-tabla-wrap" style={{ maxHeight: 460 }}>
-            <table className="inv-tabla">
-              <thead>
-                <tr>
-                  <th style={S.th}>Fecha</th>
-                  <th style={S.th}>Registro</th>
-                  <th style={S.th}>Equipo</th>
-                  <th style={S.th}>Sector</th>
-                  <th style={S.th}>Detalle</th>
-                  <th style={S.th}>Responsable</th>
-                </tr>
-              </thead>
-              <tbody>
-                {registros
-                  .filter((r) => (!planta || r.item?.planta === planta) && (!sectorId || items.find((e) => e.id === r.itemId)?.sectorId === Number(sectorId)))
-                  .slice(0, 1000)
-                  .map((r) => {
-                    const malo = r.tipo === "falla" || r.resultado === "falla";
-                    const c = malo ? ["#fde2e2", "#8f1d1d"] : r.tipo === "envio" ? ["#ede9fe", "#4c1d95"] : r.tipo === "reparacion" ? ["#dbeafe", "#1e3a8a"] : r.resultado === "observacion" ? ["#fdf0d5", "#7a4a06"] : r.tipo === "control" ? ["#dcf3dc", "#155c15"] : ["hsl(var(--muted))", "hsl(var(--foreground))"];
-                    const fallas = (r.checklist ?? []).filter((p) => p.estado !== "ok");
-                    return (
-                      <tr key={r.id} onClick={() => onAbrir(r.itemId)}>
-                        <td style={{ whiteSpace: "nowrap" }}>{fechaAr(r.fecha)}</td>
-                        <td>
-                          <Pill style={{ background: c[0], color: c[1] }}>
-                            {TIPO_REGISTRO[r.tipo]}
-                            {r.resultado ? ` · ${RESULTADO[r.resultado]}` : ""}
-                          </Pill>
-                          {r.checklist && r.checklist.length > 0 && <div style={{ ...S.small, marginTop: 3 }}>{r.checklist.length - fallas.length}/{r.checklist.length} puntos OK</div>}
-                        </td>
-                        <td className="inv-desc">
-                          {r.item?.descripcion} <span style={S.small}>Nº {r.itemId}</span>
-                        </td>
-                        <td>{r.item?.sectorName}</td>
-                        <td className="inv-desc" style={{ fontSize: 12.5 }}>
-                          {r.detalle || fallas.map((p) => `${p.item}${p.nota ? `: ${p.nota}` : ""}`).join(" · ")}
-                          {r.proveedor && <div style={S.small}>{r.proveedor}</div>}
-                        </td>
-                        <td>{r.responsable || r.userNombre}</td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Seccion>
     </div>
   );
 }
 
-// ---------- Plan de controles y catálogos ----------
+// ---------- Fallas (mantenimiento correctivo): reportadas → en reparación → resueltas ----------
 
-function Ajustes({ catalogos, onChanged }: { catalogos: Catalogos | null; onChanged: () => void }) {
-  const [editando, setEditando] = useState<{ tipo: string; dias: string; aplicar: "sin_frecuencia" | "todos" | "ninguno"; lista: string } | null>(null);
-  const guardarPlan = async () => {
-    if (!editando) return;
-    try {
-      const lista = editando.lista.split("\n").map((x) => x.trim()).filter(Boolean);
-      const r = await inv.plan(editando.tipo, editando.dias ? Number(editando.dias) : null, editando.aplicar, lista);
-      avisar(`Plan de «${editando.tipo}» guardado${r.actualizados ? ` · ${r.actualizados} equipo${r.actualizados === 1 ? "" : "s"} actualizado${r.actualizados === 1 ? "" : "s"}` : ""}.`);
-      setEditando(null);
-      onChanged();
-    } catch (e) {
-      avisar((e as Error).message, "error");
+function Fallas({
+  items,
+  hoy,
+  permisos,
+  puedeEscribir,
+  onAbrir,
+  onRegistrar,
+  onReportar,
+}: {
+  items: Equipo[];
+  hoy: string;
+  permisos: Permisos;
+  puedeEscribir: (sectorId: number) => boolean;
+  onAbrir: (id: number) => void;
+  onRegistrar: (e: Equipo[], tipo: DatosRegistro["tipo"]) => void;
+  onReportar: () => void;
+}) {
+  const [regs, setRegs] = useState<Registro[] | null>(null);
+  const [planta, setPlanta] = useState("");
+  const [sectorId, setSectorId] = useState("");
+  useEffect(() => {
+    inv
+      .registros({ desde: sumarDias(hoyIso(), -365), tipo: "falla,control,envio,reparacion", limit: 10000 })
+      .then(setRegs)
+      .catch(() => setRegs([]));
+  }, [items]);
+
+  const filtro = (e: Equipo) => (!planta || e.planta === planta) && (!sectorId || e.sectorId === Number(sectorId));
+  const porItem = useMemo(() => {
+    const falla = new Map<number, Registro>();
+    const envio = new Map<number, Registro>();
+    for (const r of regs ?? []) {
+      if ((r.tipo === "falla" || r.resultado === "falla") && !falla.has(r.itemId)) falla.set(r.itemId, r);
+      if (r.tipo === "envio" && !envio.has(r.itemId)) envio.set(r.itemId, r);
     }
+    return { falla, envio };
+  }, [regs]);
+
+  const reportadas = items.filter((e) => (e.estado === "con_falla" || e.estado === "fuera_servicio") && filtro(e));
+  const enReparacion = items.filter((e) => e.estado === "en_reparacion" && filtro(e));
+  const resueltas = (regs ?? []).filter((r) => r.tipo === "reparacion" && diasEntre(r.fecha, hoy) <= 30).filter((r) => {
+    const e = items.find((x) => x.id === r.itemId);
+    return !e || filtro(e);
+  });
+  const puede = (e: Equipo) => permisos.controlar && puedeEscribir(e.sectorId);
+  const dias = (iso?: string) => (iso ? diasEntre(iso, hoy) : null);
+
+  const tarjeta = (e: Equipo, r: Registro | undefined, pie: ReactNode, extra?: ReactNode) => {
+    const d = dias(r?.fecha);
+    return (
+      <div key={e.id} className="inv-falla">
+        <button type="button" className="inv-falla-main" onClick={() => onAbrir(e.id)}>
+          <span className="inv-falla-titulo">{e.descripcion}</span>
+          <span style={S.small}>
+            Nº {e.id} · {e.sectorName} · {e.planta}
+          </span>
+          {r?.detalle && <span className="inv-falla-detalle">{r.detalle}</span>}
+          {extra}
+          {d !== null && (
+            <span style={{ ...S.small, color: d > 15 ? "#b91c1c" : undefined, fontWeight: d > 15 ? 700 : undefined }}>
+              Hace {d} día{d === 1 ? "" : "s"} · {fechaAr(r!.fecha)}
+            </span>
+          )}
+        </button>
+        {pie && <div className="inv-falla-pie">{pie}</div>}
+      </div>
+    );
   };
-  const renombrar = async (campo: "planta" | "rubro" | "tipo", de: string) => {
-    const a = window.prompt(`Nuevo nombre para «${de}» (si ya existe, se unifican):`, de);
-    if (!a || a.trim() === de) return;
-    try {
-      const r = await inv.renombrar(campo, de, a.trim());
-      avisar(`${r.actualizados} equipo${r.actualizados === 1 ? "" : "s"} actualizado${r.actualizados === 1 ? "" : "s"}.`);
-      onChanged();
-    } catch (e) {
-      avisar((e as Error).message, "error");
-    }
-  };
-  if (!catalogos) return <div className="skeleton" style={{ height: 240 }} />;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Seccion titulo="Plan de controles por tipo de equipo">
-        <p style={{ ...S.small, marginTop: -4, marginBottom: 12 }}>
-          Para cada tipo: cada cuánto se controla y qué puntos se revisan (lista de verificación). Al registrar un control de ese tipo, se marca cada punto como OK, observación o falla.
-        </p>
-        {catalogos.tipos.length === 0 ? (
-          <div style={S.small}>Todavía no hay equipos cargados.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {catalogos.tipos.map((t) => {
-              const plan = planDe(catalogos.planes, t.valor);
-              const ed = editando?.tipo === t.valor ? editando : null;
-              return (
-                <div key={t.valor} className={`inv-plan${ed ? " is-ed" : ""}`}>
-                  <div className="inv-plan-cab">
-                    <div style={{ minWidth: 0 }}>
-                      <strong>{t.valor}</strong>
-                      <span style={S.small}>
-                        {t.n} equipo{t.n === 1 ? "" : "s"} · {frecuenciaTexto(plan?.frecuenciaDias)} · {plan?.checklist.length ? `${plan.checklist.length} puntos a revisar` : "sin lista de verificación"}
-                      </span>
-                    </div>
-                    {!ed && (
-                      <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setEditando({ tipo: t.valor, dias: String(plan?.frecuenciaDias ?? ""), aplicar: "sin_frecuencia", lista: (plan?.checklist ?? []).join("\n") })}>
-                        {plan ? "Editar plan" : "Definir plan"}
-                      </button>
-                    )}
-                  </div>
-                  {!ed && plan && plan.checklist.length > 0 && (
-                    <div className="inv-plan-puntos">
-                      {plan.checklist.map((p) => <span key={p}>{p}</span>)}
-                    </div>
-                  )}
-                  {ed && (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12, marginTop: 10 }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                          <span className="field-label">Control periódico</span>
-                          <select className="select" value={ed.dias} onChange={(e) => setEditando({ ...ed, dias: e.target.value })}>
-                            <option value="">Sin control periódico</option>
-                            {FRECUENCIAS.map((f) => <option key={f.dias} value={f.dias}>{f.label}</option>)}
-                          </select>
-                        </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                          <span className="field-label">Equipos ya cargados</span>
-                          <select className="select" value={ed.aplicar} onChange={(e) => setEditando({ ...ed, aplicar: e.target.value as typeof ed.aplicar })}>
-                            <option value="sin_frecuencia">Aplicar la frecuencia a los que no tienen</option>
-                            <option value="todos">Aplicar la frecuencia a todos los de este tipo</option>
-                            <option value="ninguno">No tocar los ya cargados</option>
-                          </select>
-                        </label>
-                      </div>
-                      <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                        <span className="field-label">Puntos a revisar (uno por renglón)</span>
-                        <textarea className="input" rows={6} value={ed.lista} onChange={(e) => setEditando({ ...ed, lista: e.target.value })} placeholder={"Ej.:\nPresión en zona verde\nPrecinto y seguro\nSeñalización visible\nCarga vigente"} />
-                      </label>
-                      <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1", justifyContent: "flex-end" }}>
-                        <button type="button" className="btn btn-quiet" onClick={() => setEditando(null)}>Cancelar</button>
-                        <button type="button" className="btn btn-primary" onClick={() => void guardarPlan()}>Guardar plan</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      <section className="card inv-ctrl-cab" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between" }}>
+        <FiltroPlantaSector items={items} planta={planta} setPlanta={setPlanta} sectorId={sectorId} setSectorId={setSectorId} />
+        {permisos.controlar && (
+          <button type="button" className="btn btn-primary" onClick={onReportar}>
+            <AlertTriangle size={15} /> Reportar falla
+          </button>
         )}
-      </Seccion>
-      <Seccion titulo="Unificar nombres">
-        <p style={{ ...S.small, marginTop: -4, marginBottom: 12 }}>
-          Si un mismo valor está escrito de distintas formas (ej. «PB» y «Planta baja»), renombralo y quedan unificados en todos los equipos.
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 14 }}>
-          {(
-            [
-              ["planta", "Plantas", catalogos.plantas],
-              ["rubro", "Rubros", catalogos.rubros],
-              ["tipo", "Tipos", catalogos.tipos],
-            ] as const
-          ).map(([campo, titulo, vals]) => (
-            <div key={campo}>
-              <div style={{ ...S.label, marginBottom: 6 }}>{titulo}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 300, overflow: "auto" }}>
-                {vals.map((v) => (
-                  <div key={v.valor} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 8, border: "1px solid hsl(var(--border))" }}>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 13 }}>{v.valor}</span>
-                    <span style={S.small}>{v.n}</span>
-                    <button type="button" className="btn btn-quiet" style={{ fontSize: 11.5, padding: "3px 8px" }} onClick={() => void renombrar(campo, v.valor)}>Renombrar</button>
-                  </div>
-                ))}
-                {!vals.length && <span style={S.small}>—</span>}
-              </div>
+      </section>
+      {regs === null ? (
+        <div className="skeleton" style={{ height: 260 }} />
+      ) : (
+        <div className="inv-tablero">
+          <div className="inv-col">
+            <div className="inv-col-cab es-rojo">
+              Reportadas <span>{reportadas.length}</span>
             </div>
-          ))}
+            <p style={S.small}>Equipos con falla o fuera de servicio, todavía sin enviar a reparar.</p>
+            {reportadas.length === 0 && <div className="inv-col-vacia">Ninguna falla pendiente.</div>}
+            {reportadas.map((e) =>
+              tarjeta(
+                e,
+                porItem.falla.get(e.id),
+                puede(e) ? (
+                  <>
+                    <button type="button" className="btn btn-quiet" onClick={() => onRegistrar([e], "envio")}>Enviar a reparar</button>
+                    <button type="button" className="btn btn-quiet" onClick={() => onRegistrar([e], "reparacion")}>Ya está reparado</button>
+                  </>
+                ) : null,
+                <EstadoPill estado={e.estado} />,
+              ),
+            )}
+          </div>
+          <div className="inv-col">
+            <div className="inv-col-cab es-violeta">
+              En reparación <span>{enReparacion.length}</span>
+            </div>
+            <p style={S.small}>Enviados al service o en arreglo.</p>
+            {enReparacion.length === 0 && <div className="inv-col-vacia">Ningún equipo en reparación.</div>}
+            {enReparacion
+              .map((e) => ({ e, r: porItem.envio.get(e.id) }))
+              .sort((a, b) => (a.r?.fecha ?? "9").localeCompare(b.r?.fecha ?? "9"))
+              .map(({ e, r }) =>
+                tarjeta(
+                  e,
+                  r,
+                  puede(e) ? <button type="button" className="btn btn-primary" onClick={() => onRegistrar([e], "reparacion")}>Marcar reparado</button> : null,
+                  r?.proveedor ? <span style={{ fontSize: 12.5, fontWeight: 600 }}>{r.proveedor}</span> : undefined,
+                ),
+              )}
+          </div>
+          <div className="inv-col">
+            <div className="inv-col-cab es-verde">
+              Resueltas · 30 días <span>{resueltas.length}</span>
+            </div>
+            <p style={S.small}>Reparaciones registradas en el último mes.</p>
+            {resueltas.length === 0 && <div className="inv-col-vacia">Sin reparaciones en el último mes.</div>}
+            {resueltas.map((r) => (
+              <button key={r.id} type="button" className="inv-falla inv-falla-main" onClick={() => onAbrir(r.itemId)}>
+                <span className="inv-falla-titulo">{r.item?.descripcion}</span>
+                <span style={S.small}>
+                  Nº {r.itemId} · {r.item?.sectorName} · {fechaAr(r.fecha)}
+                </span>
+                {r.detalle && <span className="inv-falla-detalle">{r.detalle}</span>}
+                {r.proveedor && <span style={S.small}>{r.proveedor}</span>}
+              </button>
+            ))}
+          </div>
         </div>
-      </Seccion>
+      )}
     </div>
+  );
+}
+
+// ---------- Historial: todo lo registrado ----------
+
+function Historial({ items, permisos, onAbrir }: { items: Equipo[]; permisos: Permisos; onAbrir: (id: number) => void }) {
+  const [registros, setRegistros] = useState<Registro[] | null>(null);
+  const [desde, setDesde] = useState(() => sumarDias(hoyIso(), -90));
+  const [tipo, setTipo] = useState("control,falla,envio,reparacion");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    setRegistros(null);
+    inv
+      .registros({ desde, tipo })
+      .then(setRegistros)
+      .catch(() => setRegistros([]));
+  }, [desde, tipo, items]);
+  const t = clave(q.trim());
+  const lista = (registros ?? []).filter((r) => !t || clave(`${r.itemId} ${r.item?.descripcion} ${r.item?.sectorName} ${r.item?.planta} ${r.item?.codigoSerie} ${r.detalle} ${r.responsable} ${r.proveedor}`).includes(t));
+  return (
+    <Seccion
+      titulo="Historial de controles, fallas y reparaciones"
+      extra={
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input className="input" style={{ width: 220 }} placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <select className="select" style={{ width: 230, fontSize: 13 }} value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Qué registros">
+            <option value="control,falla,envio,reparacion">Controles, fallas y reparaciones</option>
+            <option value="control">Solo controles</option>
+            <option value="falla">Solo fallas</option>
+            <option value="envio,reparacion">Envíos y reparaciones</option>
+            <option value="">Todo (incluye altas y cambios)</option>
+          </select>
+          <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}>
+            Desde <input type="date" className="input" style={{ width: 150, padding: "5px 8px" }} value={desde} onChange={(e) => setDesde(e.target.value)} />
+          </label>
+          {permisos.exportar && lista.length > 0 && (
+            <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => void exportar(lista.map(filaRegistro), `inventario-historial-${hoyIso()}`, "xlsx", "Historial")}>
+              <Download size={14} /> Excel
+            </button>
+          )}
+        </div>
+      }
+    >
+      {registros === null ? (
+        <div className="skeleton" style={{ height: 200 }} />
+      ) : lista.length === 0 ? (
+        <div style={S.small}>No hay registros con ese filtro.</div>
+      ) : (
+        <div className="inv-tabla-wrap">
+          <table className="inv-tabla">
+            <thead>
+              <tr>
+                <th style={S.th}>Fecha</th>
+                <th style={S.th}>Registro</th>
+                <th style={S.th}>Equipo</th>
+                <th style={S.th}>Sector</th>
+                <th style={S.th}>Detalle</th>
+                <th style={S.th}>Responsable</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lista.slice(0, 1500).map((r) => {
+                const malo = r.tipo === "falla" || r.resultado === "falla";
+                const c = malo ? ["#fde2e2", "#8f1d1d"] : r.tipo === "envio" ? ["#ede9fe", "#4c1d95"] : r.tipo === "reparacion" ? ["#dbeafe", "#1e3a8a"] : r.resultado === "observacion" ? ["#fdf0d5", "#7a4a06"] : r.tipo === "control" ? ["#dcf3dc", "#155c15"] : ["hsl(var(--muted))", "hsl(var(--foreground))"];
+                const noOk = (r.checklist ?? []).filter((p) => p.estado !== "ok");
+                return (
+                  <tr key={r.id} onClick={() => onAbrir(r.itemId)}>
+                    <td style={{ whiteSpace: "nowrap" }}>{fechaAr(r.fecha)}</td>
+                    <td>
+                      <Pill style={{ background: c[0], color: c[1] }}>
+                        {TIPO_REGISTRO[r.tipo]}
+                        {r.resultado ? ` · ${RESULTADO[r.resultado]}` : ""}
+                      </Pill>
+                      {r.checklist && r.checklist.length > 0 && <div style={{ ...S.small, marginTop: 3 }}>{r.checklist.length - noOk.length}/{r.checklist.length} puntos OK</div>}
+                    </td>
+                    <td className="inv-desc">
+                      {r.item?.descripcion} <span style={S.small}>Nº {r.itemId}</span>
+                    </td>
+                    <td>{r.item?.sectorName}</td>
+                    <td className="inv-desc" style={{ fontSize: 12.5 }}>
+                      {r.detalle || noOk.map((p) => `${p.item}${p.nota ? `: ${p.nota}` : ""}`).join(" · ")}
+                      {r.proveedor && <div style={S.small}>{r.proveedor}</div>}
+                    </td>
+                    <td>{r.responsable || r.userNombre}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Seccion>
+  );
+}
+
+// ---------- elegir el equipo con falla ----------
+
+function ElegirEquipoModal({ items, puedeEscribir, onClose, onElegir }: { items: Equipo[]; puedeEscribir: (sectorId: number) => boolean; onClose: () => void; onElegir: (e: Equipo) => void }) {
+  const [q, setQ] = useState("");
+  const t = clave(q.trim());
+  const palabras = t.split(/\s+/).filter(Boolean);
+  const lista = items
+    .filter((e) => e.estado !== "baja" && puedeEscribir(e.sectorId))
+    .filter((e) => !palabras.length || palabras.every((p) => clave(`${e.id} ${e.descripcion} ${e.tipo} ${e.marca} ${e.codigoSerie} ${e.sectorName} ${e.planta}`).includes(p)))
+    .slice(0, 60);
+  return (
+    <Modal titulo="Reportar falla: ¿qué equipo?" onClose={onClose} ancho={620}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <input className="input" autoFocus placeholder="Buscá por descripción, Nº, código de serie, sector…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 420, overflow: "auto" }}>
+          {lista.map((e) => (
+            <button key={e.id} type="button" className="inv-fila inv-fila-main" style={{ flexDirection: "row", alignItems: "center" }} onClick={() => onElegir(e)}>
+              <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                <span style={{ fontWeight: 600 }}>{e.descripcion}</span>
+                <span style={S.small}>
+                  Nº {e.id} · {e.tipo} · {e.sectorName} · {e.planta}
+                  {e.codigoSerie && ` · Serie ${e.codigoSerie}`}
+                </span>
+              </span>
+              <EstadoPill estado={e.estado} />
+            </button>
+          ))}
+          {!lista.length && <div style={S.small}>No hay equipos que coincidan.</div>}
+        </div>
+      </div>
+    </Modal>
   );
 }
