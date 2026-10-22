@@ -279,6 +279,9 @@ const ACCION_LABEL: Record<string, string> = {
   recurrentes: "recurrentes",
   contactos: "contactos",
   calendario: "calendario oficial y feriados",
+  controlar: "registrar controles, fallas y reparaciones",
+  importar: "importar desde Excel",
+  configurar: "plan de controles y catálogos",
 };
 const accionLabel = (k: string) => ACCION_LABEL[k] ?? k;
 

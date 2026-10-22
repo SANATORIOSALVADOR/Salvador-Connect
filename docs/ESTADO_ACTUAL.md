@@ -28,10 +28,12 @@
 
 ## Código presente pero no prioritario
 
-- Inventario, Instructivos y Liquidación se muestran como **«Próximamente»** (menú: grupo «Próximamente» con etiqueta
-  «Pronto»; pantalla `apps/web/src/components/proximamente.tsx`). El código anterior de Inventario e Instructivos sigue en
-  `pages/` y la API sigue existiendo: para habilitarlos, volver a poner su página en la ruta de `App.tsx` y sacarlos de
-  `MODULOS_PROXIMAMENTE`.
+- **Inventario** (activo): equipos y bienes por planta y sector (PLANTA, SECTOR, RUBRO, TIPO, DESCRIPCION, MARCA,
+  CODIGO DE SERIE) con estado, plan de controles por tipo, registro de controles / fallas / reparaciones / traslados,
+  importación desde Excel (xlsx, xls, ods, csv; vista previa con errores por fila) y exportación a Excel / CSV.
+  Avisos de controles vencidos y equipos con falla en Inicio y notificaciones; respeta el alcance por sector.
+- Instructivos y Liquidación se muestran como **«Próximamente»** (menú: grupo «Próximamente» con etiqueta
+  «Pronto»; pantalla `apps/web/src/components/proximamente.tsx`). El código anterior de Instructivos sigue en `pages/`.
 - **Inicio** (`pages/Inicio.tsx` + `GET /api/inicio`): se arma según los permisos de cada persona.
   Frase del día, accesos rápidos según permisos, bloque de Administración (atrasados / hoy / semana, «A tu cargo»
   por responsable, control fiscal), de Guardias (de guardia ahora y huecos en sus sectores), de Sistemas (solo superadmin:

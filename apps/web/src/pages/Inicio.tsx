@@ -19,6 +19,7 @@ import {
   UserCheck,
   Users,
   Wrench,
+  PackageOpen,
 } from "lucide-react";
 
 const DashboardGraficos = lazy(() => import("@/components/dashboard-graficos").then((m) => ({ default: m.DashboardGraficos })));
@@ -31,7 +32,7 @@ const DashboardGraficos = lazy(() => import("@/components/dashboard-graficos").t
 
 type ItemMin = { id: number; tipo: string; titulo: string; fecha: string; hora: string; responsable: string; prioridad: string; monto: string; direccion: string | null; categoria: string | null };
 type Suma = { total: number; cantidad: number; sinMonto: number };
-type Urgente = { nivel: "alta" | "media" | "baja"; modulo: "administracion" | "guardias" | "sistema"; titulo: string; detalle: string; link: string };
+type Urgente = { nivel: "alta" | "media" | "baja"; modulo: "administracion" | "guardias" | "inventario" | "sistema"; titulo: string; detalle: string; link: string };
 type Dia = { fecha: string; vencimientos: number | null; cobertura: number | null; huecos: number | null };
 type Sector = {
   sector: string;
@@ -262,7 +263,7 @@ export default function Inicio() {
                 {datos.urgente.map((u, k) => (
                   <li key={k}>
                     <Link href={u.link} className={`ini-urg ${u.nivel}`}>
-                      <span className="ini-urg-ico" aria-hidden="true">{u.modulo === "guardias" ? <Stethoscope size={15} /> : u.modulo === "sistema" ? <Settings2 size={15} /> : <ClipboardList size={15} />}</span>
+                      <span className="ini-urg-ico" aria-hidden="true">{u.modulo === "guardias" ? <Stethoscope size={15} /> : u.modulo === "sistema" ? <Settings2 size={15} /> : u.modulo === "inventario" ? <PackageOpen size={15} /> : <ClipboardList size={15} />}</span>
                       <span className="ini-item-txt"><b>{u.titulo}</b><small>{u.detalle}</small></span>
                       <ArrowRight size={16} className="ini-urg-ir" aria-hidden="true" />
                     </Link>

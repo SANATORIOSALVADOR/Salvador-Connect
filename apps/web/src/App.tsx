@@ -53,6 +53,7 @@ const ConfiguracionPage = lazy(() => import("@/pages/Configuracion"));
 const UsuariosPage = lazy(() => import("@/pages/Usuarios"));
 const PerfilPage = lazy(() => import("@/pages/Perfil"));
 const InicioPage = lazy(() => import("@/pages/Inicio"));
+const InventarioPage = lazy(() => import("@/pages/inventario/Inventario"));
 
 const queryClient = new QueryClient();
 
@@ -334,7 +335,7 @@ function Router() {
     <Route path="/administracion"><Protected user={shellUser}><Shell user={shellUser}><AdministracionPage /></Shell></Protected></Route>
     <Route path="/liquidacion"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Liquidación" icono={FileText} resumen="Un espacio para centralizar el seguimiento de las liquidaciones del sanatorio." ideas={["Seguimiento de liquidaciones por período y obra social", "Estados y responsables de cada liquidación", "Vínculo con los vencimientos de Administración"]} /></Shell></Protected></Route>
     <Route path="/guardias"><Protected user={shellUser}><Shell user={shellUser}><GuardiasMedicasPage /></Shell></Protected></Route>
-    <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Inventario" icono={PackageOpen} resumen="Control de los equipos y bienes de cada sector: qué hay, dónde está y en qué estado." ideas={["Registro de equipos y bienes por sector", "Movimientos entre sectores y responsables", "Equipos en reparación y mantenimientos"]} /></Shell></Protected></Route>
+    <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><InventarioPage /></Shell></Protected></Route>
     <Route path="/instructivos"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Instructivos" icono={Archive} resumen="Un lugar ordenado para los instructivos y procedimientos formales de cada área." ideas={["Instructivos por área, siempre en su última versión", "Búsqueda rápida por tema", "Aviso cuando se actualiza un procedimiento"]} /></Shell></Protected></Route>
     <Route path="/configuracion"><Protected user={shellUser}><Shell user={shellUser}><ConfiguracionPage /></Shell></Protected></Route>
     <Route path="/perfil"><Protected user={shellUser}><Shell user={shellUser}><PerfilPage /></Shell></Protected></Route>

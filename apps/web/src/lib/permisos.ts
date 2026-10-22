@@ -53,10 +53,14 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   },
   {
     key: "inventario",
-    label: "Inventario (próximamente)",
+    label: "Inventario",
     levels: ["ver", "editar", "total"],
     sectores: true,
-    can: { ver: "Ver activos y movimientos.", editar: "Además: dar de alta y modificar activos.", total: "Además: eliminar activos." },
+    can: {
+      ver: "Ver equipos, su historia y el registro de controles; exportar.",
+      editar: "Además: registrar controles, fallas y reparaciones; dar de alta y editar equipos.",
+      total: "Además: importar desde Excel, dar de baja / eliminar y configurar el plan de controles.",
+    },
   },
   {
     key: "instructivos",
@@ -97,9 +101,13 @@ export const ACCIONES: Record<string, { key: string; label: string; nivel: Level
     { key: "calendario", label: "Catálogo de obligaciones, calendario oficial y feriados", nivel: "total" },
   ],
   inventario: [
-    { key: "ver", label: "Ver activos y movimientos", nivel: "ver" },
-    { key: "cargar", label: "Dar de alta y modificar activos", nivel: "editar" },
-    { key: "eliminar", label: "Eliminar activos", nivel: "total" },
+    { key: "ver", label: "Ver equipos, su historia y el registro de controles", nivel: "ver" },
+    { key: "exportar", label: "Exportar a Excel / CSV", nivel: "ver" },
+    { key: "controlar", label: "Registrar controles, fallas y reparaciones", nivel: "editar" },
+    { key: "cargar", label: "Dar de alta y editar equipos (y trasladarlos)", nivel: "editar" },
+    { key: "importar", label: "Importar desde Excel (carga masiva)", nivel: "total" },
+    { key: "eliminar", label: "Dar de baja y eliminar equipos", nivel: "total" },
+    { key: "configurar", label: "Plan de controles y catálogos (plantas, rubros, tipos)", nivel: "total" },
   ],
   instructivos: [
     { key: "ver", label: "Ver y consultar instructivos", nivel: "ver" },

@@ -379,6 +379,53 @@ export const inventoryItemsTable = pgTable("inventory_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Inventario v2: equipos y bienes (migración 0010). */
+export const invItemsTable = pgTable("inv_items", {
+  id: serial("id").primaryKey(),
+  planta: text("planta").notNull().default(""),
+  sectorId: integer("sector_id")
+    .notNull()
+    .references(() => sectorsTable.id),
+  rubro: text("rubro").notNull().default(""),
+  tipo: text("tipo").notNull().default(""),
+  descripcion: text("descripcion").notNull(),
+  marca: text("marca").notNull().default(""),
+  codigoSerie: text("codigo_serie").notNull().default(""),
+  /** operativo | con_falla | en_reparacion | fuera_servicio | baja */
+  estado: text("estado").notNull().default("operativo"),
+  frecuenciaDias: integer("frecuencia_dias"),
+  ultimoControl: date("ultimo_control", { mode: "string" }),
+  proximoControl: date("proximo_control", { mode: "string" }),
+  observaciones: text("observaciones").notNull().default(""),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Registro de cada equipo: control, falla, reparacion, traslado, alta, cambio, baja, importacion. */
+export const invRegistrosTable = pgTable("inv_registros", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id")
+    .notNull()
+    .references(() => invItemsTable.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  fecha: date("fecha", { mode: "string" }).notNull(),
+  resultado: text("resultado").notNull().default(""),
+  detalle: text("detalle").notNull().default(""),
+  responsable: text("responsable").notNull().default(""),
+  estadoNuevo: text("estado_nuevo").notNull().default(""),
+  userId: integer("user_id").references(() => usersTable.id),
+  userNombre: text("user_nombre").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Plan de controles: cada cuántos días se controla cada tipo de equipo. */
+export const invPlanesTable = pgTable("inv_planes", {
+  tipo: text("tipo").primaryKey(),
+  frecuenciaDias: integer("frecuencia_dias").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const inventoryMovementsTable = pgTable("inventory_movements", {
   id: serial("id").primaryKey(),
   itemId: integer("item_id")

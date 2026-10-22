@@ -7,7 +7,7 @@ import { useLocation } from "wouter";
 
 type Notificacion = {
   id: string;
-  modulo: "administracion" | "guardias" | "sistema";
+  modulo: "administracion" | "guardias" | "inventario" | "sistema";
   nivel: "alta" | "media" | "info";
   titulo: string;
   detalle: string;
@@ -21,7 +21,7 @@ const NIVEL: Record<Notificacion["nivel"], { color: string; etiqueta: string }> 
   media: { color: "#ec835a", etiqueta: "Atención" },
   info: { color: "#2a78d6", etiqueta: "Info" },
 };
-const MODULO: Record<Notificacion["modulo"], string> = { administracion: "Administración", guardias: "Guardias", sistema: "Sistemas" };
+const MODULO: Record<Notificacion["modulo"], string> = { administracion: "Administración", guardias: "Guardias", sistema: "Sistemas", inventario: "Inventario" };
 const REFRESCO_MS = 2 * 60_000;
 
 function leerLeidas(clave: string): Set<string> {

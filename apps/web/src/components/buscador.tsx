@@ -7,9 +7,9 @@ import { guardarTema, temaEfectivo } from "@/pages/shared/apariencia";
 // vencimientos, usuarios, sectores). Todo con teclado: ↑ ↓ para moverse, Enter para abrir, Esc para cerrar.
 
 type Item = { grupo: string; titulo: string; detalle?: string; accion: () => void; clave: string };
-type Resultado = { tipo: "profesional" | "vencimiento" | "contacto" | "usuario" | "sector"; titulo: string; detalle: string; link: string };
+type Resultado = { tipo: "profesional" | "vencimiento" | "contacto" | "usuario" | "sector" | "equipo"; titulo: string; detalle: string; link: string };
 
-const GRUPO_DATO: Record<Resultado["tipo"], string> = { profesional: "Profesionales", vencimiento: "Vencimientos", contacto: "Contactos", usuario: "Usuarios", sector: "Sectores" };
+const GRUPO_DATO: Record<Resultado["tipo"], string> = { profesional: "Profesionales", vencimiento: "Vencimientos", contacto: "Contactos", usuario: "Usuarios", sector: "Sectores", equipo: "Equipos (inventario)" };
 
 function normal(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();

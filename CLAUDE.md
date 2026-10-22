@@ -24,11 +24,11 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 | **Administración** | Activo / prioritario | Agenda, fiscal (calendario oficial + estimadas), cheques, documentos, tareas, recurrentes, contactos |
 | **Guardias Médicas** | Activo / prioritario | Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
 | **Configuración** | Activo | Secciones Usuarios (ABM + permisos por módulo y nivel), Sectores (incluye si participan de Guardias y su horario requerido), Etiquetas de Guardias y Apariencia. Solo superadmin |
-| **Inventario** | **Próximamente** (pantalla `components/proximamente.tsx`); código viejo en `pages/Inventario.tsx` | No ampliar hasta que el usuario lo pida |
+| **Inventario** | Activo | Equipos por planta/sector (PLANTA, SECTOR, RUBRO, TIPO, DESCRIPCION, MARCA, CODIGO DE SERIE), registro de controles / fallas / reparaciones, plan de controles, importar / exportar Excel. Skill `.claude/skills/inventario/SKILL.md` |
 | **Instructivos** | **Próximamente**; código viejo en `pages/Instructivos.tsx` | No ampliar hasta pedido |
 | **Liquidación** | **Próximamente** | No implementar lógica |
 
-**Definidos en uso real hoy:** Administración + Guardias Médicas + Usuarios/Config.
+**Definidos en uso real hoy:** Administración + Guardias Médicas + Inventario + Usuarios/Config.
 
 ---
 
@@ -183,7 +183,7 @@ Skill: `.claude/skills/guardias-medicas/SKILL.md`
 
 - Integración ARCA/AFIP real
 - Upload binario de PDFs en producción
-- QR / mantenimientos de inventario
+- QR / etiquetas impresas de inventario
 - Lógica de Liquidación
 - Reescribir todo el frontend desde cero
 - Publicar Postgres en 0.0.0.0

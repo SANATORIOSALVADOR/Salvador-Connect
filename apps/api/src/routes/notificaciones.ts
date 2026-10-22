@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { admItemsTable, db, guardiasAuditoriaTable, userModulesTable, usersTable } from "@salvador/db";
 import { can, hasModule, ownSectorIds, requireAuth, visibleSectorIds } from "../lib/auth";
+import { resumenInventario } from "../lib/inventario";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horasEnRango, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
 // Campanita y gráficos del Resumen. Todo se calcula en el momento según los módulos de cada persona.
@@ -10,7 +11,7 @@ const router: IRouter = Router();
 
 type Notificacion = {
   id: string; // estable: la web recuerda cuáles ya se leyeron
-  modulo: "administracion" | "guardias" | "sistema";
+  modulo: "administracion" | "guardias" | "inventario" | "sistema";
   nivel: "alta" | "media" | "info";
   titulo: string;
   detalle: string;
@@ -105,6 +106,14 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
           });
         }
       }
+    }
+
+    // Inventario: controles vencidos / por vencer y equipos con falla (de los sectores que ve).
+    if (hasModule(user, "inventario")) {
+      const inv = await resumenInventario(user);
+      if (inv?.conFalla) out.push({ id: `inv-falla-${hoy}-${inv.conFalla}`, modulo: "inventario", nivel: "alta", titulo: inv.conFalla === 1 ? "1 equipo con falla" : `${inv.conFalla} equipos con falla`, detalle: "Pendientes de reparación.", fecha: hoy, link: "/inventario?filtro=falla" });
+      if (inv?.vencidos) out.push({ id: `inv-venc-${hoy}-${inv.vencidos}`, modulo: "inventario", nivel: "media", titulo: inv.vencidos === 1 ? "1 control de equipo vencido" : `${inv.vencidos} controles de equipos vencidos`, detalle: "Registrá los controles en Inventario.", fecha: hoy, link: "/inventario?filtro=vencidos" });
+      if (inv?.porVencer) out.push({ id: `inv-prox-${hoy}-${inv.porVencer}`, modulo: "inventario", nivel: "info", titulo: inv.porVencer === 1 ? "1 control de equipo esta semana" : `${inv.porVencer} controles de equipos esta semana`, detalle: "Vencen en los próximos 7 días.", fecha: hoy, link: "/inventario?filtro=semana" });
     }
 
     // Superadmin: accesos temporarios que vencen en los próximos 7 días.

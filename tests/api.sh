@@ -263,6 +263,78 @@ check "historial general" 200 "$(req $A GET /users/historial)"
 X="$(jget "d.some(h=>h.accion==='ver_como')")|$(jget "d.some(h=>h.accion==='perfil_alta')")|$(jget "d.some(h=>h.accion==='perfil_baja')")"; [ "$X" = "true|true|true" ] && ok "registra Ver como y perfiles" || bad "historial general" "$X"
 check "responsable NO ve el historial" 403 "$(req $R GET /users/historial)"
 
+echo "== Inventario"
+HOY=$(node -e "console.log(new Date().toLocaleDateString('sv-SE'))")
+EN180=$(node -e "const d=new Date();d.setDate(d.getDate()+180);console.log(d.toLocaleDateString('sv-SE'))")
+check "alta de equipo" 201 "$(req $A POST /inventario/items "{\"planta\":\"PB\",\"sectorId\":$GC,\"rubro\":\"Electromedicina\",\"tipo\":\"Monitor\",\"descripcion\":\"Monitor multiparamétrico\",\"marca\":\"Mindray\",\"codigoSerie\":\"MON-001\"}")"
+I1=$(jget d.id); X="$(jget d.estado)|$(jget d.proximoControl)"; [ "$X" = "operativo|null" ] && ok "operativo y sin control periódico ($X)" || bad "alta" "$X"
+check "sin descripción" 400 "$(req $A POST /inventario/items "{\"planta\":\"PB\",\"sectorId\":$GC,\"rubro\":\"X\",\"tipo\":\"Y\"}")"
+check "código de serie repetido (otra grafía)" 409 "$(req $A POST /inventario/items "{\"planta\":\"PB\",\"sectorId\":$GC,\"rubro\":\"X\",\"tipo\":\"Y\",\"descripcion\":\"Z\",\"codigoSerie\":\"mon-001\"}")"
+check "plan de controles: matafuegos semestral" 200 "$(req $A PUT /inventario/planes '{"tipo":"Matafuego","frecuenciaDias":"semestral","aplicar":"ninguno"}')"
+check "alta toma el plan del tipo" 201 "$(req $A POST /inventario/items "{\"planta\":\"pb\",\"sectorId\":$GC,\"rubro\":\"Seguridad\",\"tipo\":\"matafuego\",\"descripcion\":\"Matafuego ABC 5 kg\",\"codigoSerie\":\"MAT-01\"}")"
+I2=$(jget d.id); X="$(jget d.frecuenciaDias)|$(jget d.proximoControl)|$(jget d.planta)"; [ "$X" = "180|$EN180|PB" ] && ok "cada 180 días, próximo $EN180, reutiliza «PB» ($X)" || bad "plan" "$X"
+check "control OK" 201 "$(req $A POST /inventario/items/$I2/registros "{\"tipo\":\"control\",\"fecha\":\"$HOY\",\"resultado\":\"ok\",\"responsable\":\"Técnico\"}")"
+X="$(jget d.ultimoControl)|$(jget d.proximoControl)"; [ "$X" = "$HOY|$EN180" ] && ok "actualiza último y próximo control" || bad "control" "$X"
+check "falla sin detalle" 400 "$(req $A POST /inventario/items/$I2/registros '{"tipo":"falla"}')"
+check "reportar falla" 201 "$(req $A POST /inventario/items/$I2/registros '{"tipo":"falla","detalle":"Manómetro en rojo"}')"
+X=$(jget d.estado); [ "$X" = "con_falla" ] && ok "queda con falla" || bad "falla" "$X"
+check "registrar reparación" 201 "$(req $A POST /inventario/items/$I2/registros '{"tipo":"reparacion","detalle":"Recarga"}')"
+X=$(jget d.estado); [ "$X" = "operativo" ] && ok "vuelve a operativo" || bad "reparación" "$X"
+check "historia del equipo" 200 "$(req $A GET /inventario/items/$I2)"
+X=$(jget "d.registros.map(r=>r.tipo).join(',')"); [ "$X" = "reparacion,falla,control,alta" ] && ok "registro completo ($X)" || bad "historia" "$X"
+echo "-- importación"
+FILAS='[
+ {"planta":"Planta baja","sector":"guardia central","rubro":"Informática","tipo":"PC","descripcion":"PC escritorio","marca":"Dell","codigoSerie":"PC-1"},
+ {"planta":"PB","sector":"Guardia Central","rubro":"Informática","tipo":"","descripcion":"Sin tipo","marca":"","codigoSerie":""},
+ {"planta":"PB","sector":"Pediatría Inexistente","rubro":"X","tipo":"Y","descripcion":"Sector malo","marca":"","codigoSerie":""},
+ {"planta":"PB","sector":"Guardia Central","rubro":"X","tipo":"Y","descripcion":"Serie ya cargada","marca":"","codigoSerie":"MON-001"},
+ {"planta":"PB","sector":"Guardia Central","rubro":"X","tipo":"Y","descripcion":"Serie repetida en el archivo","marca":"","codigoSerie":"pc-1"},
+ {"planta":"1° piso","sector":"UTI Neo","rubro":"Electromedicina","tipo":"Incubadora","descripcion":"Incubadora neonatal","marca":"Dräger","codigoSerie":"INC-7","estado":"con falla","frecuencia":"Anual","ultimoControl":"2026-01-10"}
+]'
+check "simular importación" 200 "$(req $A POST /inventario/importar "{\"modo\":\"agregar\",\"simular\":true,\"filas\":$FILAS}")"
+X="$(jget "[d.resumen.nuevos,d.resumen.errores].join(',')")"; [ "$X" = "2,4" ] && ok "2 nuevos y 4 con error ($X)" || bad "simulación" "$X"
+X=$(jget "d.filas.filter(f=>f.estado==='error').map(f=>f.fila).join(',')"); [ "$X" = "3,4,5,6" ] && ok "marca las filas con error ($X)" || bad "filas error" "$X"
+X=$(jget "d.filas.find(f=>f.fila===4).mensajes[0]"); case "$X" in *"no existe"*) ok "explica el error (sector inexistente)";; *) bad "mensaje" "$X";; esac
+req $A GET /inventario/items >/dev/null; N0=$(jget d.length)
+check "importar de verdad" 200 "$(req $A POST /inventario/importar "{\"modo\":\"agregar\",\"simular\":false,\"filas\":$FILAS}")"
+req $A GET /inventario/items >/dev/null; N1=$(jget d.length); [ "$((N1-N0))" = "2" ] && ok "cargó solo las 2 filas válidas" || bad "importó" "$N0 → $N1"
+X=$(jget "(e=>e.estado+'|'+e.frecuenciaDias+'|'+e.ultimoControl)(d.find(e=>e.codigoSerie==='INC-7'))"); [ "$X" = "con_falla|365|2026-01-10" ] && ok "toma estado, frecuencia y último control ($X)" || bad "opcionales" "$X"
+X=$(jget "d.find(e=>e.codigoSerie==='PC-1').sectorName"); [ "$X" = "Guardia Central" ] && ok "reconoce el sector sin mayúsculas" || bad "sector" "$X"
+check "actualizar existentes por código de serie" 200 "$(req $A POST /inventario/importar "{\"modo\":\"actualizar\",\"simular\":false,\"filas\":[{\"planta\":\"PB\",\"sector\":\"Guardia Central\",\"rubro\":\"Electromedicina\",\"tipo\":\"Monitor\",\"descripcion\":\"Monitor multiparamétrico\",\"marca\":\"Mindray Pro\",\"codigoSerie\":\"MON-001\"}]}")"
+X=$(jget "d.resumen.actualizados"); [ "$X" = "1" ] && ok "1 actualizado" || bad "actualizar" "$X"
+req $A GET /inventario/items/$I1 >/dev/null; X="$(jget d.marca)|$(jget "d.registros[0].tipo")"; [ "$X" = "Mindray Pro|cambio" ] && ok "cambio con historia ($X)" || bad "actualizado" "$X"
+echo "-- permisos y sectores"
+check "encargado de UTI (inventario)" 201 "$(req $A POST /users "{\"name\":\"Inv UTI\",\"username\":\"invuti\",\"password\":\"prueba123\",\"permissions\":{\"inventario\":\"editar\"},\"scopes\":{\"inventario\":{\"alcance\":\"sector\",\"sectorIds\":[$UTI]}}}")"
+IU=$T/ck_iu; req $IU POST /auth/login '{"username":"invuti","password":"prueba123"}' >/dev/null
+check "ve el inventario" 200 "$(req $IU GET /inventario/items)"
+X=$(jget "d.filter(e=>e.sectorId!==$UTI).length+'|'+d.length"); [ "$X" = "0|1" ] && ok "solo los equipos de UTI ($X)" || bad "alcance" "$X"
+check "no carga en otro sector" 403 "$(req $IU POST /inventario/items "{\"planta\":\"PB\",\"sectorId\":$GC,\"rubro\":\"X\",\"tipo\":\"Y\",\"descripcion\":\"Z\"}")"
+check "no ve equipos de otro sector" 404 "$(req $IU GET /inventario/items/$I1)"
+check "sin 'importar' no importa" 403 "$(req $IU POST /inventario/importar '{"filas":[{}]}')"
+INC=$(req $IU GET /inventario/items >/dev/null; jget "d[0].id")
+check "registra controles en su sector" 201 "$(req $IU POST /inventario/items/$INC/registros '{"tipo":"control","resultado":"observacion","detalle":"Revisar sensor"}')"
+check "solo-lectura (Ver)" 201 "$(req $A POST /users '{"name":"Inv Ver","username":"invver","password":"prueba123","permissions":{"inventario":"ver"}}')"
+IV=$T/ck_iv; req $IV POST /auth/login '{"username":"invver","password":"prueba123"}' >/dev/null
+check "Ver: lee el registro" 200 "$(req $IV GET '/inventario/registros?tipo=control')"
+check "Ver: no registra controles" 403 "$(req $IV POST /inventario/items/$I1/registros '{"tipo":"control"}')"
+check "Ver: no da de alta" 403 "$(req $IV POST /inventario/items "{\"planta\":\"PB\",\"sectorId\":$GC,\"rubro\":\"X\",\"tipo\":\"Y\",\"descripcion\":\"Z\"}")"
+echo "-- lote, baja, catálogos"
+check "cambiar frecuencia a varios" 200 "$(req $A PATCH /inventario/lote "{\"ids\":[$I1,$I2],\"cambios\":{\"frecuenciaDias\":90}}")"
+X=$(jget d.actualizados); [ "$X" = "2" ] && ok "2 actualizados" || bad "lote" "$X"
+check "control de varios a la vez" 201 "$(req $A POST /inventario/registros/lote "{\"ids\":[$I1,$I2],\"tipo\":\"control\",\"resultado\":\"ok\"}")"
+X=$(jget d.registrados); [ "$X" = "2" ] && ok "2 controles registrados" || bad "control lote" "$X"
+check "dar de baja" 200 "$(req $A POST /inventario/items/$I1/baja '{"motivo":"Reemplazado"}')"
+req $A GET /inventario/items >/dev/null; X=$(jget "d.some(e=>e.id===$I1)"); [ "$X" = "false" ] && ok "no aparece entre los activos" || bad "baja" "$X"
+req $A GET '/inventario/items?bajas=1' >/dev/null; X=$(jget "d.find(e=>e.id===$I1).estado"); [ "$X" = "baja" ] && ok "sí con bajas" || bad "bajas" "$X"
+check "reactivar" 200 "$(req $A POST /inventario/items/$I1/reactivar '{}')"
+check "unificar planta «PB» → «Planta baja»" 200 "$(req $A POST /inventario/catalogos/renombrar '{"campo":"planta","de":"pb","a":"Planta baja"}')"
+req $A GET /inventario/catalogos >/dev/null; X=$(jget "d.plantas.map(p=>p.valor).join(',')"); case "$X" in *PB*) bad "unificar" "$X";; *"Planta baja"*) ok "plantas unificadas ($X)";; *) bad "unificar" "$X";; esac
+check "superadmin: aviso de equipo con falla" 200 "$(req $A GET /notificaciones)"
+X=$(jget "d.some(n=>n.modulo==='inventario'&&n.titulo.includes('con falla'))"); [ "$X" = "true" ] && ok "aviso de inventario" || bad "aviso" "$X"
+check "buscador encuentra equipos" 200 "$(req $A GET '/buscar?q=INC-7')"
+X=$(jget "d.filter(r=>r.tipo==='equipo').length"); [ "$X" = "1" ] && ok "por código de serie" || bad "buscar" "$X"
+check "eliminar equipo" 204 "$(req $A DELETE /inventario/items/$I2)"
+
 echo "== Administración: ítems"
 E=$T/ck_admed
 check "crear usuario Administración=editar" 201 "$(req $A POST /users '{"name":"Laura Adm","username":"laura","password":"prueba123","permissions":{"administracion":"editar"}}')"

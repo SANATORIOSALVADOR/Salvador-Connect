@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { admContactosTable, admItemsTable, db, guardiasTable, profesionalesTable, sectorsTable, usersTable } from "@salvador/db";
+import { admContactosTable, admItemsTable, db, guardiasTable, invItemsTable, profesionalesTable, sectorsTable, usersTable } from "@salvador/db";
 import { hasModule, requireAuth, visibleSectorIds } from "../lib/auth";
 
 // Búsqueda global (Ctrl + K): profesionales, vencimientos, usuarios y sectores según los permisos.
@@ -12,7 +12,7 @@ function clave(s: string): string {
   return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-type Resultado = { tipo: "profesional" | "vencimiento" | "contacto" | "usuario" | "sector"; titulo: string; detalle: string; link: string };
+type Resultado = { tipo: "profesional" | "vencimiento" | "contacto" | "usuario" | "sector" | "equipo"; titulo: string; detalle: string; link: string };
 
 router.get("/buscar", requireAuth, async (req, res): Promise<void> => {
   const q = clave(String(req.query.q ?? "").trim()).slice(0, 60);
@@ -54,6 +54,25 @@ router.get("/buscar", requireAuth, async (req, res): Promise<void> => {
       const contactos = await db.select().from(admContactosTable).limit(1000);
       for (const c of contactos.filter((x) => coincide(x.nombre, x.rubro, x.persona, x.cuit)).slice(0, 4)) {
         out.push({ tipo: "contacto", titulo: c.nombre, detalle: [c.rubro, c.telefono].filter(Boolean).join(" · ") || "Contacto", link: `/administracion?tab=contactos&buscar=${encodeURIComponent(c.nombre)}` });
+      }
+    }
+    if (hasModule(user, "inventario")) {
+      const visInv = visibleSectorIds(user, "inventario");
+      if (!visInv || visInv.length) {
+        const equipos = await db
+          .select({ it: invItemsTable, sector: sectorsTable.name })
+          .from(invItemsTable)
+          .leftJoin(sectorsTable, eq(invItemsTable.sectorId, sectorsTable.id))
+          .where(visInv ? inArray(invItemsTable.sectorId, visInv) : undefined)
+          .limit(20000);
+        for (const { it, sector } of equipos.filter(({ it }) => coincide(it.descripcion, it.marca, it.codigoSerie, it.tipo, `n ${it.id}`)).slice(0, 6)) {
+          out.push({
+            tipo: "equipo",
+            titulo: it.descripcion,
+            detalle: [it.marca, it.codigoSerie && `Serie ${it.codigoSerie}`, sector, it.estado === "baja" ? "baja" : ""].filter(Boolean).join(" · "),
+            link: `/inventario?item=${it.id}`,
+          });
+        }
       }
     }
     if (user.role === "superadmin") {

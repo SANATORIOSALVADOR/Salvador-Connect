@@ -30,9 +30,13 @@ export const ACCIONES: Record<string, Accion[]> = {
     { key: "calendario", nivel: "total" }, // obligaciones, calendario oficial y feriados
   ],
   inventario: [
-    { key: "ver", nivel: "ver" },
-    { key: "cargar", nivel: "editar" },
-    { key: "eliminar", nivel: "total" },
+    { key: "ver", nivel: "ver" }, // equipos, registro de controles y su historia
+    { key: "exportar", nivel: "ver" }, // Excel / CSV
+    { key: "controlar", nivel: "editar" }, // registrar controles, fallas y reparaciones
+    { key: "cargar", nivel: "editar" }, // dar de alta y editar equipos (incluye traslados)
+    { key: "importar", nivel: "total" }, // carga masiva desde Excel
+    { key: "eliminar", nivel: "total" }, // dar de baja y eliminar
+    { key: "configurar", nivel: "total" }, // plan de controles y catálogos (plantas, rubros, tipos)
   ],
   instructivos: [
     { key: "ver", nivel: "ver" },

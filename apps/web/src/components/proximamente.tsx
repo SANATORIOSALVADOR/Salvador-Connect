@@ -6,7 +6,7 @@ import { Compass, Lightbulb, MessageSquareText } from "lucide-react";
  * El código anterior de cada módulo sigue en pages/; para volver a habilitarlo se cambia la ruta en App.tsx
  * y se saca el módulo de MODULOS_PROXIMAMENTE.
  */
-export const MODULOS_PROXIMAMENTE = ["/inventario", "/instructivos", "/liquidacion"];
+export const MODULOS_PROXIMAMENTE = ["/instructivos", "/liquidacion"];
 
 type Props = {
   titulo: string;

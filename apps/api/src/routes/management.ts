@@ -4,7 +4,6 @@ import {
   db,
   agendaItemsTable,
   guardiasTable,
-  inventoryItemsTable,
   admItemsTable,
   sectorsTable,
   usersTable,
@@ -24,6 +23,7 @@ import {
   UpdateAgendaItemParams,
   UpdateAgendaItemResponse,
 } from "@salvador/api-zod";
+import { resumenInventario } from "../lib/inventario";
 import { visibleSectorIds, hasModule, requireAuth, type AuthUser } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -138,14 +138,11 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       pendingGuardias = Number(row?.n ?? 0);
     }
 
-    // Equipos en reparación (el inventario no maneja stock).
+    // Equipos con falla o en reparación (de los sectores que ve).
     let lowStockItems = 0;
     if (hasModule(user, "inventario")) {
-      const [row] = await db
-        .select({ n: count() })
-        .from(inventoryItemsTable)
-        .where(eq(inventoryItemsTable.status, "en_reparacion"));
-      lowStockItems = Number(row?.n ?? 0);
+      const inv = await resumenInventario(user);
+      lowStockItems = (inv?.conFalla ?? 0) + (inv?.enReparacion ?? 0);
     }
 
     const activity = await recentActivity(user, 20);
