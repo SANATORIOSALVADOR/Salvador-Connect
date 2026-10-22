@@ -55,16 +55,26 @@ CREATE TABLE IF NOT EXISTS "inv_planes" (
 );
 
 -- Lo que hubiera en el inventario viejo (con sector) pasa al nuevo, una sola vez.
-INSERT INTO "inv_items" ("sector_id", "rubro", "descripcion", "codigo_serie", "estado", "observaciones", "created_at")
-SELECT
-	i."sector_id",
-	COALESCE(NULLIF(i."category", 'general'), ''),
-	i."name",
-	COALESCE(i."serial_number", ''),
-	CASE i."status" WHEN 'en_reparacion' THEN 'en_reparacion' WHEN 'baja' THEN 'baja' ELSE 'operativo' END,
-	COALESCE(i."location_note", ''),
-	i."created_at"
-FROM "inventory_items" i
-WHERE i."sector_id" IS NOT NULL
-	AND NOT EXISTS (SELECT 1 FROM "inv_items" LIMIT 1)
-ON CONFLICT DO NOTHING;
+-- Si la tabla vieja no existe o tiene otras columnas (bases creadas con versiones anteriores), se saltea:
+-- no puede frenar la migración.
+DO $$
+BEGIN
+	IF to_regclass('inventory_items') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "inv_items") THEN
+		BEGIN
+			INSERT INTO "inv_items" ("sector_id", "rubro", "descripcion", "codigo_serie", "estado", "observaciones", "created_at")
+			SELECT
+				i."sector_id",
+				COALESCE(NULLIF(i."category", 'general'), ''),
+				i."name",
+				COALESCE(i."serial_number", ''),
+				CASE i."status" WHEN 'en_reparacion' THEN 'en_reparacion' WHEN 'baja' THEN 'baja' ELSE 'operativo' END,
+				COALESCE(i."location_note", ''),
+				i."created_at"
+			FROM "inventory_items" i
+			WHERE i."sector_id" IS NOT NULL
+			ON CONFLICT DO NOTHING;
+		EXCEPTION WHEN others THEN
+			RAISE NOTICE 'No se pasaron los datos del inventario viejo: %', SQLERRM;
+		END;
+	END IF;
+END $$;

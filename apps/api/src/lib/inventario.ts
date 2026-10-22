@@ -4,6 +4,16 @@ import { hoyIso, visibleSectorIds, type AuthUser } from "./auth";
 
 /** Números del inventario que ve la persona (Inicio, avisos y resumen). Sin módulo: null. */
 export async function resumenInventario(user: AuthUser): Promise<{ total: number; vencidos: number; porVencer: number; conFalla: number; enReparacion: number } | null> {
+  try {
+    return await calcular(user);
+  } catch (err) {
+    // Que un problema del inventario no tire abajo Inicio ni las notificaciones.
+    console.error("[inventario.resumen]", err);
+    return null;
+  }
+}
+
+async function calcular(user: AuthUser): Promise<{ total: number; vencidos: number; porVencer: number; conFalla: number; enReparacion: number }> {
   const ids = visibleSectorIds(user, "inventario");
   if (ids && !ids.length) return { total: 0, vencidos: 0, porVencer: 0, conFalla: 0, enReparacion: 0 };
   const hoy = hoyIso();
