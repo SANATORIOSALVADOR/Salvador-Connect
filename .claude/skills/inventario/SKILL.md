@@ -26,6 +26,17 @@ description: Módulo Inventario del Sanatorio del Salvador — equipos y bienes 
 - Control: actualiza último/próximo control. Falla (o control con falla) → `con_falla`; reparación → `operativo` (salvo que se elija otro).
 - `inv_planes`: frecuencia por tipo; la toman las altas e importaciones sin frecuencia. Al definirla se puede aplicar a los existentes.
 
+## Controles (migración 0011)
+
+- `inv_planes.checklist` (jsonb, lista de puntos) y `frecuencia_dias` opcional: un tipo puede tener lista sin frecuencia.
+- Control con lista: `checklist: [{ item, estado: ok|obs|falla, nota? }]`; el resultado es el peor punto y, si hay falla sin
+  detalle, el detalle se arma con los puntos en falla. Se guarda en `inv_registros.checklist`.
+- Tipos de registro: `control` · `falla` · `envio` (sale a reparación → `en_reparacion`, con `proveedor`) · `reparacion`
+  (→ `operativo`; también renueva el control).
+- UI (`pages/inventario/controles.tsx`): `ListaVerificacion`, `RegistroForm` y `RondaModal` (equipo por equipo, «Todo OK»,
+  saltear, resumen final). Solapa Controles: filtros planta/sector, % al día, ronda de pendientes/completa, vencidos,
+  agenda por semana, con falla sin enviar, en reparación (días y proveedor), cumplimiento por sector y registro.
+
 ## Importación
 
 - La pantalla lee el archivo con SheetJS (xlsx, xls, xlsm, xlsb, ods, csv), busca la hoja y la fila de encabezados y reconoce

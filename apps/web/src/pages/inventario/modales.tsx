@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, ClipboardCheck, FileUp, History, PencilLine, PlusCircle, Trash2, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ClipboardCheck, FileUp, History, PencilLine, PlusCircle, Trash2, Truck, Wrench } from "lucide-react";
 import { avisar, confirmar } from "@/components/feedback";
-import { Campo, Modal, Pill, S, SegControl } from "../administracion/ui";
+import { Campo, Modal, Pill, S } from "../administracion/ui";
 import {
   ESTADOS,
   FRECUENCIAS,
@@ -9,6 +9,7 @@ import {
   SITUACION,
   TIPO_REGISTRO,
   clave,
+  diasEntre,
   estadoMeta,
   fechaAr,
   frecuenciaTexto,
@@ -24,6 +25,8 @@ import {
   type Estado,
   type Registro,
 } from "./api";
+
+export { RegistroForm } from "./controles";
 
 export type Permisos = { cargar: boolean; controlar: boolean; eliminar: boolean; importar: boolean; exportar: boolean; configurar: boolean };
 
@@ -191,117 +194,6 @@ export function EquipoForm({
   );
 }
 
-// ---------- control / falla / reparación ----------
-
-export function RegistroForm({
-  equipos,
-  tipoInicial,
-  responsable,
-  onClose,
-  onSaved,
-}: {
-  equipos: Equipo[];
-  tipoInicial: DatosRegistro["tipo"];
-  responsable: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [d, setD] = useState<DatosRegistro>({ tipo: tipoInicial, fecha: hoyIso(), resultado: "ok", detalle: "", responsable, estado: "" });
-  const [error, setError] = useState<string | null>(null);
-  const [guardando, setGuardando] = useState(false);
-  const uno = equipos.length === 1 ? equipos[0] : null;
-  const conFalla = d.tipo === "falla" || (d.tipo === "control" && d.resultado === "falla");
-
-  const guardar = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setGuardando(true);
-    try {
-      const body = { ...d, resultado: d.tipo === "control" ? d.resultado : undefined, estado: d.estado || undefined };
-      if (uno) await inv.registrar(uno.id, body);
-      else {
-        const r = await inv.registrarLote(equipos.map((x) => x.id), body);
-        avisar(`${r.registrados} equipo${r.registrados === 1 ? "" : "s"} registrado${r.registrados === 1 ? "" : "s"}${r.omitidos.length ? ` · ${r.omitidos.length} omitido${r.omitidos.length === 1 ? "" : "s"} (de baja o de sectores que no tenés a cargo)` : ""}.`);
-      }
-      if (uno) avisar(d.tipo === "control" ? "Control registrado." : d.tipo === "falla" ? "Falla registrada." : "Reparación registrada.");
-      onSaved();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const titulo = d.tipo === "control" ? "Registrar control" : d.tipo === "falla" ? "Reportar falla" : "Registrar reparación";
-  return (
-    <Modal
-      titulo={uno ? `${titulo} · Nº ${uno.id}` : `${titulo} · ${equipos.length} equipos`}
-      onClose={onClose}
-      ancho={600}
-      pie={
-        <>
-          <button type="button" className="btn btn-quiet" onClick={onClose}>Cancelar</button>
-          <button type="submit" form="form-registro" className="btn btn-primary" disabled={guardando}>{guardando ? "Guardando…" : "Guardar"}</button>
-        </>
-      }
-    >
-      <form id="form-registro" onSubmit={guardar} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {uno ? (
-          <div style={{ ...S.small, fontSize: 13 }}>
-            <strong style={{ color: "hsl(var(--foreground))" }}>{uno.descripcion}</strong> · {uno.sectorName} · {uno.planta}
-            {uno.codigoSerie && <> · Serie {uno.codigoSerie}</>}
-          </div>
-        ) : (
-          <div style={{ ...S.small, fontSize: 13 }}>Se registra lo mismo para los {equipos.length} equipos elegidos.</div>
-        )}
-        {error && <div className="form-error">{error}</div>}
-        <SegControl
-          label="Qué registrás"
-          value={d.tipo}
-          onChange={(tipo) => setD({ ...d, tipo, estado: "" })}
-          opciones={[
-            { value: "control", label: "Control" },
-            { value: "falla", label: "Falla" },
-            { value: "reparacion", label: "Reparación" },
-          ]}
-        />
-        <div style={S.grid2}>
-          <Campo label="Fecha">
-            <input className="input" type="date" required max={hoyIso()} value={d.fecha} onChange={(e) => setD({ ...d, fecha: e.target.value })} />
-          </Campo>
-          <Campo label="Responsable / técnico">
-            <input className="input" maxLength={120} value={d.responsable} onChange={(e) => setD({ ...d, responsable: e.target.value })} placeholder="Quién lo hizo" />
-          </Campo>
-        </div>
-        {d.tipo === "control" && (
-          <Campo label="Resultado">
-            <SegControl
-              label="Resultado del control"
-              value={d.resultado ?? "ok"}
-              onChange={(resultado) => setD({ ...d, resultado })}
-              opciones={[
-                { value: "ok", label: <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><CheckCircle2 size={14} /> OK</span> },
-                { value: "observacion", label: "Con observaciones" },
-                { value: "falla", label: <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><AlertTriangle size={14} /> Con falla</span> },
-              ]}
-            />
-          </Campo>
-        )}
-        <Campo label={conFalla ? "¿Qué falla? *" : d.tipo === "reparacion" ? "Qué se hizo" : "Detalle (opcional)"}>
-          <textarea className="input" rows={3} required={conFalla} maxLength={2000} value={d.detalle} onChange={(e) => setD({ ...d, detalle: e.target.value })} placeholder={conFalla ? "Ej.: no enciende, alarma de batería…" : d.tipo === "reparacion" ? "Ej.: cambio de batería, service externo…" : ""} />
-        </Campo>
-        <Campo label="Estado en que queda" hint={d.tipo === "reparacion" ? "Por defecto vuelve a Operativo." : conFalla ? "Por defecto queda Con falla." : "Por defecto no cambia."}>
-          <select className="select" value={d.estado ?? ""} onChange={(e) => setD({ ...d, estado: e.target.value as Estado | "" })}>
-            <option value="">Automático</option>
-            {ESTADOS.filter((x) => x.value !== "baja").map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-          </select>
-        </Campo>
-        {d.tipo === "control" && uno?.frecuenciaDias && <div style={S.small}>El próximo control queda para dentro de {uno.frecuenciaDias} días desde la fecha del control.</div>}
-      </form>
-    </Modal>
-  );
-}
-
 // ---------- cambios en varios equipos ----------
 
 type CampoLote = "frecuenciaDias" | "estado" | "planta" | "sectorId" | "rubro" | "tipo";
@@ -392,6 +284,7 @@ export function LoteForm({ equipos, sectores, catalogos, onClose, onSaved }: { e
 const ICONO_REGISTRO: Record<string, typeof History> = {
   control: ClipboardCheck,
   falla: AlertTriangle,
+  envio: Truck,
   reparacion: Wrench,
   traslado: ArrowRightLeft,
   alta: PlusCircle,
@@ -404,6 +297,7 @@ function colorRegistro(r: Registro): string {
   if (r.tipo === "falla" || r.resultado === "falla") return "#b91c1c";
   if (r.tipo === "control") return r.resultado === "observacion" ? "#b45309" : "#15803d";
   if (r.tipo === "reparacion") return "#1d4ed8";
+  if (r.tipo === "envio") return "#7c3aed";
   if (r.tipo === "baja") return "#6b7280";
   return "hsl(var(--muted-foreground))";
 }
@@ -468,6 +362,7 @@ export function EquipoDetalleModal({
   };
 
   const ultimaFalla = e?.registros.find((r) => r.tipo === "falla" || r.resultado === "falla");
+  const ultimoEnvio = e?.registros.find((r) => r.tipo === "envio");
   const controles = e?.registros.filter((r) => r.tipo === "control").length ?? 0;
   const fallas = e?.registros.filter((r) => r.tipo === "falla" || r.resultado === "falla").length ?? 0;
 
@@ -492,10 +387,13 @@ export function EquipoDetalleModal({
             {permisos.cargar && <button type="button" className="btn btn-quiet" onClick={() => onEditar(e)}>Editar</button>}
             {permisos.controlar && e.estado !== "baja" && (
               <>
-                {(e.estado === "con_falla" || e.estado === "en_reparacion" || e.estado === "fuera_servicio") && (
-                  <button type="button" className="btn btn-quiet" onClick={() => onRegistrar(e, "reparacion")}>Registrar reparación</button>
+                {(e.estado === "con_falla" || e.estado === "fuera_servicio") && (
+                  <button type="button" className="btn btn-quiet" onClick={() => onRegistrar(e, "envio")}>Enviar a reparación</button>
                 )}
-                <button type="button" className="btn btn-quiet" onClick={() => onRegistrar(e, "falla")}>Reportar falla</button>
+                {(e.estado === "con_falla" || e.estado === "en_reparacion" || e.estado === "fuera_servicio") && (
+                  <button type="button" className="btn btn-quiet" onClick={() => onRegistrar(e, "reparacion")}>Marcar reparado</button>
+                )}
+                {e.estado === "operativo" && <button type="button" className="btn btn-quiet" onClick={() => onRegistrar(e, "falla")}>Reportar falla</button>}
                 <button type="button" className="btn btn-primary" onClick={() => onRegistrar(e, "control")}>Registrar control</button>
               </>
             )}
@@ -518,7 +416,14 @@ export function EquipoDetalleModal({
               {[e.marca, e.codigoSerie && `Serie ${e.codigoSerie}`].filter(Boolean).join(" · ") || "Sin marca ni código de serie"}
             </div>
           </div>
-          {ultimaFalla && (e.estado === "con_falla" || e.estado === "en_reparacion" || e.estado === "fuera_servicio") && (
+          {e.estado === "en_reparacion" && ultimoEnvio && (
+            <div style={{ padding: "10px 12px", borderRadius: 10, background: "#ede9fe", color: "#4c1d95", fontSize: 13 }}>
+              <strong>En reparación desde el {fechaAr(ultimoEnvio.fecha)}</strong> ({diasEntre(ultimoEnvio.fecha, hoy)} día{diasEntre(ultimoEnvio.fecha, hoy) === 1 ? "" : "s"})
+              {ultimoEnvio.proveedor && <> · {ultimoEnvio.proveedor}</>}
+              {ultimoEnvio.detalle && <> · {ultimoEnvio.detalle}</>}
+            </div>
+          )}
+          {ultimaFalla && (e.estado === "con_falla" || e.estado === "fuera_servicio" || (e.estado === "en_reparacion" && !ultimoEnvio)) && (
             <div style={{ padding: "10px 12px", borderRadius: 10, background: "#fde2e2", color: "#8f1d1d", fontSize: 13 }}>
               <strong>Falla reportada el {fechaAr(ultimaFalla.fecha)}:</strong> {ultimaFalla.detalle || "sin detalle"}
             </div>
@@ -566,7 +471,18 @@ export function EquipoDetalleModal({
                           <span style={S.small}>{fechaAr(r.fecha)}{r.responsable ? ` · ${r.responsable}` : ""}{r.userNombre && r.userNombre !== r.responsable ? ` · cargó ${r.userNombre}` : ""}</span>
                           {r.estadoNuevo && <EstadoPill estado={r.estadoNuevo} />}
                         </div>
+                        {r.proveedor && <div style={{ fontSize: 12.5, marginTop: 2 }}>Proveedor: {r.proveedor}</div>}
                         {r.detalle && <div style={{ fontSize: 13, marginTop: 2, whiteSpace: "pre-wrap" }}>{r.detalle}</div>}
+                        {r.checklist && r.checklist.length > 0 && (
+                          <div className="inv-hist-check">
+                            {r.checklist.map((c) => (
+                              <span key={c.item} className={`es-${c.estado}`} title={c.nota || undefined}>
+                                {c.estado === "ok" ? "✓" : c.estado === "falla" ? "✕" : "!"} {c.item}
+                                {c.nota ? `: ${c.nota}` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </li>
                   );

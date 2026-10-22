@@ -28,7 +28,9 @@ const ESTADO_LABEL: Record<Estado, string> = {
   fuera_servicio: "Fuera de servicio",
   baja: "Baja",
 };
-const TIPOS_REGISTRO = ["control", "falla", "reparacion"] as const;
+/** envio = sale a reparación / service (queda "en reparación"). */
+const TIPOS_REGISTRO = ["control", "falla", "envio", "reparacion"] as const;
+const ESTADOS_PUNTO = ["ok", "obs", "falla"] as const;
 const RESULTADOS = ["ok", "observacion", "falla"] as const;
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_IMPORTAR = 5000;
@@ -141,7 +143,23 @@ async function catalogoExistente(): Promise<Record<"planta" | "rubro" | "tipo", 
 }
 
 async function planes(): Promise<Map<string, number>> {
-  return new Map((await db.select().from(invPlanesTable)).map((p) => [clave(p.tipo), p.frecuenciaDias]));
+  const rows = await db.select().from(invPlanesTable);
+  return new Map(rows.filter((p) => p.frecuenciaDias).map((p) => [clave(p.tipo), p.frecuenciaDias!]));
+}
+
+/** Lista de verificación pedida: textos únicos, sin vacíos (máx. 30 puntos). */
+function leerChecklist(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const vistos = new Set<string>();
+  const out: string[] = [];
+  for (const x of v) {
+    const t = limpio(x, 120);
+    if (t && !vistos.has(clave(t))) {
+      vistos.add(clave(t));
+      out.push(t);
+    }
+  }
+  return out.slice(0, 30);
 }
 
 async function sectoresPorId(): Promise<Map<number, { id: number; name: string; shortName: string; active: boolean }>> {
@@ -434,11 +452,25 @@ async function aplicarRegistro(req: Request, it: ItemRow, body: Record<string, u
   if (!(TIPOS_REGISTRO as readonly string[]).includes(tipo)) falla(400, "Tipo de registro inválido.");
   const fecha = fechaValida(body.fecha) ?? hoyIso();
   if (fecha > sumarDias(hoyIso(), 1)) falla(400, "La fecha no puede ser futura.");
-  const resultado = tipo === "control" ? String(body.resultado ?? "ok") : "";
+  // Lista de verificación (solo en controles): el resultado sale del peor punto.
+  let checklist: { item: string; estado: "ok" | "obs" | "falla"; nota?: string }[] | null = null;
+  if (tipo === "control" && Array.isArray(body.checklist) && body.checklist.length) {
+    checklist = (body.checklist as Record<string, unknown>[]).slice(0, 30).map((c) => {
+      const est = String(c?.estado ?? "");
+      if (!(ESTADOS_PUNTO as readonly string[]).includes(est)) falla(400, `Falta marcar «${limpio(c?.item, 120) || "un punto"}» de la lista de verificación.`);
+      const nota = limpio(c?.nota, 300);
+      return { item: limpio(c?.item, 120), estado: est as "ok" | "obs" | "falla", ...(nota ? { nota } : {}) };
+    });
+  }
+  const peor = checklist ? (checklist.some((c) => c.estado === "falla") ? "falla" : checklist.some((c) => c.estado === "obs") ? "observacion" : "ok") : null;
+  const resultado = tipo === "control" ? (peor ?? String(body.resultado ?? "ok")) : "";
   if (tipo === "control" && !(RESULTADOS as readonly string[]).includes(resultado)) falla(400, "Resultado inválido (ok, observación o falla).");
-  const detalle = limpio(body.detalle, 2000);
+  let detalle = limpio(body.detalle, 2000);
+  // Con lista de verificación, los puntos con falla sirven de detalle.
+  if (!detalle && checklist && resultado === "falla") detalle = checklist.filter((c) => c.estado === "falla").map((c) => (c.nota ? `${c.item}: ${c.nota}` : c.item)).join(" · ");
   if ((tipo === "falla" || resultado === "falla") && !detalle) falla(400, "Contá cuál es la falla.");
   const responsable = limpio(body.responsable, 120);
+  const proveedor = limpio(body.proveedor, 120);
   // Estado que queda: el elegido o el que corresponde al registro.
   let estado: Estado = it.estado as Estado;
   const pedido = body.estado !== undefined && body.estado !== "" ? String(body.estado) : null;
@@ -446,9 +478,11 @@ async function aplicarRegistro(req: Request, it: ItemRow, body: Record<string, u
     if (!(ESTADOS as readonly string[]).includes(pedido) || pedido === "baja") falla(400, "Estado inválido.");
     estado = pedido as Estado;
   } else if (tipo === "falla" || resultado === "falla") estado = "con_falla";
+  else if (tipo === "envio") estado = "en_reparacion";
   else if (tipo === "reparacion") estado = "operativo";
   const patch: Partial<typeof invItemsTable.$inferInsert> = { estado, updatedAt: new Date() };
-  if (tipo === "control" && (!it.ultimoControl || fecha >= it.ultimoControl)) {
+  // Una reparación también cuenta como revisión: renueva el control.
+  if ((tipo === "control" || tipo === "reparacion") && (!it.ultimoControl || fecha >= it.ultimoControl)) {
     patch.ultimoControl = fecha;
     patch.proximoControl = it.frecuenciaDias ? sumarDias(fecha, it.frecuenciaDias) : null;
   }
@@ -460,6 +494,8 @@ async function aplicarRegistro(req: Request, it: ItemRow, body: Record<string, u
     resultado,
     detalle,
     responsable,
+    proveedor,
+    checklist,
     estadoNuevo: estado !== it.estado ? estado : "",
     ...quien(req),
   });
@@ -724,7 +760,7 @@ router.post(
       const [p] = await db.select().from(invPlanesTable).where(sql`lower(${invPlanesTable.tipo}) = lower(${de})`).limit(1);
       if (p) {
         await db.delete(invPlanesTable).where(eq(invPlanesTable.tipo, p.tipo));
-        await db.insert(invPlanesTable).values({ tipo: a, frecuenciaDias: p.frecuenciaDias }).onConflictDoNothing();
+        await db.insert(invPlanesTable).values({ tipo: a, frecuenciaDias: p.frecuenciaDias, checklist: p.checklist }).onConflictDoNothing();
       }
     }
     for (const c of cambiados) await registrar(c.id, "cambio", `${campo === "planta" ? "Planta" : campo === "rubro" ? "Rubro" : "Tipo"}: ${de} → ${a} (unificado)`, req);
@@ -732,7 +768,7 @@ router.post(
   }, "Error al unificar."),
 );
 
-/** Cada cuánto se controla un tipo de equipo. aplicar: "todos" | "sin_frecuencia" | "ninguno". */
+/** Plan de un tipo de equipo: cada cuánto se controla y qué se revisa. aplicar: "todos" | "sin_frecuencia" | "ninguno". */
 router.put(
   "/inventario/planes",
   requireAccion("inventario", "configurar"),
@@ -741,8 +777,10 @@ router.put(
     if (!tipo) falla(400, "Indicá el tipo de equipo.");
     const dias = frecuencia(req.body?.frecuenciaDias);
     const aplicar = String(req.body?.aplicar ?? "sin_frecuencia");
+    const [anterior] = await db.select().from(invPlanesTable).where(sql`lower(${invPlanesTable.tipo}) = lower(${tipo})`).limit(1);
+    const checklist = req.body?.checklist !== undefined ? leerChecklist(req.body.checklist) : (anterior?.checklist ?? []);
     await db.delete(invPlanesTable).where(sql`lower(${invPlanesTable.tipo}) = lower(${tipo})`);
-    if (dias) await db.insert(invPlanesTable).values({ tipo, frecuenciaDias: dias });
+    if (dias || checklist.length) await db.insert(invPlanesTable).values({ tipo, frecuenciaDias: dias ?? null, checklist });
     let actualizados = 0;
     if (aplicar !== "ninguno") {
       const propios = ownSectorIds(req.authUser, "inventario");
@@ -767,7 +805,7 @@ router.put(
         actualizados++;
       }
     }
-    res.json({ tipo, frecuenciaDias: dias ?? null, actualizados });
+    res.json({ tipo, frecuenciaDias: dias ?? null, checklist, actualizados });
   }, "Error al guardar el plan."),
 );
 

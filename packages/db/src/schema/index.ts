@@ -414,6 +414,9 @@ export const invRegistrosTable = pgTable("inv_registros", {
   detalle: text("detalle").notNull().default(""),
   responsable: text("responsable").notNull().default(""),
   estadoNuevo: text("estado_nuevo").notNull().default(""),
+  /** Resultado punto por punto de la lista de verificación (migración 0011). */
+  checklist: jsonb("checklist").$type<{ item: string; estado: "ok" | "obs" | "falla"; nota?: string }[]>(),
+  proveedor: text("proveedor").notNull().default(""),
   userId: integer("user_id").references(() => usersTable.id),
   userNombre: text("user_nombre").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -422,7 +425,9 @@ export const invRegistrosTable = pgTable("inv_registros", {
 /** Plan de controles: cada cuántos días se controla cada tipo de equipo. */
 export const invPlanesTable = pgTable("inv_planes", {
   tipo: text("tipo").primaryKey(),
-  frecuenciaDias: integer("frecuencia_dias").notNull(),
+  frecuenciaDias: integer("frecuencia_dias"),
+  /** Puntos a revisar en cada control de este tipo (migración 0011). */
+  checklist: jsonb("checklist").$type<string[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

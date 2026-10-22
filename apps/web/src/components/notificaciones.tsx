@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell, CalendarDays, ClipboardList, PackageOpen, Settings2, type LucideIcon } from "lucide-react";
 import { useLocation } from "wouter";
 
 // Campanita: vencimientos, huecos de guardia de la semana y cambios recientes en mis sectores.
@@ -22,6 +22,7 @@ const NIVEL: Record<Notificacion["nivel"], { color: string; etiqueta: string }> 
   info: { color: "#2a78d6", etiqueta: "Info" },
 };
 const MODULO: Record<Notificacion["modulo"], string> = { administracion: "Administración", guardias: "Guardias", sistema: "Sistemas", inventario: "Inventario" };
+const ICONO: Record<Notificacion["modulo"], LucideIcon> = { administracion: ClipboardList, guardias: CalendarDays, inventario: PackageOpen, sistema: Settings2 };
 const REFRESCO_MS = 2 * 60_000;
 
 function leerLeidas(clave: string): Set<string> {
@@ -37,6 +38,7 @@ export function Notificaciones({ usuario }: { usuario?: string }) {
   const [items, setItems] = useState<Notificacion[]>([]);
   const [leidas, setLeidas] = useState<Set<string>>(() => leerLeidas(clave));
   const [abierto, setAbierto] = useState(false);
+  const [filtro, setFiltro] = useState<Notificacion["modulo"] | "todas">("todas");
   const [, setLocation] = useLocation();
   const raiz = useRef<HTMLDivElement>(null);
 
@@ -88,6 +90,11 @@ export function Notificaciones({ usuario }: { usuario?: string }) {
 
   const noLeidas = items.filter((n) => !leidas.has(n.id));
   const urgentes = noLeidas.filter((n) => n.nivel === "alta").length;
+  const modulos = (Object.keys(MODULO) as Notificacion["modulo"][]).filter((m) => items.some((n) => n.modulo === m));
+  const vista = filtro === "todas" ? items : items.filter((n) => n.modulo === filtro);
+  useEffect(() => {
+    if (filtro !== "todas" && !items.some((n) => n.modulo === filtro)) setFiltro("todas");
+  }, [items, filtro]);
 
   return (
     <div ref={raiz} style={{ position: "relative" }}>
@@ -111,21 +118,37 @@ export function Notificaciones({ usuario }: { usuario?: string }) {
       </button>
 
       {abierto && (
-        <div role="dialog" aria-label="Notificaciones" className="card" style={{ position: "absolute", right: 0, top: 42, zIndex: 120, width: "min(380px, calc(100vw - 24px))", maxHeight: "70vh", overflowY: "auto", padding: 0, borderRadius: 14, boxShadow: "0 18px 50px rgba(15,23,42,.25)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: "1px solid hsl(var(--border))", position: "sticky", top: 0, background: "hsl(var(--card))" }}>
-            <strong style={{ fontSize: 14 }}>Notificaciones</strong>
-            {noLeidas.length > 0 && (
-              <button type="button" className="btn btn-quiet" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => guardar(new Set(items.map((n) => n.id)))}>
-                Marcar todo como leído
-              </button>
+        <div role="dialog" aria-label="Notificaciones" className="card noti-panel">
+          <div className="noti-cab">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <strong style={{ fontSize: 14 }}>Notificaciones{noLeidas.length ? ` (${noLeidas.length})` : ""}</strong>
+              {noLeidas.length > 0 && (
+                <button type="button" className="btn btn-quiet" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => guardar(new Set(items.map((n) => n.id)))}>
+                  Marcar todo como leído
+                </button>
+              )}
+            </div>
+            {modulos.length > 1 && (
+              <div className="noti-filtros" role="tablist" aria-label="Filtrar por módulo">
+                {(["todas", ...modulos] as const).map((m) => {
+                  const n = (m === "todas" ? noLeidas : noLeidas.filter((x) => x.modulo === m)).length;
+                  return (
+                    <button key={m} type="button" role="tab" aria-selected={filtro === m} className={filtro === m ? "is-on" : undefined} onClick={() => setFiltro(m)}>
+                      {m === "todas" ? "Todas" : MODULO[m]}
+                      {n > 0 && <span>{n}</span>}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
-          {items.length === 0 ? (
+          {vista.length === 0 ? (
             <div style={{ padding: 20, fontSize: 13, color: "hsl(var(--muted-foreground))" }}>No hay novedades. Todo al día.</div>
           ) : (
-            items.map((n) => {
+            vista.map((n) => {
               const leida = leidas.has(n.id);
               const nv = NIVEL[n.nivel];
+              const Ico = ICONO[n.modulo];
               return (
                 <button
                   key={n.id}
@@ -137,7 +160,10 @@ export function Notificaciones({ usuario }: { usuario?: string }) {
                   }}
                   style={{ display: "flex", gap: 10, width: "100%", textAlign: "left", padding: "10px 14px", border: "none", borderBottom: "1px solid hsl(var(--border) / .6)", background: leida ? "transparent" : "hsl(var(--primary) / .06)", color: "inherit", font: "inherit", cursor: "pointer" }}
                 >
-                  <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, marginTop: 6, flex: "0 0 auto", background: leida ? "transparent" : nv.color, border: `2px solid ${nv.color}` }} />
+                  <span aria-hidden="true" className="noti-ico" style={{ color: nv.color, background: `${nv.color}1f` }}>
+                    <Ico size={15} />
+                    {!leida && <i style={{ background: nv.color }} />}
+                  </span>
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ display: "flex", gap: 6, alignItems: "baseline", flexWrap: "wrap" }}>
                       <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "hsl(var(--muted-foreground))" }}>{nv.etiqueta} · {MODULO[n.modulo]}</span>

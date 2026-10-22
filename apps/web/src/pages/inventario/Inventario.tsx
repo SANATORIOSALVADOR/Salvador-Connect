@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ClipboardCheck, Download, FileSpreadsheet, Plus, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { avisar } from "@/components/feedback";
 import { Kpi, Pill, S, Seccion, SegControl, Vacio } from "../administracion/ui";
@@ -8,23 +8,27 @@ import {
   RESULTADO,
   TIPO_REGISTRO,
   clave,
+  diasEntre,
   estadoMeta,
   fechaAr,
   frecuenciaTexto,
   hoyIso,
   inv,
+  planDe,
   situacion,
   sumarDias,
   textoProximo,
   type Catalogos,
   type DatosRegistro,
   type Equipo,
+  type Plan,
   type Registro,
   type Situacion,
 } from "./api";
 import { exportar } from "./excel";
 import { ImportarModal } from "./Importar";
 import { ControlPill, EquipoDetalleModal, EquipoForm, EstadoPill, LoteForm, RegistroForm, type Permisos } from "./modales";
+import { RondaModal } from "./controles";
 
 type Me = { id: number; name: string; role: string; acciones?: Record<string, string[]>; scopes?: Record<string, { alcance: string; sectorIds: number[] }> };
 type Sector = { id: number; name: string; shortName?: string; active?: boolean };
@@ -97,6 +101,7 @@ export default function Inventario() {
   const [form, setForm] = useState<{ equipo?: Equipo } | null>(null);
   const [registro, setRegistro] = useState<{ equipos: Equipo[]; tipo: DatosRegistro["tipo"] } | null>(null);
   const [lote, setLote] = useState(false);
+  const [ronda, setRonda] = useState<Equipo[] | null>(null);
   const [importar, setImportar] = useState(false);
   const [menuExport, setMenuExport] = useState(false);
 
@@ -472,10 +477,12 @@ export default function Inventario() {
         <Controles
           items={items}
           hoy={hoy}
+          planes={catalogos?.planes ?? []}
           permisos={permisos}
           puedeEscribir={puedeEscribir}
           onAbrir={setDetalle}
-          onRegistrar={(equipos) => setRegistro({ equipos, tipo: "control" })}
+          onRegistrar={(equipos, tipo) => setRegistro({ equipos, tipo: tipo ?? "control" })}
+          onRonda={setRonda}
         />
       )}
 
@@ -511,6 +518,7 @@ export default function Inventario() {
       {registro && registro.equipos.length > 0 && (
         <RegistroForm
           equipos={registro.equipos}
+          planes={catalogos?.planes ?? []}
           tipoInicial={registro.tipo}
           responsable={me?.name ?? ""}
           onClose={() => setRegistro(null)}
@@ -525,6 +533,9 @@ export default function Inventario() {
             }
           }}
         />
+      )}
+      {ronda && ronda.length > 0 && (
+        <RondaModal equipos={ronda} planes={catalogos?.planes ?? []} responsable={me?.name ?? ""} onClose={() => setRonda(null)} onDone={refrescar} />
       )}
       {lote && (
         <LoteForm
@@ -553,26 +564,41 @@ export default function Inventario() {
   );
 }
 
-// ---------- Controles: vencidos, próximos y registro ----------
+// ---------- Controles: ronda, cumplimiento, agenda, reparaciones y registro ----------
+
+function semanaDe(iso: string, hoy: string): string {
+  const d = diasEntre(hoy, iso);
+  if (d <= 7) return "Esta semana";
+  if (d <= 14) return "La semana que viene";
+  if (d <= 21) return "En 2 semanas";
+  return "En 3 a 4 semanas";
+}
 
 function Controles({
   items,
   hoy,
+  planes,
   permisos,
   puedeEscribir,
   onAbrir,
   onRegistrar,
+  onRonda,
 }: {
   items: Equipo[];
   hoy: string;
+  planes: Plan[];
   permisos: Permisos;
   puedeEscribir: (sectorId: number) => boolean;
   onAbrir: (id: number) => void;
-  onRegistrar: (e: Equipo[]) => void;
+  onRegistrar: (e: Equipo[], tipo?: DatosRegistro["tipo"]) => void;
+  onRonda: (e: Equipo[]) => void;
 }) {
   const [registros, setRegistros] = useState<Registro[] | null>(null);
+  const [envios, setEnvios] = useState<Map<number, Registro>>(new Map());
   const [desde, setDesde] = useState(() => sumarDias(hoyIso(), -90));
-  const [tipo, setTipo] = useState("control,falla,reparacion");
+  const [tipo, setTipo] = useState("control,falla,envio,reparacion");
+  const [planta, setPlanta] = useState("");
+  const [sectorId, setSectorId] = useState("");
   useEffect(() => {
     setRegistros(null);
     inv
@@ -580,84 +606,246 @@ function Controles({
       .then(setRegistros)
       .catch(() => setRegistros([]));
   }, [desde, tipo, items]);
+  // Último envío a reparación de cada equipo (para saber desde cuándo y a quién).
+  useEffect(() => {
+    inv
+      .registros({ tipo: "envio", limit: 5000 })
+      .then((rs) => {
+        const m = new Map<number, Registro>();
+        for (const r of rs) if (!m.has(r.itemId)) m.set(r.itemId, r);
+        setEnvios(m);
+      })
+      .catch(() => setEnvios(new Map()));
+  }, [items]);
 
-  const activos = items.filter((e) => e.estado !== "baja");
-  const vencidos = activos.filter((e) => situacion(e, hoy) === "vencido").sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
-  const proximos = activos.filter((e) => ["semana", "mes"].includes(situacion(e, hoy))).sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
-  const atencion = activos.filter((e) => ["con_falla", "en_reparacion", "fuera_servicio"].includes(e.estado));
+  const activos = items.filter((e) => e.estado !== "baja" && (!planta || e.planta === planta) && (!sectorId || e.sectorId === Number(sectorId)));
+  const conControl = activos.filter((e) => e.proximoControl);
+  const vencidos = conControl.filter((e) => situacion(e, hoy) === "vencido").sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
+  const proximos = conControl.filter((e) => ["semana", "mes"].includes(situacion(e, hoy))).sort((a, b) => (a.proximoControl ?? "").localeCompare(b.proximoControl ?? ""));
+  const enReparacion = activos.filter((e) => e.estado === "en_reparacion");
+  const conFalla = activos.filter((e) => e.estado === "con_falla" || e.estado === "fuera_servicio");
+  const alDia = conControl.length ? Math.round(((conControl.length - vencidos.length) / conControl.length) * 100) : null;
+  const plantas = [...new Set(items.filter((e) => e.estado !== "baja").map((e) => e.planta))].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+  const sectores = [...new Map(items.filter((e) => e.estado !== "baja").map((e) => [e.sectorId, e.sectorName ?? ""])).entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
 
-  const lista = (titulo: string, eqs: Equipo[], vacio: string) => (
-    <Seccion
-      titulo={`${titulo} (${eqs.length})`}
-      extra={
-        permisos.controlar && eqs.some((e) => puedeEscribir(e.sectorId)) ? (
-          <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => onRegistrar(eqs.filter((e) => puedeEscribir(e.sectorId)))}>
-            <ClipboardCheck size={14} /> Registrar control de todos
-          </button>
-        ) : undefined
-      }
-    >
-      {eqs.length === 0 ? (
-        <div style={S.small}>{vacio}</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 380, overflow: "auto" }}>
-          {eqs.slice(0, 200).map((e) => (
-            <div key={e.id} className="inv-fila">
-              <button type="button" className="inv-fila-main" onClick={() => onAbrir(e.id)}>
-                <span style={{ fontWeight: 600 }}>{e.descripcion}</span>
-                <span style={S.small}>
-                  Nº {e.id} · {e.tipo} · {e.sectorName} · {e.planta}
-                </span>
-              </button>
-              <ControlPill e={e} hoy={hoy} />
-              {permisos.controlar && puedeEscribir(e.sectorId) && (
-                <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e])}>Registrar</button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </Seccion>
+  const porSector = useMemo(() => {
+    const m = new Map<number, { nombre: string; total: number; vencidos: number; falla: number }>();
+    for (const e of conControl) {
+      const x = m.get(e.sectorId) ?? { nombre: e.sectorName ?? "—", total: 0, vencidos: 0, falla: 0 };
+      x.total++;
+      if (situacion(e, hoy) === "vencido") x.vencidos++;
+      m.set(e.sectorId, x);
+    }
+    for (const e of activos) if (e.estado !== "operativo") {
+      const x = m.get(e.sectorId);
+      if (x) x.falla++;
+    }
+    return [...m.entries()].map(([id, v]) => ({ id, ...v, pct: Math.round(((v.total - v.vencidos) / v.total) * 100) })).sort((a, b) => a.pct - b.pct || a.nombre.localeCompare(b.nombre, "es"));
+  }, [conControl, activos, hoy]);
+
+  const pendientesRonda = [...vencidos, ...proximos.filter((e) => situacion(e, hoy) === "semana")].filter((e) => puedeEscribir(e.sectorId));
+  const puede = (e: Equipo) => permisos.controlar && puedeEscribir(e.sectorId);
+
+  const filaEquipo = (e: Equipo, extra?: ReactNode, accion?: ReactNode) => (
+    <div key={e.id} className="inv-fila">
+      <button type="button" className="inv-fila-main" onClick={() => onAbrir(e.id)}>
+        <span style={{ fontWeight: 600 }}>{e.descripcion}</span>
+        <span style={S.small}>
+          Nº {e.id} · {e.tipo} · {e.sectorName} · {e.planta}
+        </span>
+      </button>
+      {extra}
+      {accion}
+    </div>
   );
+
+  const agenda = new Map<string, Equipo[]>();
+  for (const e of proximos) {
+    const k = semanaDe(e.proximoControl!, hoy);
+    agenda.set(k, [...(agenda.get(k) ?? []), e]);
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, alignItems: "stretch" }}>
-        {lista("Controles vencidos", vencidos, "No hay controles vencidos. 🎉")}
-        {lista("Próximos 30 días", proximos, "Nada que controlar en los próximos 30 días.")}
+      <section className="card inv-ctrl-cab">
+        <div className="inv-ctrl-filtros">
+          <label>
+            <span style={S.label}>Planta</span>
+            <select className="select" value={planta} onChange={(e) => setPlanta(e.target.value)}>
+              <option value="">Todas</option>
+              {plantas.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <label>
+            <span style={S.label}>Sector</span>
+            <select className="select" value={sectorId} onChange={(e) => setSectorId(e.target.value)}>
+              <option value="">Todos</option>
+              {sectores.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="inv-ctrl-kpis">
+          <div>
+            <span style={S.label}>Controles al día</span>
+            <strong style={{ color: alDia === null ? undefined : alDia >= 90 ? "#15803d" : alDia >= 70 ? "#b45309" : "#b91c1c" }}>{alDia === null ? "—" : `${alDia} %`}</strong>
+            <span style={S.small}>{conControl.length} equipos con control periódico</span>
+          </div>
+          <div>
+            <span style={S.label}>Vencidos</span>
+            <strong style={{ color: vencidos.length ? "#b91c1c" : undefined }}>{vencidos.length}</strong>
+          </div>
+          <div>
+            <span style={S.label}>Próximos 30 días</span>
+            <strong>{proximos.length}</strong>
+          </div>
+          <div>
+            <span style={S.label}>Con falla / en reparación</span>
+            <strong style={{ color: conFalla.length + enReparacion.length ? "#b91c1c" : undefined }}>{conFalla.length + enReparacion.length}</strong>
+          </div>
+        </div>
+        {permisos.controlar && (
+          <div className="inv-ronda-cta">
+            <div style={{ minWidth: 0 }}>
+              <strong>Ronda de control</strong>
+              <span style={S.small}>Recorré los equipos uno por uno y registrá cada control en segundos{pendientesRonda.length ? ` · ${pendientesRonda.length} pendientes (vencidos y de esta semana)` : ""}.</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="btn btn-primary" disabled={!pendientesRonda.length} onClick={() => onRonda(pendientesRonda)}>
+                <ClipboardCheck size={15} /> Ronda de pendientes ({pendientesRonda.length})
+              </button>
+              <button type="button" className="btn btn-quiet" disabled={!activos.some((e) => puedeEscribir(e.sectorId))} onClick={() => onRonda(activos.filter((e) => puedeEscribir(e.sectorId)).sort((a, b) => a.planta.localeCompare(b.planta, "es") || (a.sectorName ?? "").localeCompare(b.sectorName ?? "", "es") || a.id - b.id))}>
+                Ronda completa ({activos.filter((e) => puedeEscribir(e.sectorId)).length})
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, alignItems: "start" }}>
+        <Seccion
+          titulo={`Controles vencidos (${vencidos.length})`}
+          extra={
+            vencidos.some(puede) ? (
+              <button type="button" className="btn btn-quiet" style={{ fontSize: 12.5 }} onClick={() => onRonda(vencidos.filter(puede))}>
+                Ronda de vencidos
+              </button>
+            ) : undefined
+          }
+        >
+          {vencidos.length === 0 ? (
+            <div style={S.small}>No hay controles vencidos.</div>
+          ) : (
+            <div className="inv-lista-scroll">
+              {vencidos.slice(0, 300).map((e) =>
+                filaEquipo(e, <ControlPill e={e} hoy={hoy} />, puede(e) ? <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e])}>Controlar</button> : undefined),
+              )}
+            </div>
+          )}
+        </Seccion>
+        <Seccion titulo={`Agenda · próximos 30 días (${proximos.length})`}>
+          {proximos.length === 0 ? (
+            <div style={S.small}>Nada que controlar en los próximos 30 días.</div>
+          ) : (
+            <div className="inv-lista-scroll">
+              {[...agenda.entries()].map(([semana, eqs]) => (
+                <div key={semana} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div className="inv-semana">
+                    {semana} <span>{eqs.length}</span>
+                  </div>
+                  {eqs.map((e) => filaEquipo(e, <span style={{ ...S.small, whiteSpace: "nowrap" }}>{fechaAr(e.proximoControl)}</span>, puede(e) ? <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e])}>Controlar</button> : undefined))}
+                </div>
+              ))}
+            </div>
+          )}
+        </Seccion>
       </div>
-      {atencion.length > 0 && (
-        <Seccion titulo={`Necesitan atención (${atencion.length})`}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {atencion.map((e) => (
-              <div key={e.id} className="inv-fila">
-                <button type="button" className="inv-fila-main" onClick={() => onAbrir(e.id)}>
-                  <span style={{ fontWeight: 600 }}>{e.descripcion}</span>
-                  <span style={S.small}>
-                    Nº {e.id} · {e.sectorName} · {e.planta}
-                  </span>
-                </button>
-                <EstadoPill estado={e.estado} />
+
+      {(conFalla.length > 0 || enReparacion.length > 0) && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, alignItems: "start" }}>
+          <Seccion titulo={`Con falla, sin enviar a reparar (${conFalla.length})`}>
+            {conFalla.length === 0 ? (
+              <div style={S.small}>Ninguno.</div>
+            ) : (
+              <div className="inv-lista-scroll">
+                {conFalla.map((e) =>
+                  filaEquipo(
+                    e,
+                    <EstadoPill estado={e.estado} />,
+                    puede(e) ? (
+                      <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e], "envio")}>
+                        Enviar a reparar
+                      </button>
+                    ) : undefined,
+                  ),
+                )}
               </div>
+            )}
+          </Seccion>
+          <Seccion titulo={`En reparación (${enReparacion.length})`}>
+            {enReparacion.length === 0 ? (
+              <div style={S.small}>Ninguno.</div>
+            ) : (
+              <div className="inv-lista-scroll">
+                {enReparacion
+                  .map((e) => ({ e, envio: envios.get(e.id) }))
+                  .sort((a, b) => (a.envio?.fecha ?? "9").localeCompare(b.envio?.fecha ?? "9"))
+                  .map(({ e, envio }) =>
+                    filaEquipo(
+                      e,
+                      <span style={{ ...S.small, textAlign: "right" }}>
+                        {envio ? (
+                          <>
+                            <strong style={{ color: diasEntre(envio.fecha, hoy) > 30 ? "#b91c1c" : "hsl(var(--foreground))" }}>{diasEntre(envio.fecha, hoy)} días</strong>
+                            {envio.proveedor && <><br />{envio.proveedor}</>}
+                          </>
+                        ) : (
+                          "En reparación"
+                        )}
+                      </span>,
+                      puede(e) ? (
+                        <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => onRegistrar([e], "reparacion")}>
+                          Reparado
+                        </button>
+                      ) : undefined,
+                    ),
+                  )}
+              </div>
+            )}
+          </Seccion>
+        </div>
+      )}
+
+      {porSector.length > 0 && (
+        <Seccion titulo="Cumplimiento por sector">
+          <div className="inv-cumplimiento">
+            {porSector.map((s) => (
+              <button key={s.id} type="button" className="inv-cumpl-fila" onClick={() => setSectorId(String(s.id))} title={`Ver ${s.nombre}`}>
+                <span className="inv-cumpl-nombre">{s.nombre}</span>
+                <span className="inv-cumpl-barra" aria-hidden="true">
+                  <i style={{ width: `${s.pct}%`, background: s.pct >= 90 ? "#16a34a" : s.pct >= 70 ? "#d97706" : "#dc2626" }} />
+                </span>
+                <span className="inv-cumpl-num">{s.pct} %</span>
+                <span style={S.small}>
+                  {s.vencidos ? `${s.vencidos} vencido${s.vencidos === 1 ? "" : "s"}` : "al día"} de {s.total}
+                  {s.falla ? ` · ${s.falla} con problema` : ""}
+                </span>
+              </button>
             ))}
           </div>
         </Seccion>
       )}
+
       <Seccion
         titulo="Registro de controles"
         extra={
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <SegControl
-              label="Qué registros"
-              value={tipo}
-              onChange={setTipo}
-              opciones={[
-                { value: "control,falla,reparacion", label: "Controles, fallas y reparaciones" },
-                { value: "control", label: "Controles" },
-                { value: "falla", label: "Fallas" },
-                { value: "", label: "Todo" },
-              ]}
-            />
+            <select className="select" style={{ width: 230, fontSize: 13 }} value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Qué registros">
+              <option value="control,falla,envio,reparacion">Controles, fallas y reparaciones</option>
+              <option value="control">Solo controles</option>
+              <option value="falla">Solo fallas</option>
+              <option value="envio,reparacion">Envíos y reparaciones</option>
+              <option value="">Todo (incluye altas y cambios)</option>
+            </select>
             <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}>
               Desde <input type="date" className="input" style={{ width: 150, padding: "5px 8px" }} value={desde} onChange={(e) => setDesde(e.target.value)} />
             </label>
@@ -687,26 +875,35 @@ function Controles({
                 </tr>
               </thead>
               <tbody>
-                {registros.slice(0, 1000).map((r) => {
-                  const malo = r.tipo === "falla" || r.resultado === "falla";
-                  return (
-                    <tr key={r.id} onClick={() => onAbrir(r.itemId)}>
-                      <td style={{ whiteSpace: "nowrap" }}>{fechaAr(r.fecha)}</td>
-                      <td>
-                        <Pill style={{ background: malo ? "#fde2e2" : r.tipo === "reparacion" ? "#dbeafe" : r.resultado === "observacion" ? "#fdf0d5" : r.tipo === "control" ? "#dcf3dc" : "hsl(var(--muted))", color: malo ? "#8f1d1d" : r.tipo === "reparacion" ? "#1e3a8a" : r.resultado === "observacion" ? "#7a4a06" : r.tipo === "control" ? "#155c15" : "hsl(var(--foreground))" }}>
-                          {TIPO_REGISTRO[r.tipo]}
-                          {r.resultado ? ` · ${RESULTADO[r.resultado]}` : ""}
-                        </Pill>
-                      </td>
-                      <td className="inv-desc">
-                        {r.item?.descripcion} <span style={S.small}>Nº {r.itemId}</span>
-                      </td>
-                      <td>{r.item?.sectorName}</td>
-                      <td className="inv-desc" style={{ fontSize: 12.5 }}>{r.detalle}</td>
-                      <td>{r.responsable || r.userNombre}</td>
-                    </tr>
-                  );
-                })}
+                {registros
+                  .filter((r) => (!planta || r.item?.planta === planta) && (!sectorId || items.find((e) => e.id === r.itemId)?.sectorId === Number(sectorId)))
+                  .slice(0, 1000)
+                  .map((r) => {
+                    const malo = r.tipo === "falla" || r.resultado === "falla";
+                    const c = malo ? ["#fde2e2", "#8f1d1d"] : r.tipo === "envio" ? ["#ede9fe", "#4c1d95"] : r.tipo === "reparacion" ? ["#dbeafe", "#1e3a8a"] : r.resultado === "observacion" ? ["#fdf0d5", "#7a4a06"] : r.tipo === "control" ? ["#dcf3dc", "#155c15"] : ["hsl(var(--muted))", "hsl(var(--foreground))"];
+                    const fallas = (r.checklist ?? []).filter((p) => p.estado !== "ok");
+                    return (
+                      <tr key={r.id} onClick={() => onAbrir(r.itemId)}>
+                        <td style={{ whiteSpace: "nowrap" }}>{fechaAr(r.fecha)}</td>
+                        <td>
+                          <Pill style={{ background: c[0], color: c[1] }}>
+                            {TIPO_REGISTRO[r.tipo]}
+                            {r.resultado ? ` · ${RESULTADO[r.resultado]}` : ""}
+                          </Pill>
+                          {r.checklist && r.checklist.length > 0 && <div style={{ ...S.small, marginTop: 3 }}>{r.checklist.length - fallas.length}/{r.checklist.length} puntos OK</div>}
+                        </td>
+                        <td className="inv-desc">
+                          {r.item?.descripcion} <span style={S.small}>Nº {r.itemId}</span>
+                        </td>
+                        <td>{r.item?.sectorName}</td>
+                        <td className="inv-desc" style={{ fontSize: 12.5 }}>
+                          {r.detalle || fallas.map((p) => `${p.item}${p.nota ? `: ${p.nota}` : ""}`).join(" · ")}
+                          {r.proveedor && <div style={S.small}>{r.proveedor}</div>}
+                        </td>
+                        <td>{r.responsable || r.userNombre}</td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -719,12 +916,12 @@ function Controles({
 // ---------- Plan de controles y catálogos ----------
 
 function Ajustes({ catalogos, onChanged }: { catalogos: Catalogos | null; onChanged: () => void }) {
-  const planes = new Map((catalogos?.planes ?? []).map((p) => [clave(p.tipo), p.frecuenciaDias]));
-  const [editando, setEditando] = useState<{ tipo: string; dias: string; aplicar: "sin_frecuencia" | "todos" | "ninguno" } | null>(null);
+  const [editando, setEditando] = useState<{ tipo: string; dias: string; aplicar: "sin_frecuencia" | "todos" | "ninguno"; lista: string } | null>(null);
   const guardarPlan = async () => {
     if (!editando) return;
     try {
-      const r = await inv.plan(editando.tipo, editando.dias ? Number(editando.dias) : null, editando.aplicar);
+      const lista = editando.lista.split("\n").map((x) => x.trim()).filter(Boolean);
+      const r = await inv.plan(editando.tipo, editando.dias ? Number(editando.dias) : null, editando.aplicar, lista);
       avisar(`Plan de «${editando.tipo}» guardado${r.actualizados ? ` · ${r.actualizados} equipo${r.actualizados === 1 ? "" : "s"} actualizado${r.actualizados === 1 ? "" : "s"}` : ""}.`);
       setEditando(null);
       onChanged();
@@ -748,60 +945,67 @@ function Ajustes({ catalogos, onChanged }: { catalogos: Catalogos | null; onChan
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <Seccion titulo="Plan de controles por tipo de equipo">
         <p style={{ ...S.small, marginTop: -4, marginBottom: 12 }}>
-          Cada cuánto se controla cada tipo. Lo toman los equipos nuevos (a mano o importados) y, si querés, los que ya están cargados.
+          Para cada tipo: cada cuánto se controla y qué puntos se revisan (lista de verificación). Al registrar un control de ese tipo, se marca cada punto como OK, observación o falla.
         </p>
         {catalogos.tipos.length === 0 ? (
           <div style={S.small}>Todavía no hay equipos cargados.</div>
         ) : (
-          <div className="inv-tabla-wrap" style={{ maxHeight: 460 }}>
-            <table className="inv-tabla">
-              <thead>
-                <tr>
-                  <th style={S.th}>Tipo</th>
-                  <th style={S.th}>Equipos</th>
-                  <th style={S.th}>Control</th>
-                  <th style={S.th} />
-                </tr>
-              </thead>
-              <tbody>
-                {catalogos.tipos.map((t) => {
-                  const ed = editando?.tipo === t.valor ? editando : null;
-                  return (
-                    <tr key={t.valor} style={{ cursor: "default" }}>
-                      <td style={{ fontWeight: 600 }}>{t.valor}</td>
-                      <td>{t.n}</td>
-                      <td>
-                        {ed ? (
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                            <select className="select" style={{ width: 170, fontSize: 13 }} value={ed.dias} onChange={(e) => setEditando({ ...ed, dias: e.target.value })}>
-                              <option value="">Sin control periódico</option>
-                              {FRECUENCIAS.map((f) => <option key={f.dias} value={f.dias}>{f.label}</option>)}
-                            </select>
-                            <select className="select" style={{ width: 250, fontSize: 13 }} value={ed.aplicar} onChange={(e) => setEditando({ ...ed, aplicar: e.target.value as typeof ed.aplicar })}>
-                              <option value="sin_frecuencia">Aplicar a los que no tienen control</option>
-                              <option value="todos">Aplicar a todos los de este tipo</option>
-                              <option value="ninguno">Solo para los nuevos</option>
-                            </select>
-                          </div>
-                        ) : (
-                          frecuenciaTexto(planes.get(clave(t.valor)))
-                        )}
-                      </td>
-                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        {ed ? (
-                          <>
-                            <button type="button" className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => void guardarPlan()}>Guardar</button>
-                            <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setEditando(null)}>Cancelar</button>
-                          </>
-                        ) : (
-                          <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setEditando({ tipo: t.valor, dias: String(planes.get(clave(t.valor)) ?? ""), aplicar: "sin_frecuencia" })}>Definir</button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {catalogos.tipos.map((t) => {
+              const plan = planDe(catalogos.planes, t.valor);
+              const ed = editando?.tipo === t.valor ? editando : null;
+              return (
+                <div key={t.valor} className={`inv-plan${ed ? " is-ed" : ""}`}>
+                  <div className="inv-plan-cab">
+                    <div style={{ minWidth: 0 }}>
+                      <strong>{t.valor}</strong>
+                      <span style={S.small}>
+                        {t.n} equipo{t.n === 1 ? "" : "s"} · {frecuenciaTexto(plan?.frecuenciaDias)} · {plan?.checklist.length ? `${plan.checklist.length} puntos a revisar` : "sin lista de verificación"}
+                      </span>
+                    </div>
+                    {!ed && (
+                      <button type="button" className="btn btn-quiet" style={{ fontSize: 12 }} onClick={() => setEditando({ tipo: t.valor, dias: String(plan?.frecuenciaDias ?? ""), aplicar: "sin_frecuencia", lista: (plan?.checklist ?? []).join("\n") })}>
+                        {plan ? "Editar plan" : "Definir plan"}
+                      </button>
+                    )}
+                  </div>
+                  {!ed && plan && plan.checklist.length > 0 && (
+                    <div className="inv-plan-puntos">
+                      {plan.checklist.map((p) => <span key={p}>{p}</span>)}
+                    </div>
+                  )}
+                  {ed && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12, marginTop: 10 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                          <span className="field-label">Control periódico</span>
+                          <select className="select" value={ed.dias} onChange={(e) => setEditando({ ...ed, dias: e.target.value })}>
+                            <option value="">Sin control periódico</option>
+                            {FRECUENCIAS.map((f) => <option key={f.dias} value={f.dias}>{f.label}</option>)}
+                          </select>
+                        </label>
+                        <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                          <span className="field-label">Equipos ya cargados</span>
+                          <select className="select" value={ed.aplicar} onChange={(e) => setEditando({ ...ed, aplicar: e.target.value as typeof ed.aplicar })}>
+                            <option value="sin_frecuencia">Aplicar la frecuencia a los que no tienen</option>
+                            <option value="todos">Aplicar la frecuencia a todos los de este tipo</option>
+                            <option value="ninguno">No tocar los ya cargados</option>
+                          </select>
+                        </label>
+                      </div>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        <span className="field-label">Puntos a revisar (uno por renglón)</span>
+                        <textarea className="input" rows={6} value={ed.lista} onChange={(e) => setEditando({ ...ed, lista: e.target.value })} placeholder={"Ej.:\nPresión en zona verde\nPrecinto y seguro\nSeñalización visible\nCarga vigente"} />
+                      </label>
+                      <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1", justifyContent: "flex-end" }}>
+                        <button type="button" className="btn btn-quiet" onClick={() => setEditando(null)}>Cancelar</button>
+                        <button type="button" className="btn btn-primary" onClick={() => void guardarPlan()}>Guardar plan</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </Seccion>

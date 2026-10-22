@@ -21,7 +21,10 @@ export type Equipo = {
   updatedAt: string;
 };
 
-export type TipoRegistro = "control" | "falla" | "reparacion" | "traslado" | "alta" | "cambio" | "baja" | "importacion";
+export type TipoRegistro = "control" | "falla" | "envio" | "reparacion" | "traslado" | "alta" | "cambio" | "baja" | "importacion";
+
+export type EstadoPunto = "ok" | "obs" | "falla";
+export type PuntoControl = { item: string; estado: EstadoPunto; nota?: string };
 
 export type Registro = {
   id: number;
@@ -32,6 +35,8 @@ export type Registro = {
   detalle: string;
   responsable: string;
   estadoNuevo: string;
+  checklist: PuntoControl[] | null;
+  proveedor: string;
   userNombre: string;
   createdAt: string;
   item?: { id: number; descripcion: string; planta: string; sectorName: string | null; rubro: string; tipo: string; marca: string; codigoSerie: string };
@@ -39,11 +44,14 @@ export type Registro = {
 
 export type EquipoDetalle = Equipo & { registros: Registro[] };
 
+/** Plan de un tipo de equipo: cada cuánto se controla y qué se revisa. */
+export type Plan = { tipo: string; frecuenciaDias: number | null; checklist: string[] };
+
 export type Catalogos = {
   plantas: { valor: string; n: number }[];
   rubros: { valor: string; n: number }[];
   tipos: { valor: string; n: number }[];
-  planes: { tipo: string; frecuenciaDias: number }[];
+  planes: Plan[];
 };
 
 export type ResultadoImportacion = {
@@ -81,6 +89,7 @@ export function frecuenciaTexto(dias: number | null | undefined): string {
 export const TIPO_REGISTRO: Record<TipoRegistro, string> = {
   control: "Control",
   falla: "Falla",
+  envio: "Enviado a reparación",
   reparacion: "Reparación",
   traslado: "Traslado",
   alta: "Alta",
@@ -166,7 +175,29 @@ export type DatosEquipo = {
   estado?: Estado;
 };
 
-export type DatosRegistro = { tipo: "control" | "falla" | "reparacion"; fecha: string; resultado?: "ok" | "observacion" | "falla"; detalle: string; responsable: string; estado?: Estado | "" };
+export type DatosRegistro = {
+  tipo: "control" | "falla" | "envio" | "reparacion";
+  fecha: string;
+  resultado?: "ok" | "observacion" | "falla";
+  detalle: string;
+  responsable: string;
+  proveedor?: string;
+  checklist?: PuntoControl[];
+  estado?: Estado | "";
+};
+
+/** Resultado de un control según la lista de verificación (el peor punto). */
+export function resultadoDe(puntos: { estado: EstadoPunto | null }[]): "ok" | "observacion" | "falla" | null {
+  if (puntos.some((p) => !p.estado)) return null;
+  if (puntos.some((p) => p.estado === "falla")) return "falla";
+  if (puntos.some((p) => p.estado === "obs")) return "observacion";
+  return "ok";
+}
+
+/** Plan del tipo de un equipo (sin distinguir mayúsculas ni tildes). */
+export function planDe(planes: Plan[] | undefined, tipo: string): Plan | undefined {
+  return (planes ?? []).find((p) => clave(p.tipo) === clave(tipo));
+}
 
 export const inv = {
   items: (bajas = false) => api<Equipo[]>(`/items${bajas ? "?bajas=1" : ""}`),
@@ -185,6 +216,6 @@ export const inv = {
     api<ResultadoImportacion>("/importar", { method: "POST", body: { filas, modo, simular } }),
   catalogos: () => api<Catalogos>("/catalogos"),
   renombrar: (campo: "planta" | "rubro" | "tipo", de: string, a: string) => api<{ actualizados: number }>("/catalogos/renombrar", { method: "POST", body: { campo, de, a } }),
-  plan: (tipo: string, frecuenciaDias: number | null, aplicar: "todos" | "sin_frecuencia" | "ninguno") =>
-    api<{ actualizados: number }>("/planes", { method: "PUT", body: { tipo, frecuenciaDias, aplicar } }),
+  plan: (tipo: string, frecuenciaDias: number | null, aplicar: "todos" | "sin_frecuencia" | "ninguno", checklist?: string[]) =>
+    api<{ actualizados: number }>("/planes", { method: "PUT", body: { tipo, frecuenciaDias, aplicar, checklist } }),
 };

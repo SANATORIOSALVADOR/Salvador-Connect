@@ -46,8 +46,8 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
           id: `venc-${it.id}-${it.fecha}`,
           modulo: "administracion",
           nivel: dias < 0 ? "alta" : dias <= 1 ? "alta" : "media",
-          titulo: dias < 0 ? `Vencido hace ${-dias} día${dias === -1 ? "" : "s"}` : dias === 0 ? "Vence hoy" : `Vence en ${dias} día${dias === 1 ? "" : "s"}`,
-          detalle: it.titulo,
+          titulo: it.titulo,
+          detalle: dias < 0 ? `Vencido hace ${-dias} día${dias === -1 ? "" : "s"}` : dias === 0 ? "Vence hoy" : `Vence en ${dias} día${dias === 1 ? "" : "s"}`,
           fecha: it.fecha,
           link: `/administracion?item=${it.id}`,
         });
