@@ -349,6 +349,23 @@ check "registro de envíos" 200 "$(req $A GET '/inventario/registros?tipo=envio'
 X=$(jget "d[0].proveedor"); [ "$X" = "Service Dräger" ] && ok "guarda el proveedor" || bad "proveedor" "$X"
 check "eliminar equipo" 204 "$(req $A DELETE /inventario/items/$I2)"
 
+echo "== Importar sectores"
+FS='[{"nombre":"guardia  central","fila":2},{"nombre":"Laboratorio","fila":3},{"nombre":"Sala de Rayos X","abreviatura":"RX","fila":4},{"nombre":"laboratorio","fila":5},{"nombre":"","abreviatura":"ZZ","fila":6},{"nombre":"Hemoterapia","abreviatura":"GCE","fila":7}]'
+check "responsable NO importa sectores" 403 "$(req $R POST /sectores/importar "{\"filas\":$FS}")"
+check "simular importación de sectores" 200 "$(req $A POST /sectores/importar "{\"simular\":true,\"filas\":$FS}")"
+X="$(jget "[d.resumen.nuevos,d.resumen.existentes,d.resumen.repetidos,d.resumen.errores].join(',')")"; [ "$X" = "3,1,1,1" ] && ok "3 nuevos, 1 existente, 1 repetido, 1 error ($X)" || bad "simulación sectores" "$X"
+X="$(jget "d.filas.filter(f=>f.estado==='nuevo').map(f=>f.abreviatura).join(',')")"; case "$X" in LAB,RX,H*) ok "abreviaturas: automática, la del archivo y la usada se reemplaza ($X)";; *) bad "abreviaturas" "$X";; esac
+req $A GET /sectores >/dev/null; N0=$(jget d.length)
+check "importar sectores" 200 "$(req $A POST /sectores/importar "{\"simular\":false,\"filas\":$FS}")"
+req $A GET /sectores >/dev/null; N1=$(jget d.length); [ "$((N1-N0))" = "3" ] && ok "creó solo los 3 nuevos" || bad "importar sectores" "$N0 → $N1"
+X=$(jget "d.filter(s=>['Laboratorio','Sala de Rayos X','Hemoterapia'].includes(s.name)).every(s=>s.active)"); [ "$X" = "true" ] && ok "quedan activos" || bad "activos" "$X"
+req $A GET /guardias/config >/dev/null; X=$(jget "d.filter(s=>['Laboratorio','Sala de Rayos X','Hemoterapia'].includes(s.name)&&s.active).length"); [ "$X" = "0" ] && ok "no participan de Guardias" || bad "guardias" "$X"
+check "importar de nuevo: todo se omite" 200 "$(req $A POST /sectores/importar "{\"simular\":false,\"filas\":$FS}")"
+X=$(jget d.resumen.nuevos); [ "$X" = "0" ] && ok "no duplica" || bad "duplica" "$X"
+check "alta con nombre repetido" 409 "$(req $A POST /sectores '{"name":"LABORATORIO"}')"
+check "alta sin abreviatura" 201 "$(req $A POST /sectores '{"name":"Unidad Coronaria"}')"
+X=$(jget d.shortName); [ "$X" = "UC" ] && ok "abreviatura automática ($X)" || bad "abrev" "$X"
+
 echo "== Administración: ítems"
 E=$T/ck_admed
 check "crear usuario Administración=editar" 201 "$(req $A POST /users '{"name":"Laura Adm","username":"laura","password":"prueba123","permissions":{"administracion":"editar"}}')"

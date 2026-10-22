@@ -46,6 +46,14 @@ description: Configuración → Usuarios y Sectores del Sanatorio del Salvador �
 - Desactivar o resetear clave cierra las sesiones del usuario.
 - Eliminar un usuario con registros cargados devuelve 409: desactivarlo.
 
+## Importar sectores
+
+- Configuración → Sectores → «Importar desde Excel» (`pages/shared/ImportarSectores.tsx`, SheetJS): columna SECTOR (o Nombre /
+  Área / Servicio) obligatoria y ABREVIATURA (o Sigla / Código) opcional; sin encabezados se usa la 1ª columna.
+- `POST /api/sectores/importar { filas: [{ nombre, abreviatura?, fila }], simular }` (superadmin): se crean activos y sin participar de
+  Guardias; los que ya existen (sin tildes ni mayúsculas) o repetidos en el archivo se omiten. Abreviatura vacía o ya usada →
+  `abreviar()` (iniciales o 3 letras, con número si se repite). También en el alta / edición manual. Nombre repetido en el alta → 409.
+
 ## Sectores y Guardias
 
 Regla: **crear** sectores y etiquetas = solo superadmin, desde Configuración. Lo que se hace dentro de cada módulo

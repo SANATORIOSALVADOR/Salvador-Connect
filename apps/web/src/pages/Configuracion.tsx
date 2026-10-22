@@ -1,6 +1,7 @@
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { confirmar } from "@/components/feedback";
 import AparienciaConfig from "./shared/AparienciaConfig";
+import { ImportarSectoresModal } from "./shared/ImportarSectores";
 import { ACCIONES, ALCANCE_AYUDA, ALCANCE_LABEL, LEVEL_COLOR, LEVEL_LABEL, MODULES, accionesDeNivel, mismasAcciones, ordenarAcciones, type Alcance, type Level, type ModuleScope } from "@/lib/permisos";
 import { CoberturaEditor, TAG_COLORS, TagBadge, franjasResumen, type Etiqueta } from "./guardias/compartido";
 import type { Franja, SectorConfig } from "./guardias/logic";
@@ -283,6 +284,7 @@ export default function ConfiguracionPage() {
   const [sectorEditor, setSectorEditor] = useState<{ mode: "create" | "edit"; sector?: Sector; guardiaIni: string } | null>(null);
   const [sform, setSform] = useState<{ name: string; shortName: string; active: boolean; guardia: boolean; cobertura: Franja[] }>({ name: "", shortName: "", active: true, guardia: false, cobertura: [] });
   const [sguardando, setSguardando] = useState(false);
+  const [importarSect, setImportarSect] = useState(false);
   const [guardiaCfg, setGuardiaCfg] = useState<SectorConfig[]>([]);
 
   // etiquetas de Guardias
@@ -626,7 +628,7 @@ export default function ConfiguracionPage() {
     if (!sectorEditor) return;
     setSguardando(true);
     try {
-      const body = JSON.stringify({ name: sform.name.trim(), shortName: sform.shortName.trim() || sform.name.trim().slice(0, 8), active: sform.active });
+      const body = JSON.stringify({ name: sform.name.trim(), shortName: sform.shortName.trim(), active: sform.active });
       let id = sectorEditor.sector?.id;
       if (sectorEditor.mode === "edit" && id) await apiJson(`/sectores/${id}`, { method: "PATCH", body });
       else id = (await apiJson<Sector>("/sectores", { method: "POST", body })).id;
@@ -956,7 +958,10 @@ export default function ConfiguracionPage() {
         <div className="card" style={CARD}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10, flexWrap: "wrap" }}>
             <p className="page-subtitle" style={{ margin: 0, maxWidth: 720 }}>Los sectores se usan en Guardias, Inventario e Instructivos, y para limitar a qué sectores accede cada usuario. En cada sector se define si participa de Guardias Médicas y qué horario necesita cubierto.</p>
-            <button type="button" className="btn btn-primary" onClick={() => openSector()}>+ Nuevo sector</button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="btn btn-quiet" onClick={() => setImportarSect(true)}>Importar desde Excel</button>
+              <button type="button" className="btn btn-primary" onClick={() => openSector()}>+ Nuevo sector</button>
+            </div>
           </div>
           <div className="agenda-table-wrap">
             <table className="agenda-table">
@@ -1194,7 +1199,7 @@ export default function ConfiguracionPage() {
           <form className="card" style={{ width: sform.guardia ? "min(640px, 100%)" : "min(460px, 100%)", padding: 22, display: "flex", flexDirection: "column", gap: 12 }} onClick={(e) => e.stopPropagation()} onSubmit={saveSector}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{sectorEditor.mode === "create" ? "Nuevo sector" : `Editar ${sectorEditor.sector?.name}`}</h2>
             <label className="field"><span className="field-label">Nombre</span><input className="input" required value={sform.name} onChange={(e) => setSform({ ...sform, name: e.target.value })} /></label>
-            <label className="field"><span className="field-label">Abreviatura</span><input className="input" maxLength={8} value={sform.shortName} placeholder="Opcional (ej. UTI)" onChange={(e) => setSform({ ...sform, shortName: e.target.value })} /></label>
+            <label className="field"><span className="field-label">Abreviatura</span><input className="input" maxLength={8} value={sform.shortName} placeholder="Vacío = se arma sola (ej. UTI)" onChange={(e) => setSform({ ...sform, shortName: e.target.value })} /></label>
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 600 }}>
               <input type="checkbox" checked={sform.active} onChange={(e) => setSform({ ...sform, active: e.target.checked })} />
               Sector activo
@@ -1350,6 +1355,15 @@ export default function ConfiguracionPage() {
             </div>
           </form>
         </div>
+      )}
+      {importarSect && (
+        <ImportarSectoresModal
+          onClose={() => setImportarSect(false)}
+          onDone={() => {
+            setImportarSect(false);
+            void load();
+          }}
+        />
       )}
     </div>
   );
