@@ -81,37 +81,51 @@ const navItems: NavItem[] = [
 ];
 
 /**
- * Grupo del menú lateral (ej. «Medical»): se despliega al tocarlo o al pasar el mouse y queda abierto si estás en uno
+ * Grupo del menú lateral (ej. «Medical»): se despliega al tocarlo (no al pasar el mouse) y queda abierto si estás en uno
  * de sus submódulos. Con el menú angosto, los submódulos aparecen en un panel al costado.
  */
 function NavGrupo({ id, items, location, collapsed, onNavigate }: { id: string; items: NavItem[]; location: string; collapsed: boolean; onNavigate: () => void }) {
   const g = NAV_GRUPOS[id];
   const activo = items.some((i) => location === i.href || location.startsWith(i.href + '/'));
   const [abierto, setAbierto] = useState(activo);
-  const [hover, setHover] = useState(false);
+  // Menú angosto: los submódulos se muestran en un panel al costado, que se abre y se cierra tocando.
+  const [panel, setPanel] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const caja = useRef<HTMLDivElement>(null);
   const boton = useRef<HTMLButtonElement>(null);
-  const cierre = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (activo) setAbierto(true);
   }, [activo]);
-  const entrar = () => {
-    window.clearTimeout(cierre.current);
-    setHover(true);
+  useEffect(() => {
+    if (!collapsed) setPanel(false);
+  }, [collapsed]);
+  useEffect(() => {
+    if (!panel) return;
+    const fuera = (e: MouseEvent) => {
+      if (!caja.current?.contains(e.target as Node)) setPanel(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setPanel(false);
+    document.addEventListener('mousedown', fuera);
+    window.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', fuera);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [panel]);
+  const tocar = () => {
+    if (!collapsed) return setAbierto((v) => !v);
     const r = boton.current?.getBoundingClientRect();
     if (r) setPos({ top: r.top, left: r.right + 6 });
-  };
-  const salir = () => {
-    cierre.current = window.setTimeout(() => setHover(false), 180);
+    setPanel((v) => !v);
   };
   const Icon = g.icon;
-  const visible = collapsed ? hover : abierto || hover;
+  const visible = collapsed ? panel : abierto;
   const enlace = (i: NavItem) => (
     <Link
       key={i.href}
       href={i.href}
       onClick={() => {
-        setHover(false);
+        setPanel(false);
         onNavigate();
       }}
       className={`nav-item nav-sub ${location === i.href ? 'active' : ''}`}
@@ -124,17 +138,14 @@ function NavGrupo({ id, items, location, collapsed, onNavigate }: { id: string; 
     </Link>
   );
   return (
-    <div className={`nav-grupo${activo ? ' tiene-activo' : ''}${visible ? ' is-open' : ''}`} onMouseEnter={entrar} onMouseLeave={salir}>
+    <div ref={caja} className={`nav-grupo${activo ? ' tiene-activo' : ''}${visible ? ' is-open' : ''}`}>
       <button
         ref={boton}
         type="button"
         className={`nav-item nav-grupo-btn${activo ? ' active' : ''}`}
         aria-expanded={visible}
         title={g.label}
-        onClick={() => {
-          if (collapsed) entrar();
-          else setAbierto((v) => !v);
-        }}
+        onClick={tocar}
         data-testid={`link-nav-${id}`}
       >
         <span className="nav-ico"><Icon className="nav-icon" /></span>
@@ -147,7 +158,7 @@ function NavGrupo({ id, items, location, collapsed, onNavigate }: { id: string; 
       </button>
       {!collapsed && visible && <div className="nav-grupo-hijos">{items.map(enlace)}</div>}
       {collapsed && visible && pos && (
-        <div className="nav-flyout" style={{ top: pos.top, left: pos.left }} onMouseEnter={entrar} onMouseLeave={salir} role="menu" aria-label={g.label}>
+        <div className="nav-flyout" style={{ top: pos.top, left: pos.left }} role="menu" aria-label={g.label}>
           <div className="nav-flyout-titulo">{g.label}</div>
           {items.map(enlace)}
         </div>

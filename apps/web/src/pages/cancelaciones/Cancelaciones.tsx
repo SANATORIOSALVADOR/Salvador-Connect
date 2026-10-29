@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileSpreadsheet, Printer, QrCode, RotateCcw, Search, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, Eye, EyeOff, FileSpreadsheet, Printer, QrCode, RotateCcw, Search, Trash2, XCircle } from "lucide-react";
 import { avisar, confirmar } from "@/components/feedback";
 import { useApariencia } from "@/pages/shared/apariencia";
 import { Kpi, Modal, Pill, S, SegControl, Vacio } from "../administracion/ui";
@@ -554,6 +554,7 @@ function urlSugerida(cfg: { ipUrl?: string | null } | null): string {
 function QrModal({ onClose }: { onClose: () => void }) {
   const [url, setUrl] = useState("");
   const [png, setPng] = useState<string | null>(null);
+  const [verDireccion, setVerDireccion] = useState(false);
   const { apariencia } = useApariencia();
 
   useEffect(() => {
@@ -596,7 +597,6 @@ ${apariencia.logo ? `<img class="logo" src="${apariencia.logo}" alt="">` : ""}
 <h1>Cancelación de agenda de consultorio</h1>
 <h2>Escaneá el código con la cámara del celular</h2>
 <img class="qr" src="${png}" alt="Código QR">
-<div class="url">${escapar(url)}</div>
 <ol>
   <li><strong>Pedir cancelación de agenda:</strong> completá el formulario y guardá tu número de trámite.</li>
   <li><strong>Ver mi solicitud:</strong> con el número de trámite y tu DNI.</li>
@@ -636,11 +636,22 @@ ${apariencia.logo ? `<img class="logo" src="${apariencia.logo}" alt="">` : ""}
           <p style={{ margin: 0 }}>
             Es un único QR para todos los médicos. Al escanearlo eligen <strong>Pedir cancelación de agenda</strong> o <strong>Ver mi solicitud</strong>. No necesitan usuario del sistema.
           </p>
-          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span className="field-label">Dirección que abre el QR</span>
-            <input value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
-            <span className="field-hint">Usa la IP y el puerto del sistema (ej. http://172.20.1.134:8085): los celulares no conocen el nombre «sanatorio.salvador.connect». Por ahora funciona solo dentro de la red / Wi-Fi del sanatorio.</span>
-          </label>
+          <span className="field-hint">Funciona solo dentro de la red / Wi-Fi del sanatorio.</span>
+          {/* La dirección interna queda oculta: solo se muestra (y se corrige) si hace falta. */}
+          {verDireccion ? (
+            <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span className="field-label">Dirección que abre el QR</span>
+              <input value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} autoComplete="off" />
+              <span className="field-hint">IP y puerto del sistema: los celulares no conocen el nombre local.</span>
+              <button type="button" className="btn btn-quiet" style={{ alignSelf: "flex-start" }} onClick={() => setVerDireccion(false)}>
+                <EyeOff size={15} /> Ocultar dirección
+              </button>
+            </label>
+          ) : (
+            <button type="button" className="btn btn-quiet" style={{ alignSelf: "flex-start", fontSize: 12.5 }} onClick={() => setVerDireccion(true)}>
+              <Eye size={15} /> Ver o corregir la dirección
+            </button>
+          )}
         </div>
       </div>
     </Modal>
