@@ -42,13 +42,23 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   },
   {
     key: "guardias",
-    label: "Guardias Médicas",
+    label: "Medical · Guardias Médicas",
     levels: ["ver", "editar", "total"],
     sectores: true,
     can: {
       ver: "Ver calendario, quién está de guardia ahora, registro y estadísticas; exportar CSV.",
       editar: "Además: cargar y modificar guardias, copiar semana o mes, ver el historial de cambios.",
       total: "Además: eliminar guardias y configurar horarios de sectores y datos de profesionales.",
+    },
+  },
+  {
+    key: "cancelaciones",
+    label: "Medical · Cancelaciones Médicos",
+    levels: ["ver", "editar", "total"],
+    can: {
+      ver: "Ver las solicitudes de cancelación de agenda de los médicos.",
+      editar: "Además: analizar, aceptar o rechazar solicitudes.",
+      total: "Además: eliminar solicitudes.",
     },
   },
   {
@@ -99,6 +109,12 @@ export const ACCIONES: Record<string, { key: string; label: string; nivel: Level
     { key: "contactos", label: "Cargar y editar contactos", nivel: "editar" },
     { key: "eliminar", label: "Eliminar ítems, recurrentes y contactos", nivel: "total" },
     { key: "calendario", label: "Catálogo de obligaciones, calendario oficial y feriados", nivel: "total" },
+  ],
+  cancelaciones: [
+    { key: "ver", label: "Ver las solicitudes de cancelación y su detalle", nivel: "ver" },
+    { key: "exportar", label: "Exportar a Excel", nivel: "ver" },
+    { key: "resolver", label: "Analizar, aceptar o rechazar solicitudes", nivel: "editar" },
+    { key: "eliminar", label: "Eliminar solicitudes", nivel: "total" },
   ],
   inventario: [
     { key: "ver", label: "Ver equipos, su historia y el registro de controles", nivel: "ver" },

@@ -22,7 +22,7 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 | Módulo | Estado | Notas |
 |--------|--------|--------|
 | **Administración** | Activo / prioritario | Agenda, fiscal (calendario oficial + estimadas), cheques, documentos, tareas, recurrentes, contactos |
-| **Guardias Médicas** | Activo / prioritario | Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
+| **Medical → Guardias Médicas** | Activo / prioritario | Grupo «Medical» del menú (con Cancelaciones Médicos). Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
 | **Configuración** | Activo | Secciones Usuarios (ABM + permisos por módulo y nivel), Sectores (incluye si participan de Guardias y su horario requerido), Etiquetas de Guardias y Apariencia. Solo superadmin |
 | **Inventario** | Activo | Equipos por planta/sector (PLANTA, SECTOR, RUBRO, TIPO, DESCRIPCION, MARCA, CODIGO DE SERIE), registro de controles / fallas / reparaciones, plan de controles, importar / exportar Excel. Skill `.claude/skills/inventario/SKILL.md` |
 | **Instructivos** | **Próximamente**; código viejo en `pages/Instructivos.tsx` | No ampliar hasta pedido |

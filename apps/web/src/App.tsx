@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { PrintHeader } from "@/components/print-header";
 import { Buscador } from "@/components/buscador";
 import { Notificaciones } from "@/components/notificaciones";
@@ -32,6 +32,9 @@ import {
   UserRound,
   Users,
   X,
+  CalendarX2,
+  ChevronDown,
+  Stethoscope,
 } from 'lucide-react';
 import {
   getGetCurrentUserQueryKey,
@@ -57,15 +60,99 @@ const InventarioPage = lazy(() => import("@/pages/inventario/Inventario"));
 
 const queryClient = new QueryClient();
 
-const navItems = [
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; grupo?: string };
+
+/** Grupos del menú con submódulos (se despliegan al tocarlos o al pasar el mouse). */
+const NAV_GRUPOS: Record<string, { label: string; icon: typeof LayoutDashboard }> = {
+  medical: { label: 'Medical', icon: Stethoscope },
+};
+
+const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
   { href: '/administracion', label: 'Administración', icon: ClipboardList },
-  { href: '/guardias', label: 'Guardias Médicas', icon: CalendarDays },
+  { href: '/guardias', label: 'Guardias Médicas', icon: CalendarDays, grupo: 'medical' },
+  { href: '/cancelaciones', label: 'Cancelaciones Médicos', icon: CalendarX2, grupo: 'medical' },
   { href: '/inventario', label: 'Inventario', icon: PackageOpen },
   { href: '/instructivos', label: 'Instructivos', icon: Archive },
   { href: '/liquidacion', label: 'Liquidación', icon: FileText },
   { href: '/usuarios', label: 'Usuarios', icon: Users },
 ];
+
+/**
+ * Grupo del menú lateral (ej. «Medical»): se despliega al tocarlo o al pasar el mouse y queda abierto si estás en uno
+ * de sus submódulos. Con el menú angosto, los submódulos aparecen en un panel al costado.
+ */
+function NavGrupo({ id, items, location, collapsed, onNavigate }: { id: string; items: NavItem[]; location: string; collapsed: boolean; onNavigate: () => void }) {
+  const g = NAV_GRUPOS[id];
+  const activo = items.some((i) => location === i.href || location.startsWith(i.href + '/'));
+  const [abierto, setAbierto] = useState(activo);
+  const [hover, setHover] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const boton = useRef<HTMLButtonElement>(null);
+  const cierre = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (activo) setAbierto(true);
+  }, [activo]);
+  const entrar = () => {
+    window.clearTimeout(cierre.current);
+    setHover(true);
+    const r = boton.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.top, left: r.right + 6 });
+  };
+  const salir = () => {
+    cierre.current = window.setTimeout(() => setHover(false), 180);
+  };
+  const Icon = g.icon;
+  const visible = collapsed ? hover : abierto || hover;
+  const enlace = (i: NavItem) => (
+    <Link
+      key={i.href}
+      href={i.href}
+      onClick={() => {
+        setHover(false);
+        onNavigate();
+      }}
+      className={`nav-item nav-sub ${location === i.href ? 'active' : ''}`}
+      aria-current={location === i.href ? 'page' : undefined}
+      title={i.label}
+      data-testid={`link-nav-${i.label.toLowerCase()}`}
+    >
+      <span className="nav-ico"><i.icon className="nav-icon" /></span>
+      <span className="nav-txt">{i.label}</span>
+    </Link>
+  );
+  return (
+    <div className={`nav-grupo${activo ? ' tiene-activo' : ''}${visible ? ' is-open' : ''}`} onMouseEnter={entrar} onMouseLeave={salir}>
+      <button
+        ref={boton}
+        type="button"
+        className={`nav-item nav-grupo-btn${activo ? ' active' : ''}`}
+        aria-expanded={visible}
+        title={g.label}
+        onClick={() => {
+          if (collapsed) entrar();
+          else setAbierto((v) => !v);
+        }}
+        data-testid={`link-nav-${id}`}
+      >
+        <span className="nav-ico"><Icon className="nav-icon" /></span>
+        {!collapsed && (
+          <>
+            <span className="nav-txt">{g.label}</span>
+            <ChevronDown className="nav-grupo-flecha" size={15} aria-hidden="true" />
+          </>
+        )}
+      </button>
+      {!collapsed && visible && <div className="nav-grupo-hijos">{items.map(enlace)}</div>}
+      {collapsed && visible && pos && (
+        <div className="nav-flyout" style={{ top: pos.top, left: pos.left }} onMouseEnter={entrar} onMouseLeave={salir} role="menu" aria-label={g.label}>
+          <div className="nav-flyout-titulo">{g.label}</div>
+          {items.map(enlace)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function initials(name?: string) {
   return (name || 'SS').split(' ').slice(0, 2).map((part) => part[0]).join('').toUpperCase();
@@ -136,11 +223,19 @@ function Shell({ children, user }: { children: ReactNode; user?: { name?: string
   const visibleNavItems = navItems.filter((item) => item.href !== '/usuarios' && (user?.role === 'superadmin' || user?.modules?.includes(item.href.slice(1))));
   const nav = <nav aria-label="Menú principal" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
     <div className="nav-label">{collapsed ? <span aria-hidden="true" className="nav-label-linea" /> : 'Operación'}</div>
-    {visibleNavItems.filter((i) => !MODULOS_PROXIMAMENTE.includes(i.href)).map(({ href, label, icon: Icon }) => (
-      <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} aria-current={location === href ? 'page' : undefined} title={label} data-testid={`link-nav-${label.toLowerCase()}`}>
-        <span className="nav-ico"><Icon className="nav-icon" /></span>{!collapsed && <span className="nav-txt">{label}</span>}
-      </Link>
-    ))}
+    {visibleNavItems.filter((i) => !MODULOS_PROXIMAMENTE.includes(i.href)).map((item) => {
+      const { href, label, icon: Icon, grupo } = item;
+      if (grupo) {
+        const delGrupo = visibleNavItems.filter((i) => i.grupo === grupo);
+        if (delGrupo[0] !== item) return null;
+        return <NavGrupo key={`g-${grupo}`} id={grupo} items={delGrupo} location={location} collapsed={collapsed} onNavigate={() => setMobileOpen(false)} />;
+      }
+      return (
+        <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item ${location === href ? 'active' : ''}`} aria-current={location === href ? 'page' : undefined} title={label} data-testid={`link-nav-${label.toLowerCase()}`}>
+          <span className="nav-ico"><Icon className="nav-icon" /></span>{!collapsed && <span className="nav-txt">{label}</span>}
+        </Link>
+      );
+    })}
     {visibleNavItems.some((i) => MODULOS_PROXIMAMENTE.includes(i.href)) && <div className="nav-label">{collapsed ? <span aria-hidden="true" className="nav-label-linea" /> : 'Próximamente'}</div>}
     {visibleNavItems.filter((i) => MODULOS_PROXIMAMENTE.includes(i.href)).map(({ href, label, icon: Icon }) => (
       <Link key={href} href={href} onClick={() => setMobileOpen(false)} className={`nav-item nav-pronto ${location === href ? 'active' : ''}`} aria-current={location === href ? 'page' : undefined} title={`${label} (próximamente)`} data-testid={`link-nav-${label.toLowerCase()}`}>
@@ -335,6 +430,7 @@ function Router() {
     <Route path="/administracion"><Protected user={shellUser}><Shell user={shellUser}><AdministracionPage /></Shell></Protected></Route>
     <Route path="/liquidacion"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Liquidación" icono={FileText} resumen="Un espacio para centralizar el seguimiento de las liquidaciones del sanatorio." ideas={["Seguimiento de liquidaciones por período y obra social", "Estados y responsables de cada liquidación", "Vínculo con los vencimientos de Administración"]} /></Shell></Protected></Route>
     <Route path="/guardias"><Protected user={shellUser}><Shell user={shellUser}><GuardiasMedicasPage /></Shell></Protected></Route>
+    <Route path="/cancelaciones"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Cancelaciones Médicos" icono={CalendarX2} resumen="Solicitudes de cancelación de agenda de los médicos: las cargan desde un QR y el equipo de Medical las analiza, acepta o rechaza." ideas={["Formulario por QR en la red del sanatorio (matrícula, DNI, nombre)", "Número de trámite para que el médico consulte su solicitud", "Regla de 15 días de anticipación y casos excepcionales"]} /></Shell></Protected></Route>
     <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><InventarioPage /></Shell></Protected></Route>
     <Route path="/instructivos"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Instructivos" icono={Archive} resumen="Un lugar ordenado para los instructivos y procedimientos formales de cada área." ideas={["Instructivos por área, siempre en su última versión", "Búsqueda rápida por tema", "Aviso cuando se actualiza un procedimiento"]} /></Shell></Protected></Route>
     <Route path="/configuracion"><Protected user={shellUser}><Shell user={shellUser}><ConfiguracionPage /></Shell></Protected></Route>

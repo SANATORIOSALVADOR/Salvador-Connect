@@ -241,6 +241,7 @@ async function serializeUsers(ids?: number[]) {
 // ---------- historial de cambios de permisos ----------
 
 const MODULO_LABEL: Record<string, string> = {
+  cancelaciones: "Cancelaciones Médicos",
   dashboard: "Inicio",
   administracion: "Administración",
   guardias: "Guardias Médicas",

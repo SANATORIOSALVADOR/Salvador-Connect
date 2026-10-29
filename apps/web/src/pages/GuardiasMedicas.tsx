@@ -782,7 +782,7 @@ export default function GuardiasMedicas() {
     <div className="gm-page">
       <div className="gm-header" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 12 }}>
         <div>
-          <div className="eyebrow">Operación / Cobertura</div>
+          <div className="eyebrow">Medical / Guardias</div>
           <h1 className="page-title">Guardias Médicas</h1>
           <p className="page-subtitle">Cobertura por sector, carga y productividad.</p>
         </div>

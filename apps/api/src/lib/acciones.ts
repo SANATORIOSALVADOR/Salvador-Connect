@@ -38,6 +38,12 @@ export const ACCIONES: Record<string, Accion[]> = {
     { key: "eliminar", nivel: "total" }, // dar de baja y eliminar
     { key: "configurar", nivel: "total" }, // plan de controles y catálogos (plantas, rubros, tipos)
   ],
+  cancelaciones: [
+    { key: "ver", nivel: "ver" }, // bandeja de solicitudes y su detalle
+    { key: "exportar", nivel: "ver" },
+    { key: "resolver", nivel: "editar" }, // tomar en análisis, aceptar o rechazar
+    { key: "eliminar", nivel: "total" },
+  ],
   instructivos: [
     { key: "ver", nivel: "ver" },
     { key: "cargar", nivel: "editar" },

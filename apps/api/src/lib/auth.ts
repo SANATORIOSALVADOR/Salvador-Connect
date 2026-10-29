@@ -27,7 +27,7 @@ export function vencido(hasta: string | null | undefined, hoy = hoyIso()): boole
   return Boolean(hasta && hasta < hoy);
 }
 
-export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "inventario", "instructivos", "configuracion", "usuarios"] as const;
+export const ALL_MODULES = ["dashboard", "administracion", "liquidacion", "guardias", "cancelaciones", "inventario", "instructivos", "configuracion", "usuarios"] as const;
 
 const BOOTSTRAP_USERNAME = "sistemas";
 
@@ -112,6 +112,7 @@ export const PERMISSION_MODULES: Record<string, readonly Level[]> = {
   dashboard: ["ver"],
   administracion: LEVELS,
   guardias: LEVELS,
+  cancelaciones: LEVELS,
   inventario: LEVELS,
   instructivos: LEVELS,
   liquidacion: ["ver"],
