@@ -6,6 +6,7 @@ import { admItemsTable, admObligacionesTable, db, guardiasTable, sectorsTable, u
 import { can, ownSectorIds, hasModule, levelOf, requireAuth } from "../lib/auth";
 import { aplicaEnMes, calendarioDelAnio, isoDate } from "../lib/administracion";
 import { resumenInventario } from "../lib/inventario";
+import { resumenCancelaciones } from "../lib/cancelaciones";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
 /**
@@ -20,7 +21,7 @@ const router: IRouter = Router();
 const ESTADO = process.env.ESTADO_PATH || "/estado";
 
 type Nivel = "alta" | "media" | "baja";
-type Urgente = { nivel: Nivel; modulo: "administracion" | "guardias" | "inventario" | "sistema"; titulo: string; detalle: string; link: string; fecha?: string };
+type Urgente = { nivel: Nivel; modulo: "administracion" | "guardias" | "cancelaciones" | "inventario" | "sistema"; titulo: string; detalle: string; link: string; fecha?: string };
 
 /** "1.250.000,50" / "1250000.50" → número (NaN si no hay). Igual que en la web. */
 function parseMonto(txt: string): number {
@@ -254,6 +255,16 @@ router.get("/inicio", requireAuth, async (req, res): Promise<void> => {
         out.inventario = inv;
         if (inv.conFalla) urgente.push({ nivel: "alta", modulo: "inventario", titulo: inv.conFalla === 1 ? "1 equipo con falla" : `${inv.conFalla} equipos con falla`, detalle: "Registrá la reparación cuando quede resuelto", link: "/inventario?filtro=falla" });
         if (inv.vencidos) urgente.push({ nivel: "media", modulo: "inventario", titulo: inv.vencidos === 1 ? "1 control de equipo vencido" : `${inv.vencidos} controles de equipos vencidos`, detalle: "Revisalos en Inventario → Controles", link: "/inventario?filtro=vencidos" });
+      }
+    }
+
+    // ----- Medical → Cancelaciones de agenda sin resolver -----
+    if (hasModule(user, "cancelaciones")) {
+      const c = await resumenCancelaciones();
+      if (c) {
+        out.cancelaciones = c;
+        const abiertas = c.pendientes + c.enAnalisis;
+        if (abiertas) urgente.push({ nivel: c.excepcionales ? "alta" : "media", modulo: "cancelaciones", titulo: abiertas === 1 ? "1 cancelación de agenda sin resolver" : `${abiertas} cancelaciones de agenda sin resolver`, detalle: c.excepcionales ? `${c.excepcionales} con menos de 15 días hábiles de anticipación` : "Analizalas en Medical → Cancelaciones Médicos", link: "/cancelaciones" });
       }
     }
 

@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { admItemsTable, db, guardiasAuditoriaTable, userModulesTable, usersTable } from "@salvador/db";
 import { can, hasModule, ownSectorIds, requireAuth, visibleSectorIds } from "../lib/auth";
 import { resumenInventario } from "../lib/inventario";
+import { resumenCancelaciones } from "../lib/cancelaciones";
 import { addDaysIso, coberturaDia, fmtHM, guardiasEntre, horasEnRango, horizonte, isoLocal, sectoresDeGuardia } from "../lib/cobertura";
 
 // Campanita y gráficos del Resumen. Todo se calcula en el momento según los módulos de cada persona.
@@ -11,7 +12,7 @@ const router: IRouter = Router();
 
 type Notificacion = {
   id: string; // estable: la web recuerda cuáles ya se leyeron
-  modulo: "administracion" | "guardias" | "inventario" | "sistema";
+  modulo: "administracion" | "guardias" | "cancelaciones" | "inventario" | "sistema";
   nivel: "alta" | "media" | "info";
   titulo: string;
   detalle: string;
@@ -116,6 +117,14 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
       if (inv?.porVencer) out.push({ id: `inv-prox-${hoy}-${inv.porVencer}`, modulo: "inventario", nivel: "info", titulo: inv.porVencer === 1 ? "1 control de equipo esta semana" : `${inv.porVencer} controles de equipos esta semana`, detalle: "Vencen en los próximos 7 días.", fecha: hoy, link: "/inventario?filtro=semana" });
     }
 
+    // Medical → Cancelaciones: solicitudes de médicos esperando respuesta.
+    if (hasModule(user, "cancelaciones")) {
+      const c = await resumenCancelaciones();
+      const abiertas = (c?.pendientes ?? 0) + (c?.enAnalisis ?? 0);
+      if (abiertas) out.push({ id: `can-${hoy}-${c!.pendientes}-${c!.enAnalisis}-${c!.excepcionales}`, modulo: "cancelaciones", nivel: c!.excepcionales ? "alta" : "media", titulo: abiertas === 1 ? "1 solicitud de cancelación de agenda sin resolver" : `${abiertas} solicitudes de cancelación de agenda sin resolver`, detalle: [c!.pendientes ? `${c!.pendientes} nueva${c!.pendientes === 1 ? "" : "s"}` : "", c!.enAnalisis ? `${c!.enAnalisis} en análisis` : "", c!.excepcionales ? `${c!.excepcionales} con menos de 15 días hábiles` : ""].filter(Boolean).join(" · "), fecha: hoy, link: "/cancelaciones" });
+      if (c?.sinInformar && can(user, "cancelaciones", "resolver")) out.push({ id: `can-cent-${hoy}-${c.sinInformar}`, modulo: "cancelaciones", nivel: "info", titulo: c.sinInformar === 1 ? "1 cancelación aceptada sin informar a Central de Turnos" : `${c.sinInformar} cancelaciones aceptadas sin informar a Central de Turnos`, detalle: "Marcala como informada cuando avises.", fecha: hoy, link: "/cancelaciones?estado=aceptada" });
+    }
+
     // Superadmin: accesos temporarios que vencen en los próximos 7 días.
     if (user.role === "superadmin") {
       const tope = addDaysIso(hoy, 7);
@@ -132,7 +141,7 @@ router.get("/notificaciones", requireAuth, async (req, res): Promise<void> => {
         .from(userModulesTable)
         .innerJoin(usersTable, eq(usersTable.id, userModulesTable.userId))
         .where(and(eq(usersTable.active, true), gte(userModulesTable.hasta, hoy), lte(userModulesTable.hasta, tope)));
-      const MOD: Record<string, string> = { administracion: "Administración", guardias: "Guardias Médicas", inventario: "Inventario", instructivos: "Instructivos", dashboard: "Inicio", liquidacion: "Liquidación" };
+      const MOD: Record<string, string> = { administracion: "Administración", guardias: "Guardias Médicas", cancelaciones: "Cancelaciones Médicos", inventario: "Inventario", instructivos: "Instructivos", dashboard: "Inicio", liquidacion: "Liquidación" };
       for (const p of permisos) {
         out.push({ id: `perm-${p.id}-${p.modulo}-${p.hasta}`, modulo: "sistema", nivel: "media", titulo: `Vence un permiso de ${p.name}`, detalle: `${MOD[p.modulo] ?? p.modulo}: temporario hasta el ${fmt(p.hasta!)}.`, fecha: p.hasta!, link: "/configuracion" });
       }

@@ -38,6 +38,8 @@ export function AccesoNombre() {
 
   useEffect(() => {
     let vivo = true;
+    // El formulario del QR lo abren médicos desde el celular: ahí no se ofrece nada.
+    if (window.location.pathname.endsWith("/cancelar-agenda")) return;
     fetch("/api/acceso", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then(async (c: AccesoConfig | null) => {

@@ -379,6 +379,42 @@ export const inventoryItemsTable = pgTable("inventory_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type DiaCancelacion = { fecha: string; desde: string; hasta: string };
+export type EventoCancelacion = { at: string; quien: string; accion: string; detalle?: string };
+
+/** Medical → Cancelaciones Médicos (migración 0012): pedidos de cancelación de agenda de consultorio. */
+export const medCancelacionesTable = pgTable("med_cancelaciones", {
+  id: serial("id").primaryKey(),
+  prestador: text("prestador").notNull(),
+  matricula: text("matricula").notNull(),
+  dni: text("dni").notNull(),
+  servicio: text("servicio").notNull(),
+  telefono: text("telefono").notNull().default(""),
+  pacientesAgendados: boolean("pacientes_agendados").notNull(),
+  hayColega: boolean("hay_colega").notNull(),
+  colega: text("colega").notNull().default(""),
+  motivo: text("motivo").notNull(),
+  motivoDetalle: text("motivo_detalle").notNull().default(""),
+  dias: jsonb("dias").$type<DiaCancelacion[]>().notNull(),
+  fechaDesde: date("fecha_desde", { mode: "string" }).notNull(),
+  fechaHasta: date("fecha_hasta", { mode: "string" }).notNull(),
+  fechaReprogramacion: date("fecha_reprogramacion", { mode: "string" }),
+  anticipacionHabiles: integer("anticipacion_habiles").notNull(),
+  excepcional: boolean("excepcional").notNull().default(false),
+  justificacion: text("justificacion").notNull().default(""),
+  estado: text("estado").notNull().default("pendiente"),
+  respuesta: text("respuesta").notNull().default(""),
+  constanciaRecibida: boolean("constancia_recibida").notNull().default(false),
+  centralInformadaAt: timestamp("central_informada_at", { withTimezone: true }),
+  centralInformadaPor: text("central_informada_por").notNull().default(""),
+  resueltoPorId: integer("resuelto_por_id").references(() => usersTable.id),
+  resueltoPor: text("resuelto_por").notNull().default(""),
+  resueltoAt: timestamp("resuelto_at", { withTimezone: true }),
+  eventos: jsonb("eventos").$type<EventoCancelacion[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Inventario v2: equipos y bienes (migración 0010). */
 export const invItemsTable = pgTable("inv_items", {
   id: serial("id").primaryKey(),

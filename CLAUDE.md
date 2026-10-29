@@ -23,12 +23,13 @@ Nombre en UI: **Sanatorio del Salvador** (nunca “Sanatorio Salvador” ni solo
 |--------|--------|--------|
 | **Administración** | Activo / prioritario | Agenda, fiscal (calendario oficial + estimadas), cheques, documentos, tareas, recurrentes, contactos |
 | **Medical → Guardias Médicas** | Activo / prioritario | Grupo «Medical» del menú (con Cancelaciones Médicos). Calendario + carga; campos: Sector, Fecha, Inicio, Fin, Modalidad (activa/pasiva). Sin “turno” ni “tipo” |
+| **Medical → Cancelaciones Médicos** | Activo | Pedidos de cancelación de agenda de consultorio por QR (formulario público `/cancelar-agenda`, número de trámite CAN-0001 + DNI), regla de 15 días hábiles (menos = excepcional con justificación), bandeja para aceptar / rechazar. Sin adjuntos. Skill `.claude/skills/cancelaciones/SKILL.md` |
 | **Configuración** | Activo | Secciones Usuarios (ABM + permisos por módulo y nivel), Sectores (incluye si participan de Guardias y su horario requerido), Etiquetas de Guardias y Apariencia. Solo superadmin |
 | **Inventario** | Activo | Equipos por planta/sector (PLANTA, SECTOR, RUBRO, TIPO, DESCRIPCION, MARCA, CODIGO DE SERIE), registro de controles / fallas / reparaciones, plan de controles, importar / exportar Excel. Skill `.claude/skills/inventario/SKILL.md` |
 | **Instructivos** | **Próximamente**; código viejo en `pages/Instructivos.tsx` | No ampliar hasta pedido |
 | **Liquidación** | **Próximamente** | No implementar lógica |
 
-**Definidos en uso real hoy:** Administración + Guardias Médicas + Inventario + Usuarios/Config.
+**Definidos en uso real hoy:** Administración + Guardias Médicas + Cancelaciones Médicos + Inventario + Usuarios/Config.
 
 ---
 

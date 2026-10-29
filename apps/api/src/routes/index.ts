@@ -12,6 +12,7 @@ import inicioRouter from "./inicio";
 import inventarioRouter from "./inventario";
 import instructivosRouter from "./instructivos";
 import sectoresRouter from "./sectores";
+import cancelacionesRouter from "./cancelaciones";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(inicioRouter);
 router.use(inventarioRouter);
 router.use(instructivosRouter);
 router.use(sectoresRouter);
+router.use(cancelacionesRouter);
 
 export default router;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, CalendarDays, ClipboardList, PackageOpen, Settings2, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, CalendarX2, ClipboardList, PackageOpen, Settings2, type LucideIcon } from "lucide-react";
 import { useLocation } from "wouter";
 
 // Campanita: vencimientos, huecos de guardia de la semana y cambios recientes en mis sectores.
@@ -7,7 +7,7 @@ import { useLocation } from "wouter";
 
 type Notificacion = {
   id: string;
-  modulo: "administracion" | "guardias" | "inventario" | "sistema";
+  modulo: "administracion" | "guardias" | "cancelaciones" | "inventario" | "sistema";
   nivel: "alta" | "media" | "info";
   titulo: string;
   detalle: string;
@@ -21,8 +21,8 @@ const NIVEL: Record<Notificacion["nivel"], { color: string; etiqueta: string }> 
   media: { color: "#ec835a", etiqueta: "Atención" },
   info: { color: "#2a78d6", etiqueta: "Info" },
 };
-const MODULO: Record<Notificacion["modulo"], string> = { administracion: "Administración", guardias: "Guardias", sistema: "Sistemas", inventario: "Inventario" };
-const ICONO: Record<Notificacion["modulo"], LucideIcon> = { administracion: ClipboardList, guardias: CalendarDays, inventario: PackageOpen, sistema: Settings2 };
+const MODULO: Record<Notificacion["modulo"], string> = { administracion: "Administración", guardias: "Guardias", cancelaciones: "Cancelaciones", sistema: "Sistemas", inventario: "Inventario" };
+const ICONO: Record<Notificacion["modulo"], LucideIcon> = { administracion: ClipboardList, guardias: CalendarDays, cancelaciones: CalendarX2, inventario: PackageOpen, sistema: Settings2 };
 const REFRESCO_MS = 2 * 60_000;
 
 function leerLeidas(clave: string): Set<string> {

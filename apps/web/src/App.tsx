@@ -57,6 +57,8 @@ const UsuariosPage = lazy(() => import("@/pages/Usuarios"));
 const PerfilPage = lazy(() => import("@/pages/Perfil"));
 const InicioPage = lazy(() => import("@/pages/Inicio"));
 const InventarioPage = lazy(() => import("@/pages/inventario/Inventario"));
+const CancelacionesPage = lazy(() => import("@/pages/cancelaciones/Cancelaciones"));
+const CancelacionPublicaPage = lazy(() => import("@/pages/cancelaciones/Publico"));
 
 const queryClient = new QueryClient();
 
@@ -420,7 +422,7 @@ function Protected({ children, user, allowFirstAccess = false }: { children: Rea
 
 function Router() {
   const [location] = useLocation();
-  const currentUser = useCurrentUserSafe(location !== '/' && location !== '/sign-in');
+  const currentUser = useCurrentUserSafe(location !== '/' && location !== '/sign-in' && location !== '/cancelar-agenda');
   const shellUser = currentUser.data;
   return <Switch>
     <Route path="/sign-in"><LoginPage /></Route>
@@ -430,7 +432,9 @@ function Router() {
     <Route path="/administracion"><Protected user={shellUser}><Shell user={shellUser}><AdministracionPage /></Shell></Protected></Route>
     <Route path="/liquidacion"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Liquidación" icono={FileText} resumen="Un espacio para centralizar el seguimiento de las liquidaciones del sanatorio." ideas={["Seguimiento de liquidaciones por período y obra social", "Estados y responsables de cada liquidación", "Vínculo con los vencimientos de Administración"]} /></Shell></Protected></Route>
     <Route path="/guardias"><Protected user={shellUser}><Shell user={shellUser}><GuardiasMedicasPage /></Shell></Protected></Route>
-    <Route path="/cancelaciones"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Cancelaciones Médicos" icono={CalendarX2} resumen="Solicitudes de cancelación de agenda de los médicos: las cargan desde un QR y el equipo de Medical las analiza, acepta o rechaza." ideas={["Formulario por QR en la red del sanatorio (matrícula, DNI, nombre)", "Número de trámite para que el médico consulte su solicitud", "Regla de 15 días de anticipación y casos excepcionales"]} /></Shell></Protected></Route>
+    {/* Formulario público del QR: lo abre el médico sin usuario del sistema. */}
+    <Route path="/cancelar-agenda"><Suspense fallback={null}><CancelacionPublicaPage /></Suspense></Route>
+    <Route path="/cancelaciones"><Protected user={shellUser}><Shell user={shellUser}><CancelacionesPage /></Shell></Protected></Route>
     <Route path="/inventario"><Protected user={shellUser}><Shell user={shellUser}><InventarioPage /></Shell></Protected></Route>
     <Route path="/instructivos"><Protected user={shellUser}><Shell user={shellUser}><Proximamente titulo="Instructivos" icono={Archive} resumen="Un lugar ordenado para los instructivos y procedimientos formales de cada área." ideas={["Instructivos por área, siempre en su última versión", "Búsqueda rápida por tema", "Aviso cuando se actualiza un procedimiento"]} /></Shell></Protected></Route>
     <Route path="/configuracion"><Protected user={shellUser}><Shell user={shellUser}><ConfiguracionPage /></Shell></Protected></Route>
