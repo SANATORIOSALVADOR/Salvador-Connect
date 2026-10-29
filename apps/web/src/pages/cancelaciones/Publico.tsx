@@ -554,7 +554,8 @@ function Consultar({ numero0, dni0, onVolver }: { numero0?: string; dni0?: strin
           <p className="canp-lead" style={{ margin: "10px 0 0" }}>
             {t.estado === "pendiente" && "Dirección Médica todavía no la revisó."}
             {t.estado === "en_analisis" && "Dirección Médica la recibió y la está analizando."}
-            {t.estado === "aceptada" && "Tu pedido fue aceptado."}
+            {t.estado === "aceptada" && "Tu pedido fue aceptado. Central de Turnos va a cancelar la agenda en el sistema."}
+            {t.estado === "agenda_cancelada" && "Tu pedido fue aceptado y Central de Turnos ya canceló la agenda."}
             {t.estado === "rechazada" && "Tu pedido no fue aceptado."}
             {t.estado === "anulada" && "Anulaste esta solicitud."}
           </p>

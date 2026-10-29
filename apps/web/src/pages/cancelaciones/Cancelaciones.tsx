@@ -1,55 +1,44 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, Eye, EyeOff, FileSpreadsheet, Printer, QrCode, RotateCcw, Search, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Download, ExternalLink, Eye, EyeOff, FileSpreadsheet, Printer, QrCode, RotateCcw, Trash2, XCircle } from "lucide-react";
 import { avisar, confirmar } from "@/components/feedback";
 import { useApariencia } from "@/pages/shared/apariencia";
-import { Kpi, Modal, Pill, S, SegControl, Vacio } from "../administracion/ui";
+import { Kpi, Modal, S, SegControl, Vacio } from "../administracion/ui";
 import { ACCION_EVENTO, ANTICIPACION, ESTADO_META, MOTIVOS, RUTA_PUBLICA, api, fechaAr, fechaHora, fechaLarga, resumenDias, type Estado, type Solicitud } from "./api";
+import { AnticipacionPill, BarraFiltros, EstadoPill, FILTROS_VACIOS, hayFiltros, hoyLocal, pasaFiltros, serviciosDe, type Filtros, type Me, type Puede } from "./compartido";
+import { Central, SeccionCentral } from "./Central";
+import { Historial } from "./Historial";
 
-// Medical → Cancelaciones Médicos: bandeja de solicitudes de cancelación de agenda que mandan los médicos por QR.
+// Medical → Cancelaciones Médicos. Tres solapas:
+//  - Solicitudes: bandeja de Dirección Médica (analizar, aceptar, rechazar) de los pedidos que mandan los médicos por QR.
+//  - Central de Turnos: las aceptadas, para que el personal de turnos cancele la agenda y la marque «agenda cancelada».
+//  - Historial: todos los movimientos, con filtros.
 
-type Me = { id: number; name: string; role: string; acciones?: Record<string, string[]> };
-type Lista = { filas: Solicitud[]; porEstado: Record<Estado, number>; resumen: { excepcionales: number; sinInformar: number } | null; anticipacionMinima: number };
+type Lista = { filas: Solicitud[]; porEstado: Record<Estado, number>; resumen: { excepcionales: number; porCancelar: number; urgentesCentral: number } | null; anticipacionMinima: number };
 type FiltroEstado = "abiertas" | Estado | "todas";
+type Vista = "solicitudes" | "central" | "historial";
 
 const FILTROS: { value: FiltroEstado; label: string }[] = [
   { value: "abiertas", label: "Sin resolver" },
   { value: "pendiente", label: "Pendientes" },
   { value: "en_analisis", label: "En análisis" },
-  { value: "aceptada", label: "Aceptadas" },
+  { value: "aceptada", label: "En Central" },
+  { value: "agenda_cancelada", label: "Agenda cancelada" },
   { value: "rechazada", label: "Rechazadas" },
   { value: "anulada", label: "Anuladas" },
   { value: "todas", label: "Todas" },
 ];
 
-/** Fecha de hoy en esta PC (YYYY-MM-DD). */
-const hoyLocal = () => new Date().toLocaleDateString("sv-SE");
-
-export function EstadoPill({ estado }: { estado: Estado }) {
-  const m = ESTADO_META[estado];
-  return <Pill style={{ background: m.bg, color: m.fg, borderColor: m.borde }}>{m.label}</Pill>;
-}
-
-function AnticipacionPill({ s }: { s: Pick<Solicitud, "excepcional" | "anticipacionHabiles"> }) {
-  return s.excepcional ? (
-    <Pill style={{ background: "#fde7d8", color: "#8a3b0c", borderColor: "#f3c09c" }} title={`Pedida con ${s.anticipacionHabiles} días hábiles de anticipación (mínimo ${ANTICIPACION})`}>
-      <AlertTriangle size={11} /> Excepcional · {s.anticipacionHabiles} d.h.
-    </Pill>
-  ) : (
-    <span style={S.small}>{s.anticipacionHabiles} días hábiles</span>
-  );
-}
+export { EstadoPill };
 
 export default function CancelacionesPage() {
   const [me, setMe] = useState<Me | null>(null);
   const [lista, setLista] = useState<Lista | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inicial = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [vista, setVistaState] = useState<Vista | null>((["solicitudes", "central", "historial"] as Vista[]).find((v) => v === inicial.get("vista")) ?? null);
   const [estado, setEstado] = useState<FiltroEstado>((FILTROS.some((f) => f.value === inicial.get("estado")) ? inicial.get("estado") : "abiertas") as FiltroEstado);
-  const [q, setQ] = useState("");
+  const [f, setF] = useState<Filtros>(FILTROS_VACIOS);
   const [soloExcepcionales, setSoloExcepcionales] = useState(false);
-  const [sinInformar, setSinInformar] = useState(false);
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
   const [abierta, setAbierta] = useState<number | null>(inicial.get("id") ? Number(inicial.get("id")) : null);
   const [qr, setQr] = useState(false);
 
@@ -57,38 +46,46 @@ export default function CancelacionesPage() {
     api<Me>("/api/auth/me").then(setMe).catch(() => setMe(null));
   }, []);
 
+  // Se trae todo una vez (son pocas por mes) y cada solapa filtra en pantalla.
   const cargar = useCallback(async () => {
     try {
-      const p = new URLSearchParams();
-      if (estado !== "todas") p.set("estado", estado);
-      if (desde) p.set("desde", desde);
-      if (hasta) p.set("hasta", hasta);
-      if (soloExcepcionales) p.set("excepcional", "1");
-      setLista(await api<Lista>(`/api/cancelaciones?${p}`));
+      setLista(await api<Lista>("/api/cancelaciones"));
       setError(null);
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [estado, desde, hasta, soloExcepcionales]);
+  }, []);
   useEffect(() => {
     void cargar();
   }, [cargar]);
 
-  const acc = useMemo(() => (me?.role === "superadmin" ? ["ver", "exportar", "resolver", "eliminar"] : (me?.acciones?.cancelaciones ?? [])), [me]);
-  const puede = { resolver: acc.includes("resolver"), eliminar: acc.includes("eliminar"), exportar: acc.includes("exportar") };
+  const acc = useMemo(() => (me?.role === "superadmin" ? ["ver", "exportar", "central", "resolver", "eliminar"] : (me?.acciones?.cancelaciones ?? [])), [me]);
+  const puede: Puede = { resolver: acc.includes("resolver"), central: acc.includes("central"), eliminar: acc.includes("eliminar"), exportar: acc.includes("exportar") };
+  // Quien solo trabaja en Central de Turnos entra directo a su solapa.
+  const vistaActual: Vista = vista ?? (me && puede.central && !puede.resolver ? "central" : "solicitudes");
+  const setVista = (v: Vista) => {
+    setVistaState(v);
+    const u = new URL(window.location.href);
+    u.searchParams.set("vista", v);
+    u.searchParams.delete("estado");
+    window.history.replaceState(null, "", u);
+  };
 
-  const filas = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    return (lista?.filas ?? []).filter(
-      (s) =>
-        (!sinInformar || (s.estado === "aceptada" && !s.centralInformadaAt && s.fechaHasta >= hoyLocal())) &&
-        (!t || [s.numero, s.prestador, s.servicio, s.matricula, s.dni, s.colega].some((v) => v.toLowerCase().includes(t))),
-    );
-  }, [lista, q, sinInformar]);
+  const todas = lista?.filas ?? [];
+  const filas = useMemo(
+    () =>
+      todas.filter(
+        (s) =>
+          (estado === "todas" || (estado === "abiertas" ? s.estado === "pendiente" || s.estado === "en_analisis" : s.estado === estado)) &&
+          (!soloExcepcionales || s.excepcional) &&
+          pasaFiltros(s, f),
+      ),
+    [todas, estado, soloExcepcionales, f],
+  );
 
   const pe = lista?.porEstado;
   const excepAbiertas = lista?.resumen?.excepcionales ?? 0;
-  const sinInf = lista?.resumen?.sinInformar ?? 0;
+  const porCancelar = pe?.aceptada ?? 0;
 
   const exportar = async () => {
     const XLSX = await import("xlsx");
@@ -116,15 +113,24 @@ export default function CancelacionesPage() {
         Respuesta: s.respuesta,
         "Resuelta por": s.resueltoPor,
         "Resuelta el": fechaHora(s.resueltoAt),
-        "Central de Turnos informada": s.centralInformadaAt ? fechaHora(s.centralInformadaAt) : "",
+        "Agenda cancelada por": s.agendaCanceladaPor,
+        "Agenda cancelada el": fechaHora(s.agendaCanceladaAt),
+        "Observación de Central": s.centralNota,
       })),
     );
     const ws = XLSX.utils.json_to_sheet(filasX);
     ws["!cols"] = Object.keys(filasX[0] ?? { a: 1 }).map((k) => ({ wch: Math.max(12, Math.min(40, k.length + 4)) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Cancelaciones");
-    XLSX.writeFile(wb, `cancelaciones-agenda-${new Date().toISOString().slice(0, 10)}.xlsx`, { compression: true });
+    XLSX.writeFile(wb, `cancelaciones-agenda-${hoyLocal()}.xlsx`, { compression: true });
   };
+
+  const abiertas = (pe?.pendiente ?? 0) + (pe?.en_analisis ?? 0);
+  const TABS: [Vista, string][] = [
+    ["solicitudes", `Solicitudes${abiertas ? ` · ${abiertas} sin resolver` : ""}`],
+    ["central", `Central de Turnos${porCancelar ? ` · ${porCancelar} por cancelar` : ""}`],
+    ["historial", "Historial"],
+  ];
 
   return (
     <div className="content-wrap" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -132,13 +138,13 @@ export default function CancelacionesPage() {
         <div style={{ minWidth: 0 }}>
           <div className="eyebrow">Medical / Cancelaciones Médicos</div>
           <h1 className="page-title">Cancelaciones de agenda</h1>
-          <p className="page-subtitle">Pedidos de cancelación o reprogramación de agenda de consultorio que envían los médicos desde el QR.</p>
+          <p className="page-subtitle">Pedidos de cancelación de agenda de consultorio que envían los médicos desde el QR: Dirección Médica los resuelve y Central de Turnos cancela la agenda.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} className="no-print">
           <button type="button" className="btn btn-quiet" onClick={() => setQr(true)}>
             <QrCode size={15} /> QR del formulario
           </button>
-          {puede.exportar && (
+          {puede.exportar && vistaActual === "solicitudes" && (
             <button type="button" className="btn btn-quiet" onClick={() => void exportar()} disabled={!filas.length}>
               <FileSpreadsheet size={15} /> Exportar ({filas.length})
             </button>
@@ -146,125 +152,143 @@ export default function CancelacionesPage() {
         </div>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
-        <Kpi label="Pendientes" valor={pe?.pendiente ?? "—"} nota="Sin revisar todavía" tono={pe?.pendiente ? "alerta" : undefined} onClick={() => setEstado("pendiente")} />
-        <Kpi label="En análisis" valor={pe?.en_analisis ?? "—"} nota="Recibidas por Dirección Médica" onClick={() => setEstado("en_analisis")} />
-        <Kpi
-          label="Excepcionales"
-          valor={lista ? excepAbiertas : "—"}
-          nota={`Sin resolver, con menos de ${ANTICIPACION} días hábiles`}
-          tono={excepAbiertas ? "alerta" : undefined}
-          onClick={() => {
-            setEstado("abiertas");
-            setSoloExcepcionales(true);
-          }}
-        />
-        <Kpi
-          label="Aceptadas"
-          valor={pe?.aceptada ?? "—"}
-          nota={sinInf ? `${sinInf} sin informar a Central de Turnos` : "Todas informadas a Central de Turnos"}
-          tono={sinInf ? "alerta" : "ok"}
-          onClick={() => {
-            setEstado("aceptada");
-            setSinInformar(true);
-          }}
-        />
+      <Circuito />
+
+      <div className="gm-tabs no-print" role="tablist" style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
+        {TABS.map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={vistaActual === id} className={`gm-tab${vistaActual === id ? " is-active" : ""}`} onClick={() => setVista(id)}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      <section className="card" style={{ ...S.card, display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-          <SegControl value={estado} onChange={(v) => setEstado(v)} label="Estado" opciones={FILTROS.map((f) => ({ value: f.value, label: !pe || f.value === "todas" ? f.label : `${f.label} ${f.value === "abiertas" ? pe.pendiente + pe.en_analisis : pe[f.value]}` }))} />
-          <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 340 }}>
-            <Search size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", opacity: 0.5 }} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar médico, servicio, matrícula, DNI o trámite" style={{ paddingLeft: 32, width: "100%" }} aria-label="Buscar" />
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={S.label}>Días a cancelar desde</span>
-            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={S.label}>hasta</span>
-            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-          </label>
-          <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, paddingBottom: 8 }}>
-            <input type="checkbox" checked={soloExcepcionales} onChange={(e) => setSoloExcepcionales(e.target.checked)} /> Solo excepcionales
-          </label>
-          <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, paddingBottom: 8 }}>
-            <input type="checkbox" checked={sinInformar} onChange={(e) => setSinInformar(e.target.checked)} /> Aceptadas sin informar a Central
-          </label>
-          {(desde || hasta || soloExcepcionales || sinInformar || q) && (
-            <button
-              type="button"
-              className="btn btn-quiet"
-              onClick={() => {
-                setDesde("");
-                setHasta("");
-                setSoloExcepcionales(false);
-                setSinInformar(false);
-                setQ("");
-              }}
-            >
-              Limpiar filtros
-            </button>
-          )}
-        </div>
+      {error && <div className="form-error">{error}</div>}
+      {!lista && !error && <div className="skeleton" style={{ height: 160 }} />}
 
-        {error && <div className="form-error">{error}</div>}
-        {!lista && !error && <div className="skeleton" style={{ height: 120 }} />}
-        {lista && !filas.length && (
-          <Vacio
-            titulo={estado === "abiertas" ? "No hay solicitudes sin resolver" : "No hay solicitudes con estos filtros"}
-            texto={(lista.filas.length === 0 && estado === "abiertas") ? "Cuando un médico envíe un pedido desde el QR, aparece acá." : undefined}
-            accion={<button type="button" className="btn btn-quiet" onClick={() => setQr(true)}><QrCode size={15} /> Ver el QR para los médicos</button>}
-          />
-        )}
-        {filas.length > 0 && (
-          <div style={{ overflowX: "auto", border: "1px solid hsl(var(--border))", borderRadius: 12 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
-              <thead>
-                <tr>
-                  <th style={S.th}>Trámite</th>
-                  <th style={S.th}>Prestador</th>
-                  <th style={S.th}>Días a cancelar</th>
-                  <th style={S.th}>Motivo</th>
-                  <th style={S.th}>Anticipación</th>
-                  <th style={S.th}>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((s) => (
-                  <tr key={s.id} className="can-fila" onClick={() => setAbierta(s.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setAbierta(s.id)} style={{ cursor: "pointer" }}>
-                    <td style={S.td}>
-                      <div style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700 }}>{s.numero}</div>
-                      <div style={S.small}>{fechaHora(s.createdAt)}</div>
-                    </td>
-                    <td style={S.td}>
-                      <div style={{ fontWeight: 600 }}>{s.prestador}</div>
-                      <div style={S.small}>{s.servicio} · Mat. {s.matricula}</div>
-                    </td>
-                    <td style={S.td}>
-                      <div>{resumenDias(s.dias)}</div>
-                      <div style={S.small}>{s.pacientesAgendados ? "Con pacientes agendados" : "Sin pacientes agendados"}{s.hayColega ? ` · atiende ${s.colega}` : ""}</div>
-                    </td>
-                    <td style={S.td}>{s.motivoLabel}</td>
-                    <td style={S.td}><AnticipacionPill s={s} /></td>
-                    <td style={S.td}>
-                      <EstadoPill estado={s.estado} />
-                      {s.estado === "aceptada" && !s.centralInformadaAt && <div style={{ ...S.small, marginTop: 3 }}>Falta informar a Central</div>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {lista && vistaActual === "central" && <Central filas={todas} puede={puede} onAbrir={setAbierta} onCambio={() => void cargar()} />}
+      {lista && vistaActual === "historial" && <Historial filas={todas} puede={puede} onAbrir={setAbierta} />}
+
+      {lista && vistaActual === "solicitudes" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
+            <Kpi label="Pendientes" valor={pe?.pendiente ?? "—"} nota="Sin revisar todavía" tono={pe?.pendiente ? "alerta" : undefined} onClick={() => setEstado("pendiente")} />
+            <Kpi label="En análisis" valor={pe?.en_analisis ?? "—"} nota="Recibidas por Dirección Médica" onClick={() => setEstado("en_analisis")} />
+            <Kpi
+              label="Excepcionales"
+              valor={excepAbiertas}
+              nota={`Sin resolver, con menos de ${ANTICIPACION} días hábiles`}
+              tono={excepAbiertas ? "alerta" : undefined}
+              onClick={() => {
+                setEstado("abiertas");
+                setSoloExcepcionales(true);
+              }}
+            />
+            <Kpi label="En Central de Turnos" valor={porCancelar} nota={porCancelar ? "Aceptadas: falta cancelar la agenda" : "Ninguna agenda por cancelar"} tono={porCancelar ? "alerta" : "ok"} onClick={() => setVista("central")} />
           </div>
-        )}
-      </section>
+
+          <section className="card" style={{ ...S.card, display: "flex", flexDirection: "column", gap: 12 }}>
+            <SegControl value={estado} onChange={(v) => setEstado(v)} label="Estado" opciones={FILTROS.map((x) => ({ value: x.value, label: !pe || x.value === "todas" ? x.label : `${x.label} ${x.value === "abiertas" ? abiertas : pe[x.value] ?? 0}` }))} />
+            <BarraFiltros
+              f={f}
+              set={setF}
+              servicios={serviciosDe(todas)}
+              extra={
+                <>
+                  <label className="can-check">
+                    <input type="checkbox" checked={soloExcepcionales} onChange={(e) => setSoloExcepcionales(e.target.checked)} /> Solo excepcionales
+                  </label>
+                  {(hayFiltros(f) || soloExcepcionales) && (
+                    <button type="button" className="btn btn-quiet" onClick={() => { setF(FILTROS_VACIOS); setSoloExcepcionales(false); }}>
+                      Limpiar filtros
+                    </button>
+                  )}
+                </>
+              }
+            />
+
+            {!filas.length && (
+              <Vacio
+                titulo={estado === "abiertas" ? "No hay solicitudes sin resolver" : "No hay solicitudes con estos filtros"}
+                texto={todas.length === 0 ? "Cuando un médico envíe un pedido desde el QR, aparece acá." : undefined}
+                accion={<button type="button" className="btn btn-quiet" onClick={() => setQr(true)}><QrCode size={15} /> Ver el QR para los médicos</button>}
+              />
+            )}
+            {filas.length > 0 && (
+              <div style={{ overflowX: "auto", border: "1px solid hsl(var(--border))", borderRadius: 12 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+                  <thead>
+                    <tr>
+                      <th style={S.th}>Trámite</th>
+                      <th style={S.th}>Prestador</th>
+                      <th style={S.th}>Días a cancelar</th>
+                      <th style={S.th}>Motivo</th>
+                      <th style={S.th}>Anticipación</th>
+                      <th style={S.th}>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filas.map((s) => (
+                      <tr key={s.id} className="can-fila" onClick={() => setAbierta(s.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setAbierta(s.id)} style={{ cursor: "pointer" }}>
+                        <td style={S.td}>
+                          <div style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700 }}>{s.numero}</div>
+                          <div style={S.small}>{fechaHora(s.createdAt)}</div>
+                        </td>
+                        <td style={S.td}>
+                          <div style={{ fontWeight: 600 }}>{s.prestador}</div>
+                          <div style={S.small}>{s.servicio} · Mat. {s.matricula}</div>
+                        </td>
+                        <td style={S.td}>
+                          <div>{resumenDias(s.dias)}</div>
+                          <div style={S.small}>{s.pacientesAgendados ? "Con pacientes agendados" : "Sin pacientes agendados"}{s.hayColega ? ` · atiende ${s.colega}` : ""}</div>
+                        </td>
+                        <td style={S.td}>{s.motivoLabel}</td>
+                        <td style={S.td}><AnticipacionPill s={s} /></td>
+                        <td style={S.td}>
+                          <EstadoPill estado={s.estado} />
+                          {s.estado === "agenda_cancelada" && <div style={{ ...S.small, marginTop: 3 }}>por {s.agendaCanceladaPor}</div>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       {abierta != null && <DetalleModal id={abierta} puede={puede} onClose={() => setAbierta(null)} onCambio={() => void cargar()} onAbrir={setAbierta} />}
       {qr && <QrModal onClose={() => setQr(false)} />}
     </div>
+  );
+}
+
+/** El circuito en una línea, para que todos sepan quién hace qué. */
+function Circuito() {
+  const pasos = ["El médico pide por QR", "Dirección Médica acepta o rechaza", "Central de Turnos cancela la agenda", "Queda en el historial"];
+  return (
+    <ol className="can-circuito no-print" aria-label="Circuito">
+      {pasos.map((p, i) => (
+        <li key={p}><span>{i + 1}</span>{p}</li>
+      ))}
+    </ol>
+  );
+}
+
+/** Dónde está la solicitud dentro del circuito. */
+function Progreso({ s }: { s: Solicitud }) {
+  if (s.estado === "rechazada" || s.estado === "anulada") return null;
+  const actual = { pendiente: 0, en_analisis: 1, aceptada: 2, agenda_cancelada: 3 }[s.estado as "pendiente"] ?? 0;
+  const pasos = ["Recibida", "En análisis", "Aceptada · en Central", "Agenda cancelada"];
+  return (
+    <ol className="can-progreso" aria-label="Avance de la solicitud">
+      {pasos.map((p, i) => (
+        <li key={p} className={i < actual || s.estado === "agenda_cancelada" ? "hecho" : i === actual ? "actual" : ""}>
+          <span>{i < actual || s.estado === "agenda_cancelada" ? <Check size={12} /> : i + 1}</span>
+          {p}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -279,7 +303,7 @@ function Dato({ label, children, full }: { label: string; children: ReactNode; f
   );
 }
 
-function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; puede: { resolver: boolean; eliminar: boolean }; onClose: () => void; onCambio: () => void; onAbrir: (id: number) => void }) {
+function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; puede: Puede; onClose: () => void; onCambio: () => void; onAbrir: (id: number) => void }) {
   const [s, setS] = useState<Solicitud | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -379,8 +403,10 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
             <EstadoPill estado={s.estado} />
             <AnticipacionPill s={s} />
             <span style={S.small}>Recibida el {fechaHora(s.createdAt)}</span>
-            {s.resueltoAt && <span style={S.small}>· {s.estado === "aceptada" ? "Aceptada" : "Rechazada"} por {s.resueltoPor} el {fechaHora(s.resueltoAt)}</span>}
+            {s.resueltoAt && <span style={S.small}>· {s.estado === "rechazada" ? "Rechazada" : "Aceptada"} por {s.resueltoPor} el {fechaHora(s.resueltoAt)}</span>}
           </div>
+
+          <Progreso s={s} />
 
           {decidir && (
             <div className="card" style={{ padding: 14, borderRadius: 12, borderColor: decidir === "aceptada" ? "#a9dca9" : "#f0b4b4", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -466,7 +492,7 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
           </section>
 
           <section>
-            <h3 className="can-h3">Seguimiento</h3>
+            <h3 className="can-h3">Constancia</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {s.pideConstancia && (
                 <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 14 }}>
@@ -474,18 +500,16 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
                   Se recibió {motivoMeta?.constancia ?? "la constancia"} en Dirección Médica
                 </label>
               )}
-              <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 14, opacity: s.estado === "aceptada" || s.centralInformadaAt ? 1 : 0.6 }}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(s.centralInformadaAt)}
-                  disabled={!puede.resolver || ocupado || (s.estado !== "aceptada" && !s.centralInformadaAt)}
-                  onChange={(e) => void accion("/seguimiento", { centralInformada: e.target.checked }, "PATCH", e.target.checked ? "Marcada como informada a Central de Turnos." : undefined)}
-                />
-                Central de Turnos informada
-                {s.centralInformadaAt ? <span style={S.small}>({s.centralInformadaPor}, {fechaHora(s.centralInformadaAt)})</span> : s.estado !== "aceptada" && <span style={S.small}>(una vez aceptada)</span>}
-              </label>
             </div>
+            {!s.pideConstancia && <div style={S.small}>Este motivo no lleva constancia.</div>}
           </section>
+
+          {s.estado !== "rechazada" && s.estado !== "anulada" && (
+            <section>
+              <h3 className="can-h3">Central de Turnos</h3>
+              <SeccionCentral s={s} puede={puede} ocupado={ocupado} accion={accion} />
+            </section>
+          )}
 
           <section>
             <h3 className="can-h3">Historial</h3>
@@ -501,7 +525,7 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
                 </li>
               ))}
             </ol>
-            {puede.resolver && (
+            {(puede.resolver || puede.central) && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Agregar una nota interna (no la ve el médico)" maxLength={1000} style={{ flex: 1 }} aria-label="Nota interna" />
                 <button
@@ -708,9 +732,11 @@ ${s.pideConstancia ? `<div class="fila">${marca(s.constanciaRecibida)} Constanci
 <table><thead><tr><th>Fecha</th><th>Horario desde</th><th>Hasta</th></tr></thead><tbody>${filas}</tbody></table>
 <div class="fila" style="margin-top:8px"><span class="l">Fecha de reprogramación:</span> ${s.fechaReprogramacion ? fechaAr(s.fechaReprogramacion) : "—"}</div>
 <h2>Resolución de Dirección Médica</h2>
-<div class="fila">${marca(s.estado === "aceptada")} Aceptada ${marca(s.estado === "rechazada")} Rechazada ${s.resueltoAt ? `<span class="l">por ${escapar(s.resueltoPor)} el ${fechaHora(s.resueltoAt)}</span>` : ""}</div>
+<div class="fila">${marca(s.estado === "aceptada" || s.estado === "agenda_cancelada")} Aceptada ${marca(s.estado === "rechazada")} Rechazada ${s.resueltoAt ? `<span class="l">por ${escapar(s.resueltoPor)} el ${fechaHora(s.resueltoAt)}</span>` : ""}</div>
 ${s.respuesta ? `<div class="fila"><span class="l">Respuesta:</span> ${escapar(s.respuesta)}</div>` : ""}
-<div class="fila">${marca(Boolean(s.centralInformadaAt))} Central de Turnos informada ${s.centralInformadaAt ? `<span class="l">(${escapar(s.centralInformadaPor)}, ${fechaHora(s.centralInformadaAt)})</span>` : ""}</div>
+<h2>Central de Turnos</h2>
+<div class="fila">${marca(s.estado === "agenda_cancelada")} Agenda cancelada en el sistema de turnos ${s.agendaCanceladaAt ? `<span class="l">por ${escapar(s.agendaCanceladaPor)} el ${fechaHora(s.agendaCanceladaAt)}</span>` : ""}</div>
+${s.centralNota ? `<div class="fila"><span class="l">Observación:</span> ${escapar(s.centralNota)}</div>` : ""}
 <div class="firmas"><div>Firma y sello del solicitante</div><div>Firma y sello del Responsable del Servicio</div></div>
 <div class="pie">Solicitud enviada por el médico desde el formulario digital (QR), con declaración de que los datos son correctos.</div>
 <script>window.onload = () => { window.print(); }</script>

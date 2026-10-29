@@ -265,6 +265,7 @@ router.get("/inicio", requireAuth, async (req, res): Promise<void> => {
         out.cancelaciones = c;
         const abiertas = c.pendientes + c.enAnalisis;
         if (abiertas) urgente.push({ nivel: c.excepcionales ? "alta" : "media", modulo: "cancelaciones", titulo: abiertas === 1 ? "1 cancelación de agenda sin resolver" : `${abiertas} cancelaciones de agenda sin resolver`, detalle: c.excepcionales ? `${c.excepcionales} con menos de 15 días hábiles de anticipación` : "Analizalas en Medical → Cancelaciones Médicos", link: "/cancelaciones" });
+        if (c.porCancelar && can(user, "cancelaciones", "central")) urgente.push({ nivel: c.urgentesCentral ? "alta" : "media", modulo: "cancelaciones", titulo: c.porCancelar === 1 ? "1 agenda para cancelar en Central de Turnos" : `${c.porCancelar} agendas para cancelar en Central de Turnos`, detalle: c.urgentesCentral ? `${c.urgentesCentral} empieza${c.urgentesCentral === 1 ? "" : "n"} en los próximos 3 días` : "Aceptadas por Dirección Médica", link: "/cancelaciones?vista=central" });
       }
     }
 

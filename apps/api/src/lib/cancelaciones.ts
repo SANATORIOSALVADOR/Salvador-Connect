@@ -18,12 +18,14 @@ export const MOTIVO_LABEL: Record<Motivo, string> = {
 /** Motivos que llevan constancia (inscripción al congreso / certificado médico) a presentar en Dirección Médica. */
 export const PIDE_CONSTANCIA: Motivo[] = ["formacion", "licencia"];
 
-export const ESTADOS = ["pendiente", "en_analisis", "aceptada", "rechazada", "anulada"] as const;
+/** aceptada = enviada a Central de Turnos; agenda_cancelada = Central ya la canceló en el sistema de agendas. */
+export const ESTADOS = ["pendiente", "en_analisis", "aceptada", "agenda_cancelada", "rechazada", "anulada"] as const;
 export type Estado = (typeof ESTADOS)[number];
 export const ESTADO_LABEL: Record<Estado, string> = {
   pendiente: "Pendiente",
   en_analisis: "En análisis",
-  aceptada: "Aceptada",
+  aceptada: "Aceptada · en Central de Turnos",
+  agenda_cancelada: "Agenda cancelada",
   rechazada: "Rechazada",
   anulada: "Anulada por el médico",
 };
@@ -63,7 +65,7 @@ export async function primerDiaSinExcepcion(hoy: string, fer = new Feriados()): 
   return addDaysIso(d, 1);
 }
 
-/** Para la campanita y el Inicio: solicitudes abiertas, cuántas son excepcionales y cuántas aceptadas falta informar. */
+/** Para la campanita y el Inicio: solicitudes abiertas, cuántas son excepcionales y cuántas esperan a Central de Turnos. */
 export async function resumenCancelaciones() {
   try {
     const [r] = await db
@@ -71,7 +73,9 @@ export async function resumenCancelaciones() {
         pendientes: sql<number>`count(*) filter (where ${medCancelacionesTable.estado} = 'pendiente')::int`,
         enAnalisis: sql<number>`count(*) filter (where ${medCancelacionesTable.estado} = 'en_analisis')::int`,
         excepcionales: sql<number>`count(*) filter (where ${medCancelacionesTable.estado} in ('pendiente','en_analisis') and ${medCancelacionesTable.excepcional})::int`,
-        sinInformar: sql<number>`count(*) filter (where ${medCancelacionesTable.estado} = 'aceptada' and ${medCancelacionesTable.centralInformadaAt} is null and ${medCancelacionesTable.fechaHasta} >= ${hoyIso()})::int`,
+        porCancelar: sql<number>`count(*) filter (where ${medCancelacionesTable.estado} = 'aceptada')::int`,
+        // Agendas por cancelar que empiezan en los próximos 3 días (o ya empezaron).
+        urgentesCentral: sql<number>`count(*) filter (where ${medCancelacionesTable.estado} = 'aceptada' and ${medCancelacionesTable.fechaDesde} <= ${addDaysIso(hoyIso(), 3)})::int`,
       })
       .from(medCancelacionesTable);
     return r ?? null;

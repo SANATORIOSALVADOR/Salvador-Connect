@@ -132,7 +132,8 @@ export const ACCIONES: Record<string, { key: string; label: string; nivel: Level
   cancelaciones: [
     { key: "ver", label: "Ver las solicitudes de cancelación y su detalle", nivel: "ver" },
     { key: "exportar", label: "Exportar a Excel", nivel: "ver" },
-    { key: "resolver", label: "Analizar, aceptar o rechazar solicitudes", nivel: "editar" },
+    { key: "central", label: "Central de Turnos: marcar agendas como canceladas", nivel: "editar" },
+    { key: "resolver", label: "Dirección Médica: analizar, aceptar o rechazar solicitudes", nivel: "editar" },
     { key: "eliminar", label: "Eliminar solicitudes", nivel: "total" },
   ],
   inventario: [

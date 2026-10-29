@@ -410,6 +410,11 @@ export const medCancelacionesTable = pgTable("med_cancelaciones", {
   resueltoPorId: integer("resuelto_por_id").references(() => usersTable.id),
   resueltoPor: text("resuelto_por").notNull().default(""),
   resueltoAt: timestamp("resuelto_at", { withTimezone: true }),
+  // Central de Turnos (migración 0013): quién canceló la agenda en el sistema de agendas.
+  agendaCanceladaAt: timestamp("agenda_cancelada_at", { withTimezone: true }),
+  agendaCanceladaPorId: integer("agenda_cancelada_por_id").references(() => usersTable.id),
+  agendaCanceladaPor: text("agenda_cancelada_por").notNull().default(""),
+  centralNota: text("central_nota").notNull().default(""),
   eventos: jsonb("eventos").$type<EventoCancelacion[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

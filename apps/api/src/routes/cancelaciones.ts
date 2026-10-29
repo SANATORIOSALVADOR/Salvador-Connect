@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type RequestHandler } from "express";
 import { and, desc, eq, gte, ilike, inArray, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { db, medCancelacionesTable, type DiaCancelacion, type EventoCancelacion } from "@salvador/db";
-import { hoyIso, requireAccion, requireAuth, requireModuleAccess } from "../lib/auth";
+import { can, hoyIso, requireAccion, requireAuth, requireModuleAccess } from "../lib/auth";
 import { addDaysIso, Feriados } from "../lib/administracion";
 import {
   ANTICIPACION_MINIMA,
@@ -23,6 +23,8 @@ import {
 //  - /publico/cancelaciones: formulario que el médico abre con el QR (sin usuario; solo red interna).
 //    Pide el pedido y deja consultarlo con número de trámite + DNI.
 //  - /cancelaciones: bandeja del personal con acceso al módulo (analizar, aceptar, rechazar).
+//  - Una aceptada pasa sola a la solapa «Central de Turnos», donde el personal de turnos la marca como
+//    «agenda cancelada» cuando la cancela en el sistema de agendas (acción "central").
 
 const router: IRouter = Router();
 
@@ -71,7 +73,7 @@ function vistaPublica(f: Fila) {
   return {
     numero: numeroTramite(f.id),
     estado: f.estado,
-    estadoLabel: ESTADO_LABEL[f.estado as Estado] ?? f.estado,
+    estadoLabel: f.estado === "aceptada" ? "Aceptada" : f.estado === "agenda_cancelada" ? "Aceptada · agenda cancelada" : (ESTADO_LABEL[f.estado as Estado] ?? f.estado),
     prestador: f.prestador,
     servicio: f.servicio,
     motivo: f.motivo,
@@ -82,7 +84,7 @@ function vistaPublica(f: Fila) {
     anticipacionHabiles: f.anticipacionHabiles,
     pideConstancia: PIDE_CONSTANCIA.includes(f.motivo as Motivo),
     constanciaRecibida: f.constanciaRecibida,
-    respuesta: f.estado === "aceptada" || f.estado === "rechazada" ? f.respuesta : "",
+    respuesta: f.estado === "aceptada" || f.estado === "agenda_cancelada" || f.estado === "rechazada" ? f.respuesta : "",
     resueltoAt: f.resueltoAt,
     createdAt: f.createdAt,
   };
@@ -286,6 +288,11 @@ router.get("/cancelaciones", async (req, res): Promise<void> => {
     const estado = String(req.query.estado ?? "");
     if ((ESTADOS as readonly string[]).includes(estado)) conds.push(eq(medCancelacionesTable.estado, estado));
     else if (estado === "abiertas") conds.push(inArray(medCancelacionesTable.estado, ["pendiente", "en_analisis"]));
+    else if (estado === "central") conds.push(inArray(medCancelacionesTable.estado, ["aceptada", "agenda_cancelada"]));
+    const motivo = String(req.query.motivo ?? "");
+    if ((MOTIVOS as readonly string[]).includes(motivo)) conds.push(eq(medCancelacionesTable.motivo, motivo));
+    const servicio = limpio(req.query.servicio, 120);
+    if (servicio) conds.push(ilike(medCancelacionesTable.servicio, servicio));
     const q = limpio(req.query.q, 80);
     if (q) {
       const like = `%${q}%`;
@@ -390,7 +397,7 @@ router.post("/cancelaciones/:id/resolver", requireAccion("cancelaciones", "resol
     const decision = String(req.body?.decision ?? "");
     const respuesta = textoLargo(req.body?.respuesta, 1500);
     if (decision !== "aceptada" && decision !== "rechazada") return { error: [400, "Elegí aceptar o rechazar."] };
-    if (!ABIERTA(f)) return { error: [409, "La solicitud ya está cerrada. Reabrila para cambiar la decisión."] };
+    if (!ABIERTA(f)) return { error: [409, f.estado === "agenda_cancelada" ? "Central de Turnos ya canceló la agenda." : "La solicitud ya está cerrada. Reabrila para cambiar la decisión."] };
     if (decision === "rechazada" && respuesta.length < 3) return { error: [400, "Indicá el motivo del rechazo: lo ve el médico."] };
     return {
       set: { estado: decision, respuesta, resueltoPorId: req.authUser!.id, resueltoPor: req.authUser!.name || req.authUser!.username, resueltoAt: new Date() },
@@ -401,32 +408,57 @@ router.post("/cancelaciones/:id/resolver", requireAccion("cancelaciones", "resol
 
 router.post("/cancelaciones/:id/reabrir", requireAccion("cancelaciones", "resolver"), (req, res) =>
   cambiar(req, res, (f) =>
-    f.estado !== "aceptada" && f.estado !== "rechazada"
+    f.estado === "agenda_cancelada"
+      ? { error: [409, "Central de Turnos ya canceló la agenda: primero tiene que deshacerlo Central."] }
+      : f.estado !== "aceptada" && f.estado !== "rechazada"
       ? { error: [409, "Solo se reabre una solicitud aceptada o rechazada."] }
       : { set: { estado: "en_analisis", respuesta: "", resueltoPorId: null, resueltoPor: "", resueltoAt: null }, evento: ["reabierta", limpio(req.body?.motivo, 300) || undefined] },
   ),
 );
 
-/** Seguimiento: constancia presentada en Dirección Médica / Central de Turnos informada. */
+/** Seguimiento: constancia presentada en Dirección Médica. */
 router.patch("/cancelaciones/:id/seguimiento", requireAccion("cancelaciones", "resolver"), (req, res) =>
-  cambiar(req, res, (f) => {
+  cambiar(req, res, () => {
     const b = req.body ?? {};
     if (typeof b.constanciaRecibida === "boolean") {
       return { set: { constanciaRecibida: b.constanciaRecibida }, evento: [b.constanciaRecibida ? "constancia" : "constancia_quitada"] };
-    }
-    if (typeof b.centralInformada === "boolean") {
-      if (b.centralInformada && f.estado !== "aceptada") return { error: [409, "Se informa a Central de Turnos una vez aceptada la solicitud."] };
-      const quien = req.authUser!.name || req.authUser!.username;
-      return b.centralInformada
-        ? { set: { centralInformadaAt: new Date(), centralInformadaPor: quien }, evento: ["central"] }
-        : { set: { centralInformadaAt: null, centralInformadaPor: "" }, evento: ["central_quitada"] };
     }
     return { error: [400, "Nada para cambiar."] };
   }),
 );
 
-/** Nota interna en la línea de tiempo (no la ve el médico). */
-router.post("/cancelaciones/:id/nota", requireAccion("cancelaciones", "resolver"), (req, res) =>
+// ----- Central de Turnos -----
+
+/** Central canceló la agenda en el sistema de agendas: la solicitud queda cerrada como «agenda cancelada». */
+router.post("/cancelaciones/:id/agenda-cancelada", requireAccion("cancelaciones", "central"), (req, res) =>
+  cambiar(req, res, (f) => {
+    if (f.estado === "agenda_cancelada") return { error: [409, "La agenda ya figura como cancelada."] };
+    if (f.estado !== "aceptada") return { error: [409, "Solo se cancela la agenda de una solicitud aceptada por Dirección Médica."] };
+    const nota = textoLargo(req.body?.nota, 1000);
+    return {
+      set: { estado: "agenda_cancelada", agendaCanceladaAt: new Date(), agendaCanceladaPorId: req.authUser!.id, agendaCanceladaPor: req.authUser!.name || req.authUser!.username, centralNota: nota },
+      evento: ["agenda_cancelada", nota || undefined],
+    };
+  }),
+);
+
+/** Deshacer (se marcó por error o la agenda se restituyó): vuelve a «por cancelar» en Central. */
+router.post("/cancelaciones/:id/agenda-restituir", requireAccion("cancelaciones", "central"), (req, res) =>
+  cambiar(req, res, (f) => {
+    if (f.estado !== "agenda_cancelada") return { error: [409, "La agenda no figura como cancelada."] };
+    const motivo = limpio(req.body?.motivo, 300);
+    if (motivo.length < 3) return { error: [400, "Indicá por qué se deshace (queda en el historial)."] };
+    return { set: { estado: "aceptada", agendaCanceladaAt: null, agendaCanceladaPorId: null, agendaCanceladaPor: "", centralNota: "" }, evento: ["agenda_restituida", motivo] };
+  }),
+);
+
+/** Nota interna en la línea de tiempo (no la ve el médico). La agregan Dirección Médica o Central de Turnos. */
+const puedeNota: RequestHandler = (req, res, next) => {
+  if (can(req.authUser, "cancelaciones", "resolver") || can(req.authUser, "cancelaciones", "central")) return next();
+  res.status(403).json({ message: "Tu permiso en este módulo no incluye esta acción.", accion: "resolver" });
+};
+
+router.post("/cancelaciones/:id/nota", puedeNota, (req, res) =>
   cambiar(req, res, () => {
     const texto = textoLargo(req.body?.texto, 1000);
     return texto ? { evento: ["nota", texto] } : { error: [400, "Escribí la nota."] };

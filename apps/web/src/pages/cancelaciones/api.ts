@@ -1,7 +1,7 @@
 // Medical → Cancelaciones Médicos: tipos, textos y llamadas a la API (sin React).
 
 export type Motivo = "formacion" | "vacaciones" | "personales" | "licencia";
-export type Estado = "pendiente" | "en_analisis" | "aceptada" | "rechazada" | "anulada";
+export type Estado = "pendiente" | "en_analisis" | "aceptada" | "agenda_cancelada" | "rechazada" | "anulada";
 export type Dia = { fecha: string; desde: string; hasta: string };
 export type Evento = { at: string; quien: string; accion: string; detalle?: string };
 
@@ -19,7 +19,8 @@ export const MOTIVO_LABEL = Object.fromEntries(MOTIVOS.map((m) => [m.key, m.labe
 export const ESTADO_META: Record<Estado, { label: string; bg: string; fg: string; borde: string }> = {
   pendiente: { label: "Pendiente", bg: "#fdf0d5", fg: "#7a4a06", borde: "#efd28f" },
   en_analisis: { label: "En análisis", bg: "#e2edfb", fg: "#1d4f91", borde: "#b5cdee" },
-  aceptada: { label: "Aceptada", bg: "#dcf3dc", fg: "#155c15", borde: "#a9dca9" },
+  aceptada: { label: "Aceptada · en Central", bg: "#dcf3dc", fg: "#155c15", borde: "#a9dca9" },
+  agenda_cancelada: { label: "Agenda cancelada", bg: "#e7e3fb", fg: "#3f2f8f", borde: "#c9c0f0" },
   rechazada: { label: "Rechazada", bg: "#fde2e2", fg: "#8f1d1d", borde: "#f0b4b4" },
   anulada: { label: "Anulada por el médico", bg: "transparent", fg: "hsl(var(--muted-foreground))", borde: "hsl(var(--border))" },
 };
@@ -70,8 +71,9 @@ export type Solicitud = {
   respuesta: string;
   pideConstancia: boolean;
   constanciaRecibida: boolean;
-  centralInformadaAt: string | null;
-  centralInformadaPor: string;
+  agendaCanceladaAt: string | null;
+  agendaCanceladaPor: string;
+  centralNota: string;
   resueltoPor: string;
   resueltoAt: string | null;
   eventos: Evento[];
@@ -142,5 +144,7 @@ export const ACCION_EVENTO: Record<string, string> = {
   constancia_quitada: "Quitó la marca de constancia recibida",
   central: "Informó a Central de Turnos",
   central_quitada: "Quitó la marca de Central de Turnos informada",
+  agenda_cancelada: "Canceló la agenda en el sistema de turnos (Central de Turnos)",
+  agenda_restituida: "Deshizo la cancelación de la agenda (vuelve a Central de Turnos)",
   nota: "Nota interna",
 };

@@ -41,6 +41,7 @@ export const ACCIONES: Record<string, Accion[]> = {
   cancelaciones: [
     { key: "ver", nivel: "ver" }, // bandeja de solicitudes y su detalle
     { key: "exportar", nivel: "ver" },
+    { key: "central", nivel: "editar" }, // Central de Turnos: marcar la agenda como cancelada en el sistema de agendas
     { key: "resolver", nivel: "editar" }, // tomar en análisis, aceptar o rechazar
     { key: "eliminar", nivel: "total" },
   ],
