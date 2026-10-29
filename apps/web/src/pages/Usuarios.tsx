@@ -1,2 +1,2 @@
 // Usuarios ahora es una sección de Configuración; /usuarios muestra la misma pantalla.
-export { default } from "./Configuracion";
+export { default } from "./configuracion/Configuracion";

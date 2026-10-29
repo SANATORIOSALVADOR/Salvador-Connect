@@ -28,11 +28,22 @@ export const ALCANCE_AYUDA: Record<Alcance, string> = {
 };
 
 /** Qué permite cada nivel en cada módulo (debe coincidir con los controles de la API). */
-export const MODULES: { key: string; label: string; levels: Level[]; can: Partial<Record<Level, string>>; sectores?: boolean }[] = [
-  { key: "dashboard", label: "Inicio", levels: ["ver"], can: { ver: "Ver la pantalla de inicio con lo de su día según sus módulos." } },
+/** Grupos de módulos, en el mismo orden y con los mismos nombres que el menú lateral. */
+export type Grupo = "general" | "operacion" | "medical" | "proximamente";
+export const GRUPOS: { key: Grupo; label: string; ayuda: string }[] = [
+  { key: "general", label: "General", ayuda: "Lo que ve todo el mundo al entrar." },
+  { key: "operacion", label: "Operación", ayuda: "Gestión administrativa y de equipos." },
+  { key: "medical", label: "Medical", ayuda: "Todo lo relacionado a médicos: guardias y agendas." },
+  { key: "proximamente", label: "Próximamente", ayuda: "Módulos en preparación." },
+];
+
+export const MODULES: { key: string; label: string; grupo: Grupo; descripcion: string; levels: Level[]; can: Partial<Record<Level, string>>; sectores?: boolean }[] = [
+  { key: "dashboard", label: "Inicio", grupo: "general", descripcion: "Pantalla de inicio con lo del día según los módulos de cada persona.", levels: ["ver"], can: { ver: "Ver la pantalla de inicio con lo de su día según sus módulos." } },
   {
     key: "administracion",
     label: "Administración",
+    grupo: "operacion",
+    descripcion: "Agenda, control fiscal, cheques, documentos, tareas y contactos.",
     levels: ["ver", "editar", "total"],
     can: {
       ver: "Ver la agenda, el control fiscal, cheques, documentos, tareas y contactos.",
@@ -42,7 +53,9 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   },
   {
     key: "guardias",
-    label: "Medical · Guardias Médicas",
+    label: "Guardias Médicas",
+    grupo: "medical",
+    descripcion: "Calendario de guardias por sector, cobertura y productividad.",
     levels: ["ver", "editar", "total"],
     sectores: true,
     can: {
@@ -53,7 +66,9 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   },
   {
     key: "cancelaciones",
-    label: "Medical · Cancelaciones Médicos",
+    label: "Cancelaciones Médicos",
+    grupo: "medical",
+    descripcion: "Pedidos de cancelación de agenda de consultorio que envían los médicos por QR.",
     levels: ["ver", "editar", "total"],
     can: {
       ver: "Ver las solicitudes de cancelación de agenda de los médicos.",
@@ -64,6 +79,8 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   {
     key: "inventario",
     label: "Inventario",
+    grupo: "operacion",
+    descripcion: "Equipos por planta y sector, controles, fallas y reparaciones.",
     levels: ["ver", "editar", "total"],
     sectores: true,
     can: {
@@ -74,12 +91,14 @@ export const MODULES: { key: string; label: string; levels: Level[]; can: Partia
   },
   {
     key: "instructivos",
-    label: "Instructivos (próximamente)",
+    label: "Instructivos",
+    grupo: "proximamente",
+    descripcion: "Instructivos y procedimientos por área.",
     levels: ["ver", "editar", "total"],
     sectores: true,
     can: { ver: "Ver y consultar instructivos.", editar: "Además: publicar y modificar instructivos.", total: "Además: eliminar instructivos." },
   },
-  { key: "liquidacion", label: "Liquidación (próximamente)", levels: ["ver"], can: { ver: "Ver el módulo cuando esté disponible." } },
+  { key: "liquidacion", label: "Liquidación", grupo: "proximamente", descripcion: "Seguimiento de liquidaciones.", levels: ["ver"], can: { ver: "Ver el módulo cuando esté disponible." } },
 ];
 
 /**
@@ -148,3 +167,7 @@ export function ordenarAcciones(modulo: string, lista: string[]): string[] {
 export function mismasAcciones(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
+
+/** Módulos de un grupo, en orden. */
+export const modulosDe = (g: Grupo) => MODULES.filter((m) => m.grupo === g);
+export const moduloDe = (key: string) => MODULES.find((m) => m.key === key);

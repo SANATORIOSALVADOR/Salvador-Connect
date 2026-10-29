@@ -4,6 +4,7 @@ import { and, eq, gt, lt, ne } from "drizzle-orm";
 import { db, perfilesTable, sessionsTable, userModulesTable, usersTable } from "@salvador/db";
 import { logger } from "./logger";
 import { ACCIONES, accionesDeNivel, normalizarAcciones } from "./acciones";
+import { modulosDesactivados } from "./modulos";
 
 const scrypt = (password: string, salt: string, keyLength: number, options: { cost: number; blockSize: number; parallelization: number }) =>
   new Promise<Buffer>((resolve, reject) => {
@@ -330,7 +331,16 @@ export async function getUserWithPermissions(userId: number): Promise<AuthUser |
     .from(userModulesTable)
     .where(eq(userModulesTable.userId, userId));
   const perfil = user.role === "superadmin" ? null : await leerPerfil(user.perfilId);
-  const { permissions, scopes, excepciones, acciones, vencimientos } = efectivos(user.role, perfil, modules);
+  const ef = efectivos(user.role, perfil, modules);
+  // Módulos desactivados para todo el sistema (Configuración → Módulos): sin acceso para nadie salvo el superadmin.
+  if (user.role !== "superadmin") {
+    for (const k of await modulosDesactivados()) {
+      delete ef.permissions[k];
+      delete ef.scopes[k];
+      delete ef.acciones[k];
+    }
+  }
+  const { permissions, scopes, excepciones, acciones, vencimientos } = ef;
   return {
     id: user.id,
     username: user.username,

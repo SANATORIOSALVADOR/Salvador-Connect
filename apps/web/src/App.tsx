@@ -52,7 +52,7 @@ import { VerComoAviso } from "@/components/ver-como";
 // Cada módulo se descarga recién cuando se abre (la primera carga es más liviana).
 const AdministracionPage = lazy(() => import("@/pages/Administracion"));
 const GuardiasMedicasPage = lazy(() => import("@/pages/GuardiasMedicas"));
-const ConfiguracionPage = lazy(() => import("@/pages/Configuracion"));
+const ConfiguracionPage = lazy(() => import("@/pages/configuracion/Configuracion"));
 const UsuariosPage = lazy(() => import("@/pages/Usuarios"));
 const PerfilPage = lazy(() => import("@/pages/Perfil"));
 const InicioPage = lazy(() => import("@/pages/Inicio"));

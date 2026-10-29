@@ -13,6 +13,7 @@ import inventarioRouter from "./inventario";
 import instructivosRouter from "./instructivos";
 import sectoresRouter from "./sectores";
 import cancelacionesRouter from "./cancelaciones";
+import modulosRouter from "./modulos";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(inventarioRouter);
 router.use(instructivosRouter);
 router.use(sectoresRouter);
 router.use(cancelacionesRouter);
+router.use(modulosRouter);
 
 export default router;

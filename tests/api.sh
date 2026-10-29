@@ -510,7 +510,7 @@ check "PUT superadmin" 200 "$(req $A PUT /apariencia '{"subtitulo":"Pruebas","co
 check "logo inválido rechazado" 400 "$(req $A PUT /apariencia '{"logo":"data:text/html;base64,PGgxPg=="}')"
 
 echo "== Acceso por nombre"
-check "acceso público (sin sesión)" 200 "$(req $T/anon GET /acceso)"; [ "$(jget "Object.keys(d).sort().join(',')")" = "ip,nombre,siteUrl" ] && ok "devuelve siteUrl, nombre e ip" || bad "acceso" "$(body)"
+check "acceso público (sin sesión)" 200 "$(req $T/anon GET /acceso)"; [ "$(jget "Object.keys(d).sort().join(',')")" = "ip,ipUrl,nombre,siteUrl" ] && ok "devuelve siteUrl, nombre, ip e ipUrl" || bad "acceso" "$(body)"
 
 echo "== Búsqueda, notificaciones y gráficos"
 check "buscar 'perez' (sin tilde)" 200 "$(req $A GET '/buscar?q=perez')"
@@ -578,6 +578,20 @@ check "reabrir la aceptada" 200 "$(req $A POST /cancelaciones/$ID1/reabrir '{}')
 [ "$(jget "d.estado==='en_analisis'&&d.respuesta===''")" = "true" ] && ok "vuelve a análisis" || bad "reabrir" "$(body)"
 check "eliminar (control total)" 204 "$(req $A DELETE /cancelaciones/$ID2)"
 check "ya no existe" 404 "$(req $A GET /cancelaciones/$ID2)"
+
+echo "== Configuración → Módulos"
+check "estado de los módulos" 200 "$(req $V GET /modulos)"; [ "$(jget "d.desactivados.length===0&&d.noDesactivables.includes('dashboard')")" = "true" ] && ok "todos activos" || bad "modulos" "$(body)"
+check "no superadmin no desactiva módulos" 403 "$(req $V PUT /modulos/cancelaciones '{"activo":false}')"
+check "Inicio no se desactiva" 400 "$(req $A PUT /modulos/dashboard '{"activo":false}')"
+check "módulo inexistente" 404 "$(req $A PUT /modulos/nada '{"activo":false}')"
+check "desactivar Cancelaciones" 200 "$(req $A PUT /modulos/cancelaciones '{"activo":false}')"
+check "quien tenía acceso ya no entra" 403 "$(req $V GET /cancelaciones)"
+check "me de esa persona" 200 "$(req $V GET /auth/me)"; [ "$(jget "!(d.modules||[]).includes('cancelaciones')")" = "true" ] && ok "desaparece de su menú" || bad "menu" "$(body)"
+check "superadmin sigue entrando" 200 "$(req $A GET /cancelaciones)"
+check "su permiso se conserva" 200 "$(req $A GET /users)"; [ "$(jget "d.find(u=>u.username==='vecan').permissions.cancelaciones")" = "ver" ] && ok "permiso guardado intacto" || bad "permiso" "$(body | head -c 200)"
+check "activar de nuevo" 200 "$(req $A PUT /modulos/cancelaciones '{"activo":true}')"
+check "vuelve a entrar" 200 "$(req $V GET /cancelaciones)"
+check "queda en la auditoría" 200 "$(req $A GET '/users/historial?limit=20')"; [ "$(jget "d.filter(h=>h.accion==='modulo').length")" = "2" ] && ok "2 movimientos de módulo" || bad "auditoria" "$(jget "d.map(h=>h.accion).join(',')")"
 
 echo; echo "RESULTADO: $PASS OK, $FAIL FALLAS"
 [ "$FAIL" -eq 0 ]

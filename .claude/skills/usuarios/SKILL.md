@@ -7,9 +7,24 @@ description: Configuración → Usuarios y Sectores del Sanatorio del Salvador �
 
 ## Archivos
 
-- UI: `apps/web/src/pages/Configuracion.tsx` (secciones **Usuarios**, **Sectores**, **Etiquetas** y **Apariencia**;
-  `?seccion=sectores|etiquetas` abre directo esa solapa).
-  `Usuarios.tsx` solo re-exporta Configuración (la ruta `/usuarios` sigue funcionando).
+- UI: `apps/web/src/pages/configuracion/` (rediseño oct-2026, estilo paneles de administración de accesos):
+  - `Configuracion.tsx`: armazón con menú lateral por áreas y carga de datos (`Datos`); la sección y lo abierto van en
+    la dirección: `?seccion=personas|perfiles|matriz|sectores|modulos|etiquetas|apariencia|auditoria` (+ `&id=`, `&tab=`,
+    `&nueva=1`, `&modulo=`). Alias viejos: `usuarios` → personas, `historial` → auditoria.
+  - `Personas.tsx`: lista con filtros rápidos (sin perfil, primer acceso, por vencer…), filtro por perfil y por módulo,
+    **acciones en lote** (asignar perfil, activar/desactivar); **ficha** en panel lateral con pestañas «Qué puede hacer»
+    (permisos efectivos, vista previa de cambios), «Accesos», «Datos de la cuenta», «Actividad»; **alta guiada** en 3 pasos
+    con credenciales para copiar y entregar.
+  - `AccesosEditor.tsx`: editor por módulo agrupado como el menú (`GRUPOS` en `lib/permisos.ts`: General, Operación,
+    Medical, Próximamente), nivel en botones, sectores, acciones a medida, temporarios, excepciones al perfil.
+  - `Resumen.tsx` («Qué puede hacer»), `Perfiles.tsx` (tarjetas + editor con personas vinculadas y duplicar),
+    `Matriz.tsx` (personas × módulos, exporta Excel), `Modulos.tsx`, `Sectores.tsx`, `Etiquetas.tsx`, `Auditoria.tsx`.
+  - `api.ts`: tipos y lógica pura (aplicar perfil, excepciones, cuerpo del PATCH). `ui.tsx`: piezas visuales.
+  `pages/Usuarios.tsx` solo re-exporta Configuración (la ruta `/usuarios` sigue funcionando).
+- **Módulos desactivados** (Configuración → Módulos): `app_settings["modulos"] = { desactivados }`, `lib/modulos.ts`,
+  `routes/modulos.ts` (`GET /api/modulos`, `PUT /api/modulos/:key {activo}` superadmin; queda en la auditoría como `modulo`).
+  `getUserWithPermissions` quita esos módulos a todos salvo superadmin (menú, API, avisos); los permisos guardados no se tocan.
+  Inicio no se puede desactivar.
 - API: `apps/api/src/routes/users.ts` (todo requiere `superadmin`), `routes/sectores.ts`.
 - Permisos: `apps/api/src/lib/auth.ts` → `PERMISSION_MODULES`, `requireModuleAccess`, `requireLevel`, `hasLevel`.
 - Tablas: `users`, `user_modules (user_id, module_key, level)`, `user_sectors`.
