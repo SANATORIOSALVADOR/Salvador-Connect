@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, CheckCircle2, Download, ExternalLink, Eye, EyeOff, FileSpreadsheet, Printer, QrCode, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Download, ExternalLink, Eye, EyeOff, FileSpreadsheet, Printer, QrCode, RotateCcw, Trash2, Undo2 } from "lucide-react";
 import { avisar, confirmar } from "@/components/feedback";
 import { useApariencia } from "@/pages/shared/apariencia";
-import { Kpi, Modal, S, SegControl, Vacio } from "../administracion/ui";
+import { Modal, S, SegControl, Vacio } from "../administracion/ui";
 import { ACCION_EVENTO, ANTICIPACION, ESTADO_META, MOTIVOS, RUTA_PUBLICA, api, fechaAr, fechaHora, fechaLarga, resumenDias, type Estado, type Solicitud } from "./api";
 import { AnticipacionPill, BarraFiltros, EstadoPill, FILTROS_VACIOS, hayFiltros, hoyLocal, pasaFiltros, serviciosDe, type Filtros, type Me, type Puede } from "./compartido";
-import { Central, SeccionCentral } from "./Central";
+import { Central, SeccionCentral, type VistaCentral } from "./Central";
+import { devueltaPorCentral, eliminarSolicitud, PanelDecision, TarjetaSolicitud } from "./Decision";
 import { Historial } from "./Historial";
 
 // Medical → Cancelaciones Médicos. Tres solapas:
@@ -41,6 +42,7 @@ export default function CancelacionesPage() {
   const [soloExcepcionales, setSoloExcepcionales] = useState(false);
   const [abierta, setAbierta] = useState<number | null>(inicial.get("id") ? Number(inicial.get("id")) : null);
   const [qr, setQr] = useState(false);
+  const [vistaCentral, setVistaCentral] = useState<VistaCentral>("por_cancelar");
 
   useEffect(() => {
     api<Me>("/api/auth/me").then(setMe).catch(() => setMe(null));
@@ -82,6 +84,9 @@ export default function CancelacionesPage() {
       ),
     [todas, estado, soloExcepcionales, f],
   );
+  // Las que esperan decisión se muestran como tarjetas, primero la agenda más cercana.
+  const enTarjetas = estado === "abiertas" || estado === "pendiente" || estado === "en_analisis";
+  const ordenadas = useMemo(() => (enTarjetas ? [...filas].sort((a, b) => a.fechaDesde.localeCompare(b.fechaDesde)) : filas), [filas, enTarjetas]);
 
   const pe = lista?.porEstado;
   const excepAbiertas = lista?.resumen?.excepcionales ?? 0;
@@ -152,7 +157,22 @@ export default function CancelacionesPage() {
         </div>
       </header>
 
-      <Circuito />
+      <Flujo
+        pe={pe}
+        onPaso={(paso) => {
+          if (paso === "pendiente" || paso === "en_analisis") {
+            setVista("solicitudes");
+            setEstado(paso);
+          } else {
+            setVista("central");
+            setVistaCentral(paso === "aceptada" ? "por_cancelar" : "canceladas");
+          }
+        }}
+        onCerradas={() => {
+          setVista("solicitudes");
+          setEstado("rechazada");
+        }}
+      />
 
       <div className="gm-tabs no-print" role="tablist" style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
         {TABS.map(([id, label]) => (
@@ -165,27 +185,11 @@ export default function CancelacionesPage() {
       {error && <div className="form-error">{error}</div>}
       {!lista && !error && <div className="skeleton" style={{ height: 160 }} />}
 
-      {lista && vistaActual === "central" && <Central filas={todas} puede={puede} onAbrir={setAbierta} onCambio={() => void cargar()} />}
+      {lista && vistaActual === "central" && <Central filas={todas} puede={puede} vista={vistaCentral} setVista={setVistaCentral} onAbrir={setAbierta} onCambio={() => void cargar()} />}
       {lista && vistaActual === "historial" && <Historial filas={todas} puede={puede} onAbrir={setAbierta} />}
 
       {lista && vistaActual === "solicitudes" && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
-            <Kpi label="Pendientes" valor={pe?.pendiente ?? "—"} nota="Sin revisar todavía" tono={pe?.pendiente ? "alerta" : undefined} onClick={() => setEstado("pendiente")} />
-            <Kpi label="En análisis" valor={pe?.en_analisis ?? "—"} nota="Recibidas por Dirección Médica" onClick={() => setEstado("en_analisis")} />
-            <Kpi
-              label="Excepcionales"
-              valor={excepAbiertas}
-              nota={`Sin resolver, con menos de ${ANTICIPACION} días hábiles`}
-              tono={excepAbiertas ? "alerta" : undefined}
-              onClick={() => {
-                setEstado("abiertas");
-                setSoloExcepcionales(true);
-              }}
-            />
-            <Kpi label="En Central de Turnos" valor={porCancelar} nota={porCancelar ? "Aceptadas: falta cancelar la agenda" : "Ninguna agenda por cancelar"} tono={porCancelar ? "alerta" : "ok"} onClick={() => setVista("central")} />
-          </div>
-
           <section className="card" style={{ ...S.card, display: "flex", flexDirection: "column", gap: 12 }}>
             <SegControl value={estado} onChange={(v) => setEstado(v)} label="Estado" opciones={FILTROS.map((x) => ({ value: x.value, label: !pe || x.value === "todas" ? x.label : `${x.label} ${x.value === "abiertas" ? abiertas : pe[x.value] ?? 0}` }))} />
             <BarraFiltros
@@ -195,7 +199,7 @@ export default function CancelacionesPage() {
               extra={
                 <>
                   <label className="can-check">
-                    <input type="checkbox" checked={soloExcepcionales} onChange={(e) => setSoloExcepcionales(e.target.checked)} /> Solo excepcionales
+                    <input type="checkbox" checked={soloExcepcionales} onChange={(e) => setSoloExcepcionales(e.target.checked)} /> Solo excepcionales{excepAbiertas ? ` (${excepAbiertas} sin resolver)` : ""}
                   </label>
                   {(hayFiltros(f) || soloExcepcionales) && (
                     <button type="button" className="btn btn-quiet" onClick={() => { setF(FILTROS_VACIOS); setSoloExcepcionales(false); }}>
@@ -213,7 +217,12 @@ export default function CancelacionesPage() {
                 accion={<button type="button" className="btn btn-quiet" onClick={() => setQr(true)}><QrCode size={15} /> Ver el QR para los médicos</button>}
               />
             )}
-            {filas.length > 0 && (
+            {filas.length > 0 && enTarjetas && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {ordenadas.map((s) => <TarjetaSolicitud key={s.id} s={s} puede={puede} onAbrir={setAbierta} onCambio={() => void cargar()} />)}
+              </div>
+            )}
+            {filas.length > 0 && !enTarjetas && (
               <div style={{ overflowX: "auto", border: "1px solid hsl(var(--border))", borderRadius: 12 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
@@ -263,15 +272,42 @@ export default function CancelacionesPage() {
   );
 }
 
-/** El circuito en una línea, para que todos sepan quién hace qué. */
-function Circuito() {
-  const pasos = ["El médico pide por QR", "Dirección Médica acepta o rechaza", "Central de Turnos cancela la agenda", "Queda en el historial"];
+type Paso = "pendiente" | "en_analisis" | "aceptada" | "agenda_cancelada";
+
+/** El circuito completo con cuántas hay en cada paso; cada paso lleva a donde se trabaja. */
+function Flujo({ pe, onPaso, onCerradas }: { pe?: Record<Estado, number>; onPaso: (p: Paso) => void; onCerradas: () => void }) {
+  const pasos: { key: Paso; titulo: string; quien: string }[] = [
+    { key: "pendiente", titulo: "Nuevas", quien: "Enviadas por el médico" },
+    { key: "en_analisis", titulo: "En análisis", quien: "Dirección Médica" },
+    { key: "aceptada", titulo: "Por cancelar", quien: "Central de Turnos" },
+    { key: "agenda_cancelada", titulo: "Agenda cancelada", quien: "Terminadas" },
+  ];
+  const cerradas = (pe?.rechazada ?? 0) + (pe?.anulada ?? 0);
   return (
-    <ol className="can-circuito no-print" aria-label="Circuito">
-      {pasos.map((p, i) => (
-        <li key={p}><span>{i + 1}</span>{p}</li>
-      ))}
-    </ol>
+    <div className="can-flujo no-print">
+      <ol>
+        {pasos.map((p, i) => {
+          const n = pe?.[p.key] ?? 0;
+          return (
+            <li key={p.key}>
+              <button type="button" className={`can-flujo-paso${n && p.key !== "agenda_cancelada" ? " con" : ""} paso-${p.key}`} onClick={() => onPaso(p.key)}>
+                <span className="can-flujo-n">{pe ? n : "—"}</span>
+                <span className="can-flujo-txt">
+                  <strong>{p.titulo}</strong>
+                  <span>{p.quien}</span>
+                </span>
+              </button>
+              {i < pasos.length - 1 && <ArrowRight size={16} className="can-flujo-flecha" aria-hidden="true" />}
+            </li>
+          );
+        })}
+      </ol>
+      {cerradas > 0 && (
+        <button type="button" className="can-flujo-cerradas" onClick={onCerradas}>
+          Cerradas sin cancelar: {pe?.rechazada ?? 0} rechazada{pe?.rechazada === 1 ? "" : "s"} · {pe?.anulada ?? 0} anulada{pe?.anulada === 1 ? "" : "s"} por el médico
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -292,6 +328,48 @@ function Progreso({ s }: { s: Solicitud }) {
   );
 }
 
+/** Recuadro del detalle que dice qué falta y quién lo hace, con los botones de ese paso. */
+function ProximoPaso({ s, puede, ocupado, accion, onHecho }: { s: Solicitud; puede: Puede; ocupado: boolean; accion: (url: string, body: unknown, metodo?: string, ok?: string) => Promise<void>; onHecho: (s: Solicitud) => void }) {
+  const devuelta = devueltaPorCentral(s);
+  if (s.estado === "pendiente" || s.estado === "en_analisis") {
+    return (
+      <div className="can-paso">
+        <div className="can-paso-tit">Próximo paso · <strong>Dirección Médica</strong> acepta o rechaza</div>
+        {devuelta && (
+          <div className="can-aviso devuelta" style={{ margin: 0 }}>
+            <Undo2 size={16} style={{ flex: "0 0 auto" }} />
+            <div><strong>Central de Turnos la devolvió:</strong> {devuelta}</div>
+          </div>
+        )}
+        {puede.resolver ? <PanelDecision s={s} puede={puede} onHecho={onHecho} alineado="start" /> : <div style={S.small}>Lo decide Dirección Médica. Cuando la acepte, pasa a Central de Turnos.</div>}
+      </div>
+    );
+  }
+  if (s.estado === "aceptada" || s.estado === "agenda_cancelada") {
+    return (
+      <div className="can-paso">
+        <div className="can-paso-tit">{s.estado === "aceptada" ? <>Próximo paso · <strong>Central de Turnos</strong> cancela la agenda</> : <>Terminada · la agenda ya se canceló</>}</div>
+        <SeccionCentral s={s} puede={puede} ocupado={ocupado} accion={accion} />
+        {puede.resolver && s.estado === "aceptada" && (
+          <button type="button" className="btn btn-quiet" style={{ alignSelf: "flex-start", fontSize: 12.5 }} disabled={ocupado} onClick={() => void accion("/reabrir", {}, "POST", "Volvió a análisis: Central ya no la ve como por cancelar.")}>
+            <RotateCcw size={14} /> Dirección Médica: volver a análisis
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="can-paso cerrada">
+      <div className="can-paso-tit">{s.estado === "rechazada" ? <>Cerrada · <strong>rechazada</strong>{s.resueltoPor ? ` por ${s.resueltoPor}` : ""}</> : <>Cerrada · el médico la anuló</>}</div>
+      {puede.resolver && s.estado === "rechazada" && (
+        <button type="button" className="btn btn-quiet" style={{ alignSelf: "flex-start" }} disabled={ocupado} onClick={() => void accion("/reabrir", {}, "POST", "Solicitud reabierta.")}>
+          <RotateCcw size={15} /> Reabrir
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------------------------
 
 function Dato({ label, children, full }: { label: string; children: ReactNode; full?: boolean }) {
@@ -307,8 +385,6 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
   const [s, setS] = useState<Solicitud | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const [decidir, setDecidir] = useState<"aceptada" | "rechazada" | null>(null);
-  const [respuesta, setRespuesta] = useState("");
   const [nota, setNota] = useState("");
   const { apariencia } = useApariencia();
 
@@ -317,8 +393,6 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
     api<Solicitud>(`/api/cancelaciones/${id}`).then(setS).catch((e: Error) => setError(e.message));
   }, [id]);
   useEffect(() => {
-    setDecidir(null);
-    setRespuesta("");
     cargar();
   }, [cargar]);
 
@@ -328,8 +402,6 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
     try {
       const r = await api<Solicitud>(`/api/cancelaciones/${id}${url}`, { method: metodo, body });
       setS((prev) => ({ ...r, otras: prev?.otras }));
-      setDecidir(null);
-      setRespuesta("");
       if (ok) avisar(ok);
       onCambio();
     } catch (err) {
@@ -340,18 +412,12 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
   };
 
   const eliminar = async () => {
-    if (!s || !(await confirmar({ titulo: `¿Eliminar la solicitud ${s.numero}?`, mensaje: "Se borra con todo su historial. No se puede deshacer.", accion: "Eliminar", peligro: true }))) return;
-    try {
-      await api(`/api/cancelaciones/${id}`, { method: "DELETE" });
-      avisar(`Solicitud ${s.numero} eliminada.`);
+    if (s && (await eliminarSolicitud(s))) {
       onCambio();
       onClose();
-    } catch (err) {
-      setError((err as Error).message);
     }
   };
 
-  const abiertaEstado = s && (s.estado === "pendiente" || s.estado === "en_analisis");
   const motivoMeta = s ? MOTIVOS.find((m) => m.key === s.motivo) : undefined;
 
   return (
@@ -363,34 +429,13 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
         s && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", width: "100%", alignItems: "center" }}>
             {puede.eliminar && (
-              <button type="button" className="btn btn-quiet" onClick={() => void eliminar()} style={{ color: "#b91c1c" }}>
+              <button type="button" className="btn btn-quiet" onClick={() => void eliminar()} style={{ color: "#b91c1c" }} title="Sacarla del sistema (mal cargada o duplicada)">
                 <Trash2 size={15} /> Eliminar
               </button>
             )}
             <button type="button" className="btn btn-quiet" onClick={() => imprimirPlanilla(s, apariencia.nombre, apariencia.logo)}>
               <Printer size={15} /> Imprimir planilla
             </button>
-            <span style={{ flex: 1 }} />
-            {puede.resolver && s.estado === "pendiente" && (
-              <button type="button" className="btn btn-quiet" disabled={ocupado} onClick={() => void accion("/analisis", {}, "POST", "Quedó en análisis.")}>
-                Tomar para análisis
-              </button>
-            )}
-            {puede.resolver && abiertaEstado && (
-              <>
-                <button type="button" className="btn btn-quiet" disabled={ocupado} onClick={() => setDecidir("rechazada")} style={{ color: "#b91c1c" }}>
-                  <XCircle size={15} /> Rechazar
-                </button>
-                <button type="button" className="btn btn-primary" disabled={ocupado} onClick={() => setDecidir("aceptada")}>
-                  <CheckCircle2 size={15} /> Aceptar
-                </button>
-              </>
-            )}
-            {puede.resolver && (s.estado === "aceptada" || s.estado === "rechazada") && (
-              <button type="button" className="btn btn-quiet" disabled={ocupado} onClick={() => void accion("/reabrir", {}, "POST", "Solicitud reabierta.")}>
-                <RotateCcw size={15} /> Reabrir
-              </button>
-            )}
           </div>
         )
       }
@@ -408,30 +453,20 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
 
           <Progreso s={s} />
 
-          {decidir && (
-            <div className="card" style={{ padding: 14, borderRadius: 12, borderColor: decidir === "aceptada" ? "#a9dca9" : "#f0b4b4", display: "flex", flexDirection: "column", gap: 8 }}>
-              <strong>{decidir === "aceptada" ? "Aceptar la solicitud" : "Rechazar la solicitud"}</strong>
-              <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <span className="field-label">{decidir === "aceptada" ? "Mensaje para el médico (opcional)" : "Motivo del rechazo (lo ve el médico)"}</span>
-                <textarea value={respuesta} onChange={(e) => setRespuesta(e.target.value)} rows={2} maxLength={1500} autoFocus placeholder={decidir === "aceptada" ? "Ej.: Se reprograma a los pacientes para la semana siguiente." : "Ej.: No hay quién cubra la agenda en esas fechas."} />
-              </label>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-quiet" onClick={() => setDecidir(null)}>Cancelar</button>
-                <button
-                  type="button"
-                  className={decidir === "aceptada" ? "btn btn-primary" : "btn btn-danger"}
-                  disabled={ocupado || (decidir === "rechazada" && respuesta.trim().length < 3)}
-                  onClick={() => void accion("/resolver", { decision: decidir, respuesta }, "POST", decidir === "aceptada" ? "Solicitud aceptada." : "Solicitud rechazada.")}
-                >
-                  {decidir === "aceptada" ? "Confirmar: aceptar" : "Confirmar: rechazar"}
-                </button>
-              </div>
-            </div>
-          )}
+          <ProximoPaso
+            s={s}
+            puede={puede}
+            ocupado={ocupado}
+            accion={accion}
+            onHecho={(r) => {
+              setS((prev) => ({ ...r, otras: prev?.otras }));
+              onCambio();
+            }}
+          />
 
-          {s.respuesta && !decidir && (
+          {s.respuesta && (
             <div style={{ fontSize: 13, padding: "8px 12px", borderRadius: 10, background: "hsl(var(--muted))" }}>
-              <strong>Respuesta al médico:</strong> {s.respuesta}
+              <strong>{s.estado === "rechazada" ? "Motivo del rechazo" : "Mensaje de Dirección Médica"}:</strong> {s.respuesta}
             </div>
           )}
 
@@ -503,13 +538,6 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
             </div>
             {!s.pideConstancia && <div style={S.small}>Este motivo no lleva constancia.</div>}
           </section>
-
-          {s.estado !== "rechazada" && s.estado !== "anulada" && (
-            <section>
-              <h3 className="can-h3">Central de Turnos</h3>
-              <SeccionCentral s={s} puede={puede} ocupado={ocupado} accion={accion} />
-            </section>
-          )}
 
           <section>
             <h3 className="can-h3">Historial</h3>

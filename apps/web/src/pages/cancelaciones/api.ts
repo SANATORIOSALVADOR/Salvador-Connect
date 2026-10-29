@@ -145,6 +145,7 @@ export const ACCION_EVENTO: Record<string, string> = {
   central: "Informó a Central de Turnos",
   central_quitada: "Quitó la marca de Central de Turnos informada",
   agenda_cancelada: "Canceló la agenda en el sistema de turnos (Central de Turnos)",
+  devuelta: "Devolvió la solicitud a Dirección Médica (Central de Turnos)",
   agenda_restituida: "Deshizo la cancelación de la agenda (vuelve a Central de Turnos)",
   nota: "Nota interna",
 };

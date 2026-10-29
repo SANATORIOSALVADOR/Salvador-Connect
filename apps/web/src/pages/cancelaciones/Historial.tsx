@@ -11,7 +11,7 @@ const TIPOS: { value: Tipo; label: string; acciones: string[] }[] = [
   { value: "", label: "Todo", acciones: [] },
   { value: "medico", label: "Médicos", acciones: ["creada", "anulada"] },
   { value: "direccion", label: "Dirección Médica", acciones: ["en_analisis", "aceptada", "rechazada", "reabierta", "constancia", "constancia_quitada", "central", "central_quitada"] },
-  { value: "central", label: "Central de Turnos", acciones: ["agenda_cancelada", "agenda_restituida"] },
+  { value: "central", label: "Central de Turnos", acciones: ["agenda_cancelada", "agenda_restituida", "devuelta"] },
   { value: "notas", label: "Notas", acciones: ["nota"] },
 ];
 

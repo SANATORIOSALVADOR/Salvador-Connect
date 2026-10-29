@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
-import { CalendarCheck2, CalendarX2, FileSpreadsheet, Phone, RotateCcw, UserRound } from "lucide-react";
+import { CalendarCheck2, CalendarX2, FileSpreadsheet, Phone, RotateCcw, Trash2, Undo2, UserRound } from "lucide-react";
 import { avisar } from "@/components/feedback";
 import { Kpi, S, SegControl, Vacio } from "../administracion/ui";
 import { api, fechaAr, fechaHora, fechaLarga, resumenDias, type Solicitud } from "./api";
+import { eliminarSolicitud } from "./Decision";
 import { BarraFiltros, FILTROS_VACIOS, diasHasta, hayFiltros, hoyLocal, pasaFiltros, serviciosDe, UrgenciaPill, type Filtros, type Puede } from "./compartido";
 
 // Solapa «Central de Turnos»: las solicitudes que Dirección Médica aceptó llegan acá para que el personal de turnos
 // cancele la agenda en el sistema de agendas y la marque como «agenda cancelada».
 
-type Vista = "por_cancelar" | "canceladas" | "todas";
+export type VistaCentral = "por_cancelar" | "canceladas" | "todas";
 
-export function Central({ filas, puede, onAbrir, onCambio }: { filas: Solicitud[]; puede: Puede; onAbrir: (id: number) => void; onCambio: () => void }) {
-  const [vista, setVista] = useState<Vista>("por_cancelar");
+export function Central({ filas, puede, vista, setVista, onAbrir, onCambio }: { filas: Solicitud[]; puede: Puede; vista: VistaCentral; setVista: (v: VistaCentral) => void; onAbrir: (id: number) => void; onCambio: () => void }) {
   const [f, setF] = useState<Filtros>(FILTROS_VACIOS);
   const [urgentes, setUrgentes] = useState(false);
 
@@ -123,7 +123,7 @@ export function Central({ filas, puede, onAbrir, onCambio }: { filas: Solicitud[
 
 /** Lo que necesita Central para cancelar la agenda, sin abrir el detalle. */
 function Tarjeta({ s, puede, onAbrir, onCambio }: { s: Solicitud; puede: Puede; onAbrir: (id: number) => void; onCambio: () => void }) {
-  const [marcando, setMarcando] = useState(false);
+  const [marcando, setMarcando] = useState<"cancelar" | "devolver" | null>(null);
   const [nota, setNota] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const cancelada = s.estado === "agenda_cancelada";
@@ -131,9 +131,14 @@ function Tarjeta({ s, puede, onAbrir, onCambio }: { s: Solicitud; puede: Puede; 
   const marcar = async () => {
     setOcupado(true);
     try {
-      await api(`/api/cancelaciones/${s.id}/agenda-cancelada`, { method: "POST", body: { nota } });
-      avisar(`Agenda de ${s.prestador} marcada como cancelada.`);
-      setMarcando(false);
+      if (marcando === "devolver") {
+        await api(`/api/cancelaciones/${s.id}/devolver`, { method: "POST", body: { motivo: nota } });
+        avisar(`${s.numero} devuelta a Dirección Médica.`);
+      } else {
+        await api(`/api/cancelaciones/${s.id}/agenda-cancelada`, { method: "POST", body: { nota } });
+        avisar(`Agenda de ${s.prestador} marcada como cancelada.`);
+      }
+      setMarcando(null);
       setNota("");
       onCambio();
     } catch (err) {
@@ -207,27 +212,44 @@ function Tarjeta({ s, puede, onAbrir, onCambio }: { s: Solicitud; puede: Puede; 
       </div>
 
       {marcando && (
-        <div className="can-marcar">
+        <div className={`can-marcar${marcando === "devolver" ? " devolver" : ""}`}>
+          {marcando === "devolver" && <strong>Devolver a Dirección Médica</strong>}
           <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span className="field-label">Observación (opcional)</span>
-            <textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} maxLength={1000} autoFocus placeholder="Ej.: Se avisó a los 6 pacientes; 4 reprogramados para el 15/12." />
+            <span className="field-label">{marcando === "devolver" ? "¿Por qué no se puede cancelar? (lo ve Dirección Médica)" : "Observación (opcional)"}</span>
+            <textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} maxLength={1000} autoFocus placeholder={marcando === "devolver" ? "Ej.: El médico no tiene agenda ese día; revisar las fechas." : "Ej.: Se avisó a los 6 pacientes; 4 reprogramados para el 15/12."} />
           </label>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
-            <button type="button" className="btn btn-quiet" onClick={() => setMarcando(false)}>Volver</button>
-            <button type="button" className="btn btn-primary" disabled={ocupado} onClick={() => void marcar()}>
-              <CalendarX2 size={15} /> Confirmar: agenda cancelada
-            </button>
+            <button type="button" className="btn btn-quiet" onClick={() => setMarcando(null)}>Volver</button>
+            {marcando === "devolver" ? (
+              <button type="button" className="btn btn-danger" disabled={ocupado || nota.trim().length < 3} onClick={() => void marcar()}>
+                <Undo2 size={15} /> Devolver
+              </button>
+            ) : (
+              <button type="button" className="btn btn-primary" disabled={ocupado} onClick={() => void marcar()}>
+                <CalendarCheck2 size={15} /> Confirmar: agenda cancelada
+              </button>
+            )}
           </div>
         </div>
       )}
 
       <footer className="can-tarjeta-pie">
-        <button type="button" className="btn btn-quiet" onClick={() => onAbrir(s.id)}>Ver solicitud completa</button>
+        <button type="button" className="btn btn-quiet" onClick={() => onAbrir(s.id)}>Ver todo</button>
+        {puede.eliminar && (
+          <button type="button" className="btn btn-quiet" style={{ color: "#b91c1c" }} title="Sacarla del sistema (mal cargada o duplicada)" onClick={() => void eliminarSolicitud(s).then((ok) => ok && onCambio())}>
+            <Trash2 size={15} /> Eliminar
+          </button>
+        )}
         <span style={{ flex: 1 }} />
         {!cancelada && puede.central && !marcando && (
-          <button type="button" className="btn btn-primary" onClick={() => setMarcando(true)}>
-            <CalendarX2 size={15} /> Marcar agenda cancelada
-          </button>
+          <>
+            <button type="button" className="btn btn-quiet" onClick={() => { setNota(""); setMarcando("devolver"); }} title="Si no se puede cancelar (fechas o datos que no cierran)">
+              <Undo2 size={15} /> Devolver a Dirección
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => { setNota(""); setMarcando("cancelar"); }}>
+              <CalendarX2 size={15} /> Marcar agenda cancelada
+            </button>
+          </>
         )}
         {!cancelada && !puede.central && <span style={S.small}>Solo el personal de Central de Turnos la marca como cancelada.</span>}
       </footer>
@@ -310,12 +332,27 @@ export function SeccionCentral({ s, puede, ocupado, accion }: { s: Solicitud; pu
       <div style={{ flex: 1, minWidth: 0 }}>
         <strong>En Central de Turnos: falta cancelar la agenda</strong> <UrgenciaPill desde={s.fechaDesde} hasta={s.fechaHasta} />
         {puede.central ? (
-          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Observación (opcional): pacientes avisados, reprogramados…" maxLength={1000} style={{ flex: "1 1 240px" }} aria-label="Observación" />
-            <button type="button" className="btn btn-primary" disabled={ocupado} onClick={() => void accion("/agenda-cancelada", { nota }, "POST", "Agenda marcada como cancelada.").then(() => setNota(""))}>
-              <CalendarCheck2 size={15} /> Marcar agenda cancelada
-            </button>
-          </div>
+          <>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Observación (opcional): pacientes avisados, reprogramados…" maxLength={1000} style={{ flex: "1 1 240px" }} aria-label="Observación" />
+              <button type="button" className="btn btn-primary" disabled={ocupado} onClick={() => void accion("/agenda-cancelada", { nota }, "POST", "Agenda marcada como cancelada.").then(() => setNota(""))}>
+                <CalendarCheck2 size={15} /> Marcar agenda cancelada
+              </button>
+            </div>
+            {deshacer === null ? (
+              <button type="button" className="btn btn-quiet" style={{ marginTop: 6, fontSize: 12.5 }} onClick={() => setDeshacer("")}>
+                <Undo2 size={14} /> No se puede cancelar: devolver a Dirección Médica
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <input value={deshacer} onChange={(e) => setDeshacer(e.target.value)} placeholder="¿Por qué? Lo ve Dirección Médica" maxLength={500} style={{ flex: "1 1 220px" }} autoFocus aria-label="Motivo para devolver" />
+                <button type="button" className="btn btn-quiet" onClick={() => setDeshacer(null)}>Volver</button>
+                <button type="button" className="btn btn-danger" disabled={ocupado || deshacer.trim().length < 3} onClick={() => void accion("/devolver", { motivo: deshacer }, "POST", "Devuelta a Dirección Médica.").then(() => setDeshacer(null))}>
+                  Devolver
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div style={{ ...S.small, marginTop: 4 }}>La marca el personal de Central de Turnos cuando la cancela en el sistema de agendas.</div>
         )}

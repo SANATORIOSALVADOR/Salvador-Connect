@@ -12,6 +12,15 @@ Versión digital de la «Planilla de reprogramación de agenda de consultorio �
 - Web pública (sin login): `apps/web/src/pages/cancelaciones/Publico.tsx` en la ruta **`/cancelar-agenda`**
   (fuera de `Protected` en `App.tsx`). Inicio con dos opciones: **Pedir cancelación de agenda** / **Ver mi solicitud**
   (número de trámite + DNI; `?n=CAN-0001` lo precarga). Guarda en `localStorage` los trámites hechos desde ese celular.
+- Arriba, **barra de avance** (`Flujo`): Nuevas → En análisis → Por cancelar (Central) → Agenda cancelada, con cantidades;
+  cada paso lleva a su solapa / filtro. Debajo, link a las cerradas (rechazadas / anuladas).
+- Dirección Médica decide desde **tarjetas** (`Decision.tsx` → `TarjetaSolicitud`, `PanelDecision`): «Tomar para análisis»,
+  «Rechazar» (motivo obligatorio) y **«Aceptar y enviar a Central»** (pasa sola a la solapa Central). El detalle muestra
+  un recuadro **«Próximo paso»** con los mismos botones según el estado.
+- Central puede **devolver a Dirección Médica** (`POST /:id/devolver`, motivo obligatorio → `en_analisis`, evento
+  `devuelta`); la tarjeta de Dirección muestra «Central de Turnos la devolvió: …».
+- **Eliminar** (acción `eliminar`): en tarjetas y detalle, con confirmación; borra del todo y deja una línea en el log
+  del servidor (`[cancelaciones] CAN-000X … eliminada por usuario`).
 - Pantalla `/cancelaciones` con tres solapas (`?vista=solicitudes|central|historial`):
   - **Solicitudes** (`Cancelaciones.tsx`): bandeja de Dirección Médica — KPIs, filtros por estado, búsqueda, servicio,
     motivo, período y excepcionales.
@@ -51,7 +60,7 @@ Versión digital de la «Planilla de reprogramación de agenda de consultorio �
 ## Permisos
 
 Módulo `cancelaciones` (niveles Ver / Cargar y editar / Control total, sin sectores). Acciones:
-`ver`, `exportar` (ver) · `central` (editar: Central de Turnos, marcar / deshacer agenda cancelada, notas) ·
+`ver`, `exportar` (ver) · `central` (editar: Central de Turnos, marcar / deshacer agenda cancelada, devolver a Dirección, notas) ·
 `resolver` (editar: análisis, aceptar, rechazar, reabrir, seguimiento, notas) · `eliminar` (total).
 Perfil típico de Central de Turnos: nivel Ver + acción `central`.
 Avisos: campanita y Inicio muestran solicitudes sin resolver (alta si hay excepcionales) y, a quien tiene `central`,

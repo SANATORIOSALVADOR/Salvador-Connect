@@ -452,6 +452,16 @@ router.post("/cancelaciones/:id/agenda-restituir", requireAccion("cancelaciones"
   }),
 );
 
+/** Central no puede cancelar la agenda (datos que no cierran, falta algo): la devuelve a Dirección Médica con el motivo. */
+router.post("/cancelaciones/:id/devolver", requireAccion("cancelaciones", "central"), (req, res) =>
+  cambiar(req, res, (f) => {
+    if (f.estado !== "aceptada") return { error: [409, "Solo se devuelve una solicitud que está en Central de Turnos por cancelar."] };
+    const motivo = textoLargo(req.body?.motivo, 500);
+    if (motivo.length < 3) return { error: [400, "Indicá por qué se devuelve: lo ve Dirección Médica."] };
+    return { set: { estado: "en_analisis", respuesta: "", resueltoPorId: null, resueltoPor: "", resueltoAt: null }, evento: ["devuelta", motivo] };
+  }),
+);
+
 /** Nota interna en la línea de tiempo (no la ve el médico). La agregan Dirección Médica o Central de Turnos. */
 const puedeNota: RequestHandler = (req, res, next) => {
   if (can(req.authUser, "cancelaciones", "resolver") || can(req.authUser, "cancelaciones", "central")) return next();
@@ -468,11 +478,16 @@ router.post("/cancelaciones/:id/nota", puedeNota, (req, res) =>
 router.delete("/cancelaciones/:id", requireAccion("cancelaciones", "eliminar"), async (req, res): Promise<void> => {
   try {
     const id = Number(req.params.id);
-    const borradas = Number.isInteger(id) ? await db.delete(medCancelacionesTable).where(eq(medCancelacionesTable.id, id)).returning({ id: medCancelacionesTable.id }) : [];
+    const borradas = Number.isInteger(id)
+      ? await db.delete(medCancelacionesTable).where(eq(medCancelacionesTable.id, id)).returning({ id: medCancelacionesTable.id, prestador: medCancelacionesTable.prestador, estado: medCancelacionesTable.estado })
+      : [];
     if (!borradas.length) {
       res.status(404).json({ message: "Solicitud no encontrada." });
       return;
     }
+    // Se borra del todo (mal cargada / duplicada); queda constancia en el log del servidor.
+    const b = borradas[0];
+    console.info(`[cancelaciones] ${numeroTramite(b.id)} (${b.prestador}, ${b.estado}) eliminada por ${req.authUser!.username}${req.query.motivo ? `: ${limpio(req.query.motivo, 200)}` : ""}`);
     res.status(204).end();
   } catch (err) {
     console.error("[cancelaciones baja]", err);
