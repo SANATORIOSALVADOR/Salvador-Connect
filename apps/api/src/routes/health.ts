@@ -41,8 +41,16 @@ router.get("/acceso", (_req, res) => {
   } catch {
     siteUrl = null;
   }
-  const ip = (process.env.SERVER_IP || "").trim();
-  res.json({ siteUrl, nombre, ip: /^\d{1,3}(\.\d{1,3}){3}$/.test(ip) ? ip : null });
+  const ip0 = (process.env.SERVER_IP || "").trim();
+  const ip = /^\d{1,3}(\.\d{1,3}){3}$/.test(ip0) ? ip0 : null;
+  // Dirección directa por IP y puerto de Docker (WEB_BIND, ej. 172.20.1.134:8085): la que sirve para celulares,
+  // que no conocen el nombre, y la que va en el QR de Cancelaciones. El puerto 80 es de otro nginx del servidor.
+  const bind = (process.env.WEB_BIND || "").trim();
+  const m = bind.match(/^(?:(\d{1,3}(?:\.\d{1,3}){3}):)?(\d{1,5})$/);
+  const hostIp = m?.[1] && m[1] !== "0.0.0.0" ? m[1] : ip;
+  const puerto = m?.[2] ?? null;
+  const ipUrl = hostIp && puerto ? `http://${hostIp}${puerto === "80" ? "" : `:${puerto}`}` : null;
+  res.json({ siteUrl, nombre, ip, ipUrl });
 });
 
 export default router;

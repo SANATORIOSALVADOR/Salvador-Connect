@@ -541,20 +541,13 @@ function DetalleModal({ id, puede, onClose, onCambio, onAbrir }: { id: number; p
 
 // ---------------------------------------------------------------------------------------------
 
-/** Dirección del formulario para el QR: con la IP del servidor (los celulares no conocen el nombre local). */
-function urlSugerida(cfg: { siteUrl: string | null; ip: string | null } | null): string {
-  const base = (() => {
-    if (cfg?.siteUrl && cfg.ip) {
-      try {
-        const u = new URL(cfg.siteUrl);
-        u.hostname = cfg.ip;
-        return u.origin;
-      } catch {
-        /* sigue abajo */
-      }
-    }
-    return window.location.origin;
-  })();
+/**
+ * Dirección del formulario para el QR: IP + puerto de Docker (ej. http://172.20.1.134:8085). Los celulares no conocen
+ * el nombre local, y por IP sin puerto (80) responde otro nginx del servidor. Si se entra por IP, se usa esa misma.
+ */
+function urlSugerida(cfg: { ipUrl?: string | null } | null): string {
+  const enIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(window.location.hostname);
+  const base = enIp ? window.location.origin : cfg?.ipUrl || window.location.origin;
   return base.replace(/\/+$/, "") + RUTA_PUBLICA;
 }
 
@@ -646,7 +639,7 @@ ${apariencia.logo ? `<img class="logo" src="${apariencia.logo}" alt="">` : ""}
           <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             <span className="field-label">Dirección que abre el QR</span>
             <input value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
-            <span className="field-hint">Usa la IP del servidor porque los celulares no conocen el nombre «sanatorio.salvador.connect». Por ahora funciona solo dentro de la red / Wi-Fi del sanatorio.</span>
+            <span className="field-hint">Usa la IP y el puerto del sistema (ej. http://172.20.1.134:8085): los celulares no conocen el nombre «sanatorio.salvador.connect». Por ahora funciona solo dentro de la red / Wi-Fi del sanatorio.</span>
           </label>
         </div>
       </div>
